@@ -1,4 +1,4 @@
-"""Fast binary-to-text codecs for code-point-limited channels."""
+"""Fast binary-to-text codecs."""
 
 from radixly._about import __author__ as __author__
 from radixly._about import __copyright__ as __copyright__
