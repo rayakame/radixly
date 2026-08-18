@@ -1,0 +1,51 @@
+[project]
+name = "radixly"
+version = "0.1.0"
+description = "Fast binary-to-text codecs for code-point-limited channels: base32768 and friends"
+readme = "README.md"
+authors = [
+    { name = "Christopher", email = "github.android206@passmail.net" }
+]
+requires-python = ">=3.11"
+dependencies = []
+license = "MIT"
+license-files = ["LICENSE"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: C",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Topic :: Software Development :: Libraries",
+]
+
+[build-system]
+requires = ["setuptools >= 77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+    { include-group = "nox" },
+    { include-group = "pytest" },
+    { include-group = "ruff" },
+]
+nox = [
+    "nox>=2026.8.17",
+]
+pytest = [
+    "pytest>=9.1.1",
+]
+ruff = [
+    "ruff>=0.16.3",
+]
+
+[tool.setuptools]
+ext-modules = [
+  {name = "radixly._core", sources=["src/radixly/_core.c"]}
+]
+
+# Keep C sources out of binary wheels; sdists still include them via ext-modules.
+[tool.setuptools.exclude-package-data]
+radixly = ["*.c"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
