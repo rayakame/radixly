@@ -1,6 +1,6 @@
 [project]
 name = "radixly"
-version = "0.1.0"
+version = "0.1.0.dev0"
 description = "Fast binary-to-text codecs for code-point-limited channels: base32768 and friends"
 readme = "README.md"
 authors = [
