@@ -1,0 +1,48 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "en-US"
+
+reviews:
+  # Stricter of the two profiles; flags nitpicks "chill" would let pass.
+  profile: "assertive"
+  request_changes_workflow: true
+  high_level_summary: true
+  poem: false
+  review_status: true
+
+  auto_review:
+    enabled: true
+    drafts: false
+
+  path_filters:
+    # Vendored conformance vectors (qntm's test-data, incl. binary files) —
+    # never authored here, nothing to review.
+    - "!tests/vectors/**"
+    - "!uv.lock"
+
+  path_instructions:
+    - path: "src/radixly/*.c"
+      instructions: |
+        This is a hand-written CPython extension parsing untrusted input.
+        Prioritize, in order: reference counting errors (leaks and
+        over-decrefs, especially on error paths); error paths that return
+        NULL without a Python exception set, or set an exception without
+        returning NULL; missing bounds checks on attacker-controlled values
+        before any table indexing; integer overflow in size computations.
+        Decoding is strict and canonical by design — do not suggest lenient
+        parsing modes, fallbacks, or error tolerance.
+    - path: "tests/**"
+      instructions: |
+        Every test must be able to fail: flag vacuous tests, assertions that
+        cannot trigger, and parametrizations that can silently collect zero
+        cases. tests/reference/ is the differential oracle for the C
+        extension: it optimizes for obvious correctness over speed and is
+        never imported by the shipped package — do not suggest moving it
+        into src/ or importing package code from it.
+    - path: "pyproject.toml"
+      instructions: |
+        The package ships a compiled C extension with no pure-Python
+        fallback. Do not suggest adding abi3/limited-API, pure-Python
+        wheels, or runtime dependencies.
+
+chat:
+  auto_reply: true
