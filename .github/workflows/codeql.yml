@@ -28,6 +28,9 @@ jobs:
             build-mode: manual
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Nothing in this workflow pushes; don't leave the token in git config.
+          persist-credentials: false
       - if: matrix.build-mode == 'manual'
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
