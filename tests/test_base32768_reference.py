@@ -2,7 +2,9 @@
 
 Vectors are qntm's official test-data: every ``pairs/*.bin`` payload has a
 sibling ``*.txt`` holding its expected encoding, and ``bad/*.txt`` holds
-strings that must be rejected.
+strings that must be rejected. The one exception is ``seven-bit-final``,
+generated locally by running qntm's actual JS (see the vectors README) —
+his vectors only ever exercise three of the 128 seven-bit characters.
 """
 
 import re
@@ -29,9 +31,14 @@ PURE_PADDING = LOOKUP_E[7][127]  # 'ʟ', a 7-bit character that is all filler
 # LOOKUP_D is insertion-ordered: the 15-bit repertoire, then the 7-bit one.
 ALPHABET: str = "".join(LOOKUP_D)
 
-# Cs surrogates and Cn unassigned code points are not safely transportable;
+# Everything a transport could mangle: Cs surrogates and Cn unassigned code
+# points are not safely transportable; Cc/Cf controls and format characters
+# (ZWJ, bidi controls) get stripped or reordered; Zs/Zl/Zp whitespace gets
+# trimmed or collapsed; Co private-use has no interoperable meaning;
 # Mn/Mc/Me combining marks would merge with a neighbour and change the string.
-UNSAFE_CATEGORIES = frozenset({"Cs", "Cn", "Mn", "Mc", "Me"})
+UNSAFE_CATEGORIES = frozenset(
+    {"Cc", "Cf", "Cn", "Co", "Cs", "Mc", "Me", "Mn", "Zl", "Zp", "Zs"}
+)
 
 
 @pytest.mark.parametrize("bin_path", PAIRS, ids=lambda path: path.stem)
@@ -48,11 +55,56 @@ def test_decode_conformance(bin_path: Path) -> None:
     assert decode(encoded) == payload
 
 
-@pytest.mark.parametrize("name", sorted(BAD_CASES), ids=sorted(BAD_CASES))
+@pytest.mark.parametrize("name", sorted(BAD_CASES))
 def test_decode_rejects_bad_input(name: str) -> None:
     bad = (VECTOR_DIR / "bad" / f"{name}.txt").read_text(encoding="utf-8")
     with pytest.raises(ValueError, match=re.escape(BAD_CASES[name])):
         decode(bad)
+
+
+VALID_8_CHARS = encode(bytes(15))  # 120 bits: 8 full 15-bit characters, no padding
+
+HOSTILE_NON_BMP: dict[str, tuple[str, str]] = {
+    "astral": (
+        "\U0001f600",
+        "invalid Base32768 character '😀' (U+1F600) at index 0",
+    ),
+    "high-surrogate": (
+        "\ud800",
+        "invalid Base32768 character '\\ud800' (U+D800) at index 0",
+    ),
+    "low-surrogate": (
+        "\udfff",
+        "invalid Base32768 character '\\udfff' (U+DFFF) at index 0",
+    ),
+    "astral-mid-string": (
+        VALID_8_CHARS + "\U0001f600" + VALID_8_CHARS,
+        "invalid Base32768 character '😀' (U+1F600) at index 8",
+    ),
+    "surrogate-mid-string": (
+        VALID_8_CHARS + "\udc00" + VALID_8_CHARS,
+        "invalid Base32768 character '\\udc00' (U+DC00) at index 8",
+    ),
+}
+
+
+@pytest.mark.parametrize(
+    ("string", "message"), HOSTILE_NON_BMP.values(), ids=HOSTILE_NON_BMP
+)
+def test_decode_rejects_astral_and_surrogate_input(string: str, message: str) -> None:
+    """Astral characters and lone surrogates must be rejected with a position.
+
+    The alphabet is BMP-only by design, so both are invalid by definition —
+    but they stress two different parts of the C decoder's defense (M4): a
+    lone surrogate's code point is below 0x10000 and goes through the reverse
+    table, relying on those 2048 entries being -1, while an astral code point
+    would index past the table entirely, relying on the cp < 0x10000 bounds
+    guard. The differential harness asserts C rejects the same inputs at the
+    same positions as the reference, which only means something on non-BMP
+    input once the reference has pinned what rejection looks like here.
+    """
+    with pytest.raises(ValueError, match=re.escape(message)):
+        decode(string)
 
 
 def test_decode_rejects_lone_padding_character() -> None:
@@ -80,6 +132,20 @@ def test_decode_rejects_appended_padding_character() -> None:
 def test_decode_accepts_canonical_seven_padding_bits() -> None:
     """num_pad == 7 is canonical when the final character is 15-bit."""
     assert decode(encode(b"\x00")) == b"\x00"
+
+
+def test_seven_bit_final_vector_pins_fresh_repertoire() -> None:
+    """qntm's vectors only ever use z = 47, 63, 127 of the 128 seven-bit
+    characters, so a transcription error in the 'ƀƟɀʟ' pair string could
+    survive them. The locally generated seven-bit-final vector pins a fourth,
+    from the 'ƀ'..'Ɵ' block they never touch. This test guards the vector
+    itself: regenerating it from a payload whose encoding does not end in a
+    fresh 7-bit character would silently drop that coverage.
+    """
+    encoded = (VECTOR_DIR / "pairs" / "seven-bit-final.txt").read_text(encoding="utf-8")
+    num_z_bits, z = LOOKUP_D[encoded[-1]]
+    assert num_z_bits == 7
+    assert z < 32, "final character must come from the 'ƀ'..'Ɵ' block"
 
 
 def test_alphabet_sizes() -> None:
@@ -125,4 +191,4 @@ def test_vectors_are_present() -> None:
     assert len(single_bytes) == 256, (
         f"expected 256 single-byte cases, got {len(single_bytes)}"
     )
-    assert len(PAIRS) == 264
+    assert len(PAIRS) == 265  # qntm's 264 + the local seven-bit-final vector

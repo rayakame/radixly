@@ -128,12 +128,15 @@ def decode(string: str) -> bytes:
             f"{string[-1]!r} at index {last_index} carries no payload bits"
         )
 
+    # The drain loop masks acc after every byte, so acc holds exactly num_pad
+    # bits here. Comparing all of acc — no mask — makes stray high bits
+    # (payload that never reached the output) fail this check instead of
+    # being silently stripped.
     expected_padding = (1 << num_pad) - 1
-    padding = acc & expected_padding
-    if padding != expected_padding:
+    if acc != expected_padding:
         raise ValueError(
             f"expected {num_pad} padding bits set to 1 in final character "
-            f"at index {last_index}, got 0b{padding:0{num_pad}b}"
+            f"at index {last_index}, got 0b{acc:0{num_pad}b}"
         )
 
     return bytes(out)
