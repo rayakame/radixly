@@ -83,6 +83,10 @@ why the object layer must not add Python call frames).
 - **M4** — decode: reverse table int16_t[0x10000] filled at module init, every
   lookup guarded by cp < 0x10000 (attacker-controlled input), padding verification,
   DecodeError with position, error paths DECREF before returning NULL.
+  Deferred here from the M1 review: restructure error assertions to shared
+  (failure kind, position) data instead of pinned prose messages, and give the
+  reference's exceptions a structured position, so C-vs-reference error
+  behavior can be diffed mechanically.
 - **M5** — hardening: -Wall -Wextra -Werror, suite under ASan/UBSan in CI, decode
   fuzzing (must raise, never crash/hang), differential tests C vs reference for
   every length from 0 up.
