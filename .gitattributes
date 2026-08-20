@@ -1,0 +1,6 @@
+# Conformance vectors are byte-exact payloads; git must never touch them.
+# case10.bin is a lone 0x0A and case13.bin a lone 0x0D — both pass git's
+# text heuristic, so without this line autocrlf/text=auto could corrupt
+# them on checkout. The .txt vectors' no-trailing-newline property is
+# load-bearing too.
+tests/vectors/** binary

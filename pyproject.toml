@@ -33,6 +33,7 @@ nox = [
 ]
 pytest = [
     "pytest>=9.1.1",
+    "hypothesis>=6.100",
 ]
 ruff = [
     "ruff>=0.16.3",

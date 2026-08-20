@@ -1,0 +1,7 @@
+# Ship the complete test suite in the sdist: the reference oracle and the
+# conformance vectors are what let a from-source builder (distro packager,
+# --no-binary install) actually validate the compiled extension. Without
+# graft, setuptools ships the top-level test files but not reference/ or
+# vectors/, leaving an uncollectable suite.
+graft tests
+global-exclude __pycache__ *.py[cod]
