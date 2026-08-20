@@ -19,7 +19,7 @@ PAIRS: list[Path] = sorted((VECTOR_DIR / "pairs").rglob("*.bin"))
 
 # Each bad vector pins both the failure mode and the position it occurs at.
 BAD_CASES: dict[str, str] = {
-    "bad-padding": "expected 4 padding bits set to 1 at end of input, got 0b0000",
+    "bad-padding": "expected 4 padding bits set to 1 in final character at index 3, got 0b0000",
     "bad0": "7-bit character 'ƀ' at index 0, only valid at index 2",
     "not-base32768-char": "invalid Base32768 character 'A' (U+0041) at index 111",
 }
@@ -125,3 +125,4 @@ def test_vectors_are_present() -> None:
     assert len(single_bytes) == 256, (
         f"expected 256 single-byte cases, got {len(single_bytes)}"
     )
+    assert len(PAIRS) == 264

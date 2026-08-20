@@ -132,8 +132,8 @@ def decode(string: str) -> bytes:
     padding = acc & expected_padding
     if padding != expected_padding:
         raise ValueError(
-            f"expected {num_pad} padding bits set to 1 at end of input, "
-            f"got 0b{padding:0{num_pad}b}"
+            f"expected {num_pad} padding bits set to 1 in final character "
+            f"at index {last_index}, got 0b{padding:0{num_pad}b}"
         )
 
     return bytes(out)
