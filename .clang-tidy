@@ -1,0 +1,11 @@
+# Modest starter set: real-bug detectors on, style churn off.
+# Tightened at M5 alongside -Wall -Wextra -Werror and the sanitizers.
+Checks: >
+  bugprone-*,
+  clang-analyzer-*,
+  performance-*,
+  portability-*,
+  -bugprone-easily-swappable-parameters
+# Only diagnose our code, not Python.h internals.
+HeaderFilterRegex: 'src/radixly/.*'
+WarningsAsErrors: ''
