@@ -8,6 +8,7 @@ his vectors only ever exercise three of the 128 seven-bit characters.
 """
 
 import re
+import typing
 import unicodedata
 from pathlib import Path
 
@@ -170,7 +171,9 @@ def test_alphabet_has_no_unsafe_characters() -> None:
 
 
 @pytest.mark.parametrize("form", ["NFC", "NFD", "NFKC", "NFKD"])
-def test_alphabet_is_normalization_stable(form: str) -> None:
+def test_alphabet_is_normalization_stable(
+    form: typing.Literal["NFC", "NFD", "NFKC", "NFKD"],
+) -> None:
     """Encoded text must survive any normalization a transport might apply.
 
     Joined rather than per-character, so composition across a character
