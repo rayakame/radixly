@@ -3,6 +3,7 @@
 Checks: >
   bugprone-*,
   cert-*,
+  hicpp-signed-bitwise,
   clang-analyzer-*,
   misc-*,
   modernize-*,
@@ -12,6 +13,11 @@ Checks: >
   -bugprone-easily-swappable-parameters,
   -misc-include-cleaner,
   -misc-use-internal-linkage
+# Imported individually from the otherwise-disabled hicpp family (2026-08):
+# - hicpp-signed-bitwise: shifts and masks on signed operands are this
+#   codebase's core UB risk (bit-packing codecs); the check fired usefully
+#   on real M2 code (signed XOR accumulator). Enforces unsigned literals
+#   (1u << n) in mask math — accepted cost.
 # Disabled with cause (proven on real output, 2026-08):
 # - bugprone-easily-swappable-parameters: fires "2 adjacent parameters of
 #   similar type ('PyObject *')" on every CPython calling convention —
