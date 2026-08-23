@@ -5,6 +5,7 @@ Checks: >
   cert-*,
   clang-analyzer-*,
   misc-*,
+  modernize-*,
   performance-*,
   portability-*,
   readability-*,

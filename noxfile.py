@@ -77,7 +77,9 @@ def _write_compiledb() -> None:
         {
             "directory": str(Path.cwd()),
             "file": path,
-            "arguments": ["cc", "-I", include, "-c", path],
+            # -std matches PEP 7's target (C11); analysis-side only until the
+            # build pins its own -std with the M5 hardening flags.
+            "arguments": ["cc", "-std=c11", "-I", include, "-c", path],
         }
         for path in sources
     ]
