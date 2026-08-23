@@ -75,9 +75,11 @@ why the object layer must not add Python call frames).
   264 vector pairs + 3 bad vectors vendored under `tests/vectors/` with MIT
   attribution, conformance both directions, Hypothesis round-trip, alphabet
   sanity (categories + 4 normalization forms), error positions pinned in tests.
-- **M2 — CURRENT** — C API bootcamp on a throwaway function: buffer protocol, refcounting
-  ownership, NULL⇔exception convention, METH_O/METH_FASTCALL.
-- **M3** — base32768 encode in C: forward table (static const uint16_t[32768]),
+- **M2 — C API bootcamp: DONE.** Throwaway function written under both METH_O and
+  METH_FASTCALL, all exit paths correct, then deleted with its spike branch as
+  designed. Free rejection message for non-buffer args ("a bytes-like object is
+  required, not 'str'") measured and judged sufficient for the charter.
+- **M3 — CURRENT** — base32768 encode in C: forward table (static const uint16_t[32768]),
   PyUnicode_New(n, 0xFFFF) + PyUnicode_2BYTE_DATA, exact output length up front.
   Pitfall: PyUnicode_New(0, 0xFFFF) returns the UCS-1 empty string.
 - **M4** — decode: reverse table int16_t[0x10000] filled at module init, every
