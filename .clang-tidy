@@ -13,6 +13,11 @@ Checks: >
   -misc-include-cleaner,
   -misc-use-internal-linkage
 # Disabled with cause (proven on real output, 2026-08):
+# - bugprone-easily-swappable-parameters: fires "2 adjacent parameters of
+#   similar type ('PyObject *')" on every CPython calling convention —
+#   METH_O is (PyObject *self, PyObject *arg) by ABI — and even on
+#   Python.h's own inline functions (PyObject_CallMethodOneArg). The
+#   signatures are the platform's, not ours to reorder.
 # - misc-include-cleaner: demands per-symbol internal headers; CPython's
 #   contract is the opposite — include Python.h only, never its internals.
 # - misc-use-internal-linkage: wants PyInit__core static, which would hide
