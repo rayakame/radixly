@@ -49,9 +49,10 @@ ext-modules = [
   {name = "radixly._core", sources=["src/radixly/_core.c"]}
 ]
 
-# Keep C sources out of binary wheels; sdists still include them via ext-modules.
+# Keep C sources and headers out of binary wheels for every (sub)package;
+# sdists still ship them (ext-modules sources + MANIFEST.in headers).
 [tool.setuptools.exclude-package-data]
-radixly = ["*.c"]
+"*" = ["*.c", "*.h"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

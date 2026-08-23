@@ -52,6 +52,12 @@ why the object layer must not add Python call frames).
 - One extension module `radixly._core` (the engine room); public per-codec
   namespaces are thin Python modules. Multiple .c files later still link into the
   single extension.
+- **Layout convention (decided M3, user's call): one folder per codec**, always,
+  even one-file presets — `src/radixly/<codec>/` holds its `__init__.py` (public
+  face), bespoke `.c` if any, generated `_tables.h` if any. Shared C engine lives
+  in `src/radixly/_common/` (M7). `_core.c` stays a wiring hub (module init +
+  method table). Uniformity is deliberate: "where is X?" has one answer for
+  every codec.
 - Multi-phase module init (`PyModuleDef_Init`); table init goes in a `Py_mod_exec`
   slot when it arrives (M4).
 - setuptools backend; extension declared via the experimental
