@@ -59,18 +59,23 @@ why the object layer must not add Python call frames).
   M3 for build-time table codegen: commit a generated header vs switch to setup.py.
 - Python floor >= 3.11. Exceptions root at ValueError; DecodeError carries position.
 - encode() accepts any buffer-protocol object; str input raises TypeError.
+- **Stricter than qntm's reference JS** (which accepts this): a final character
+  that carries zero payload bits — e.g. a lone all-ones 7-bit char — is rejected,
+  so decode is injective (one payload, one accepted spelling). Width-independent
+  rule: reject when final char's bit width <= padding bit count. The C decoder
+  (M4) and every factory codec (M7) must keep this. Decided after probing both
+  implementations live; qntm's decoder demonstrably accepts the redundant form.
 
 ## Roadmap
 
 - **M0 — build plumbing: DONE** (commit 07e9162). Compiled `_core` imports; CI has
   lint + 3.11–3.14 matrix + wheel checks (wheel must contain the .so).
-- **M1 — CURRENT: pure-Python base32768 reference** in `tests/reference/`, written
-  before any codec C. Deliverables: encode/decode + repertoire data (MIT attribution
-  to qntm required), qntm conformance vectors committed under `tests/`, Hypothesis
-  round-trip, alphabet sanity tests (no unassigned/surrogate/combining; stable
-  under all four normalization forms). Round-trip alone proves only internal
-  consistency; vectors pin interop.
-- **M2** — C API bootcamp on a throwaway function: buffer protocol, refcounting
+- **M1 — pure-Python base32768 reference: DONE.** `tests/reference/base32768.py`
+  (drains bytes incrementally — the naive one-bignum decode was O(n²)), qntm's
+  264 vector pairs + 3 bad vectors vendored under `tests/vectors/` with MIT
+  attribution, conformance both directions, Hypothesis round-trip, alphabet
+  sanity (categories + 4 normalization forms), error positions pinned in tests.
+- **M2 — CURRENT** — C API bootcamp on a throwaway function: buffer protocol, refcounting
   ownership, NULL⇔exception convention, METH_O/METH_FASTCALL.
 - **M3** — base32768 encode in C: forward table (static const uint16_t[32768]),
   PyUnicode_New(n, 0xFFFF) + PyUnicode_2BYTE_DATA, exact output length up front.
@@ -78,6 +83,10 @@ why the object layer must not add Python call frames).
 - **M4** — decode: reverse table int16_t[0x10000] filled at module init, every
   lookup guarded by cp < 0x10000 (attacker-controlled input), padding verification,
   DecodeError with position, error paths DECREF before returning NULL.
+  Deferred here from the M1 review: restructure error assertions to shared
+  (failure kind, position) data instead of pinned prose messages, and give the
+  reference's exceptions a structured position, so C-vs-reference error
+  behavior can be diffed mechanically.
 - **M5** — hardening: -Wall -Wextra -Werror, suite under ASan/UBSan in CI, decode
   fuzzing (must raise, never crash/hang), differential tests C vs reference for
   every length from 0 up.

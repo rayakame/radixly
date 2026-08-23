@@ -24,5 +24,5 @@ import typing
 __author__: typing.Final[str] = "rayakame"
 __copyright__: typing.Final[str] = "2026-present, Rayakame"
 __url__: typing.Final[str] = "https://github.com/rayakame/radixly"
-__version__: typing.Final[str] = "0.1.0"
+__version__: typing.Final[str] = "0.1.0.dev0"
 __license__: typing.Final[str] = "MIT"
