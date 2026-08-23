@@ -87,7 +87,9 @@ why the object layer must not add Python call frames).
   (failure kind, position) data instead of pinned prose messages, and give the
   reference's exceptions a structured position, so C-vs-reference error
   behavior can be diffed mechanically.
-- **M5** — hardening: -Wall -Wextra -Werror, suite under ASan/UBSan in CI, decode
+- **M5** — hardening: -Wall -Wextra -Werror, pin -std=c11 in the build (PEP 7
+  target; analysis already parses as C11 via compile_commands.json), suite
+  under ASan/UBSan in CI, decode
   fuzzing (must raise, never crash/hang), differential tests C vs reference for
   every length from 0 up.
 - **M6** — Python object layer: Codec objects (bind C functions as instance

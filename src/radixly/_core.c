@@ -8,7 +8,9 @@ static PyMethodDef radixly_methods[] = {
 static struct PyModuleDef radixly_module = {
     .m_base = PyModuleDef_HEAD_INIT,
     .m_name = "radixly._core",
-    .m_doc = "C implementations of radixly's encode/decode routines. Private module: import radixly's public API instead! Names and signatures here may change without notice.",
+    .m_doc = "C implementations of radixly's encode/decode routines. Private "
+             "module: import radixly's public API instead! Names and "
+             "signatures here may change without notice.",
     .m_size = 0,
     .m_methods = radixly_methods,
 };

@@ -1,0 +1,24 @@
+# PEP 7 (CPython's C style guide), expressed as clang-format config.
+BasedOnStyle: LLVM
+IndentWidth: 4
+UseTab: Never
+ColumnLimit: 79
+# Function definitions: return type on its own line, opening brace on its
+# own line; control-flow braces stay on the same line (PEP 7).
+BreakAfterReturnType: TopLevelDefinitions
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterFunction: true
+  AfterControlStatement: Never
+  AfterStruct: false
+  AfterEnum: false
+  AfterUnion: false
+  BeforeElse: true
+PointerAlignment: Right
+SpaceBeforeParens: ControlStatements
+IndentCaseLabels: false
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortFunctionsOnASingleLine: None
+AllowShortLoopsOnASingleLine: false
+# Python.h must stay first (PY_SSIZE_T_CLEAN contract) — never reorder.
+SortIncludes: Never
