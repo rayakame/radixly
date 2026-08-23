@@ -88,7 +88,7 @@ def _write_compiledb() -> None:
 
 @nox.session(reuse_venv=True)
 def tidy(session: nox.Session) -> None:
-    """Static analysis for the C sources. Manual for now; hardens into CI at M5."""
+    """Static analysis for the C sources. Enforced in CI; warnings are errors."""
     sync(session, "clang", project=False)
     _write_compiledb()
     sources = [p for p in C_PATHS if p.endswith(".c")]
