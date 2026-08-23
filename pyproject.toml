@@ -46,7 +46,7 @@ ruff = [
 
 [tool.setuptools]
 ext-modules = [
-  {name = "radixly._core", sources=["src/radixly/_core.c"]}
+  {name = "radixly._core", sources=["src/radixly/_core.c", "src/radixly/base32768/base32768.c"]}
 ]
 
 # Keep C sources and headers out of binary wheels for every (sub)package;

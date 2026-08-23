@@ -31,3 +31,9 @@ Checks: >
 # Only diagnose our code, not Python.h internals.
 HeaderFilterRegex: 'src/radixly/.*'
 WarningsAsErrors: '*'
+CheckOptions:
+  # Positive integer literals (and enum constants, which are int by language
+  # rule) are harmless in bit expressions; the check's target is signed
+  # VARIABLES, where shifts can hit UB. Without this, hicpp-signed-bitwise
+  # and modernize-macro-to-enum give contradictory orders about constants.
+  hicpp-signed-bitwise.IgnorePositiveIntegerLiterals: true
