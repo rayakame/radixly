@@ -5,7 +5,7 @@ UseTab: Never
 ColumnLimit: 79
 # Function definitions: return type on its own line, opening brace on its
 # own line; control-flow braces stay on the same line (PEP 7).
-AlwaysBreakAfterReturnType: TopLevelDefinitions
+BreakAfterReturnType: TopLevelDefinitions
 BreakBeforeBraces: Custom
 BraceWrapping:
   AfterFunction: true

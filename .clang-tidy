@@ -1,11 +1,21 @@
-# Modest starter set: real-bug detectors on, style churn off.
-# Tightened at M5 alongside -Wall -Wextra -Werror and the sanitizers.
+# Strict: every enabled check is enforced (warnings are errors). Checks are
+# disabled only with a reason proven against real output, never preemptively.
 Checks: >
   bugprone-*,
+  cert-*,
   clang-analyzer-*,
+  misc-*,
   performance-*,
   portability-*,
-  -bugprone-easily-swappable-parameters
+  readability-*,
+  -bugprone-easily-swappable-parameters,
+  -misc-include-cleaner,
+  -misc-use-internal-linkage
+# Disabled with cause (proven on real output, 2026-08):
+# - misc-include-cleaner: demands per-symbol internal headers; CPython's
+#   contract is the opposite — include Python.h only, never its internals.
+# - misc-use-internal-linkage: wants PyInit__core static, which would hide
+#   it from dlsym and break importing entirely; export is the ABI contract.
 # Only diagnose our code, not Python.h internals.
 HeaderFilterRegex: 'src/radixly/.*'
-WarningsAsErrors: ''
+WarningsAsErrors: '*'
