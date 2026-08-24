@@ -4,15 +4,20 @@ Differential oracle for the C extension. Correctness and readability over
 speed; this module is never shipped in the wheel.
 """
 
-from collections.abc import Mapping
-from types import MappingProxyType
-from typing import Final
+from __future__ import annotations
 
-BITS_PER_CHAR: Final = 15  # Base32768 is a 15-bit encoding
-BITS_PER_BYTE: Final = 8
+import typing
+from types import MappingProxyType
+
+if typing.TYPE_CHECKING:
+    from collections.abc import Mapping
+
+
+BITS_PER_CHAR: typing.Final = 15  # Base32768 is a 15-bit encoding
+BITS_PER_BYTE: typing.Final = 8
 
 # alphabet data copied from qntm's base32768 (github.com/qntm/base32768), MIT licensed, copyright qntm.
-PAIR_STRINGS: Final[tuple[str, ...]] = (
+PAIR_STRINGS: typing.Final[tuple[str, ...]] = (
     "ҠҿԀԟڀڿݠޟ߀ߟကဟႠႿᄀᅟᆀᆟᇠሿበቿዠዿጠጿᎠᏟᐠᙟᚠᛟកសᠠᡟᣀᣟᦀᦟ᧠᧿ᨠᨿᯀᯟᰀᰟᴀᴟ⇠⇿⋀⋟⍀⏟␀␟─❟➀➿⠀⥿⦠⦿⨠⩟⪀⪿⫠⭟ⰀⰟⲀⳟⴀⴟⵀⵟ⺠⻟㇀㇟㐀䶟䷀龿ꀀꑿ꒠꒿ꔀꗿꙀꙟꚠꛟ꜀ꝟꞀꞟꡀꡟ",
     "ƀƟɀʟ",
 )
@@ -38,8 +43,8 @@ def _build_tables() -> tuple[dict[int, tuple[str, ...]], dict[str, tuple[int, in
 
 _lookup_e, _lookup_d = _build_tables()
 
-LOOKUP_E: Final[Mapping[int, tuple[str, ...]]] = MappingProxyType(_lookup_e)
-LOOKUP_D: Final[Mapping[str, tuple[int, int]]] = MappingProxyType(_lookup_d)
+LOOKUP_E: typing.Final[Mapping[int, tuple[str, ...]]] = MappingProxyType(_lookup_e)
+LOOKUP_D: typing.Final[Mapping[str, tuple[int, int]]] = MappingProxyType(_lookup_d)
 
 del _lookup_e, _lookup_d
 
@@ -89,16 +94,16 @@ def decode(string: str) -> bytes:
     for index, char in enumerate(string):
         entry = LOOKUP_D.get(char)
         if entry is None:
-            raise ValueError(
-                f"invalid Base32768 character {char!r} (U+{ord(char):04X}) at index {index}"
-            )
+            msg = f"invalid Base32768 character {char!r} (U+{ord(char):04X}) at index {index}"
+            raise ValueError(msg)
 
         num_z_bits, z = entry
         if num_z_bits != BITS_PER_CHAR and index != last_index:
-            raise ValueError(
+            msg = (
                 f"{num_z_bits}-bit character {char!r} at index {index}, "
                 + f"only valid at index {last_index}"
             )
+            raise ValueError(msg)
 
         acc = (acc << num_z_bits) | z
         num_bits += num_z_bits

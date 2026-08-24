@@ -8,15 +8,17 @@ Sessions arriving with later milestones: asan/ubsan + fuzz (M5), bench (M8).
 
 from __future__ import annotations
 
-from pathlib import Path
+import json
+import pathlib
+import sysconfig
 
 import nox
 
 nox.options.default_venv_backend = "uv"
-nox.options.sessions = ["reformat", "pytest", "pyright", "tidy"]
+nox.options.sessions = ["reformat", "pytest", "pyright", "tidy", "lint"]
 
 PATHS = ["noxfile.py", "src", "tests"]
-C_PATHS = sorted(str(p) for p in Path("src").rglob("*.[ch]"))
+C_PATHS = sorted(str(p) for p in pathlib.Path("src").rglob("*.[ch]"))
 
 
 def sync(session: nox.Session, /, *groups: str, project: bool = True) -> None:
@@ -66,9 +68,7 @@ def reformat_check(session: nox.Session) -> None:
     # Non-mutating counterpart to `reformat`, for CI.
     sync(session, "ruff", "clang", project=False)
     session.run("ruff", "format", "--check", *PATHS, *session.posargs)
-    session.run(
-        "ruff", "check", *PATHS, "--select", "I,RUF022,RUF023", *session.posargs
-    )
+    session.run("ruff", "check", *PATHS, "--select", "I,RUF022,RUF023", *session.posargs)
     if C_PATHS:
         session.run("clang-format", "--dry-run", "-Werror", *C_PATHS)
 
@@ -78,8 +78,6 @@ def lint(session: nox.Session) -> None:
     """Check-only twin of reformat, for CI: fails instead of rewriting."""
     sync(session, "ruff", "clang", project=False)
     session.run("ruff", "check", *PATHS, *session.posargs)
-    if C_PATHS:
-        session.run("clang-format", "--dry-run", "-Werror", *C_PATHS)
 
 
 @nox.session(reuse_venv=True)
@@ -102,19 +100,13 @@ def _write_compiledb() -> None:
     Machine-specific (absolute include paths), so it is generated on demand
     and gitignored rather than committed.
     """
-    import json
-    import sysconfig
 
-    # get_config_var returns Any (None when unset); fail here, at the
-    # source, rather than emitting a null include path for clang-tidy.
-    # sysconfig stubs return Any; the assert turns None/exotic values into
-    # a loud failure here instead of a null include path in the compiledb.
     include: object = sysconfig.get_config_var("INCLUDEPY")  # pyright: ignore[reportAny]
     assert isinstance(include, str), "INCLUDEPY missing from sysconfig"
     sources = [p for p in C_PATHS if p.endswith(".c")]
     entries = [
         {
-            "directory": str(Path.cwd()),
+            "directory": str(pathlib.Path.cwd()),
             "file": path,
             # -std matches PEP 7's target (C11); analysis-side only until the
             # build pins its own -std with the M5 hardening flags.
@@ -122,7 +114,7 @@ def _write_compiledb() -> None:
         }
         for path in sources
     ]
-    Path("compile_commands.json").write_text(json.dumps(entries, indent=2))
+    pathlib.Path("compile_commands.json").write_text(json.dumps(entries, indent=2), encoding="utf-8")
 
 
 @nox.session(reuse_venv=True)

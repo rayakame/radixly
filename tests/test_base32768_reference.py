@@ -7,6 +7,8 @@ generated locally by running qntm's actual JS (see the vectors README) —
 his vectors only ever exercise three of the 128 seven-bit characters.
 """
 
+from __future__ import annotations
+
 import pathlib
 import re
 import typing
@@ -15,7 +17,11 @@ import unicodedata
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
-from reference.base32768 import BITS_PER_CHAR, LOOKUP_D, LOOKUP_E, decode, encode
+from reference.base32768 import BITS_PER_CHAR
+from reference.base32768 import LOOKUP_D
+from reference.base32768 import LOOKUP_E
+from reference.base32768 import decode
+from reference.base32768 import encode
 
 VECTOR_DIR = pathlib.Path(__file__).parent / "vectors" / "base32768"
 PAIRS: list[pathlib.Path] = sorted((VECTOR_DIR / "pairs").rglob("*.bin"))
@@ -37,9 +43,7 @@ ALPHABET: str = "".join(LOOKUP_D)
 # (ZWJ, bidi controls) get stripped or reordered; Zs/Zl/Zp whitespace gets
 # trimmed or collapsed; Co private-use has no interoperable meaning;
 # Mn/Mc/Me combining marks would merge with a neighbour and change the string.
-UNSAFE_CATEGORIES = frozenset(
-    {"Cc", "Cf", "Cn", "Co", "Cs", "Mc", "Me", "Mn", "Zl", "Zp", "Zs"}
-)
+UNSAFE_CATEGORIES = frozenset({"Cc", "Cf", "Cn", "Co", "Cs", "Mc", "Me", "Mn", "Zl", "Zp", "Zs"})
 
 
 def path_id(path: pathlib.Path) -> str:
@@ -93,9 +97,7 @@ HOSTILE_NON_BMP: dict[str, tuple[str, str]] = {
 }
 
 
-@pytest.mark.parametrize(
-    ("string", "message"), HOSTILE_NON_BMP.values(), ids=HOSTILE_NON_BMP
-)
+@pytest.mark.parametrize(("string", "message"), HOSTILE_NON_BMP.values(), ids=HOSTILE_NON_BMP)
 def test_decode_rejects_astral_and_surrogate_input(string: str, message: str) -> None:
     """Astral characters and lone surrogates must be rejected with a position.
 
@@ -195,7 +197,5 @@ def test_vectors_are_present() -> None:
     """Guard against an empty parametrize list silently passing the suite."""
     assert PAIRS
     single_bytes = [p for p in PAIRS if p.parent.name == "single-bytes"]
-    assert len(single_bytes) == 256, (
-        f"expected 256 single-byte cases, got {len(single_bytes)}"
-    )
+    assert len(single_bytes) == 256, f"expected 256 single-byte cases, got {len(single_bytes)}"
     assert len(PAIRS) == 265  # qntm's 264 + the local seven-bit-final vector
