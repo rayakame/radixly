@@ -91,7 +91,10 @@ def pyright(session: nox.Session) -> None:
     itself resolves from src/ via extraPaths + the stub; no build needed.
     """
     sync(session, "nox", "pyright", "pytest", project=False)
-    session.run("basedpyright")
+    # pyright auto-detects the ROOT .venv by default; point it at this
+    # session's venv so the check runs against the locked env we just built.
+    python = pathlib.Path(session.virtualenv.location) / "bin" / "python"
+    session.run("basedpyright", "--pythonpath", str(python))
 
 
 def _write_compiledb() -> None:
