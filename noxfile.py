@@ -86,8 +86,13 @@ def lint(session: nox.Session) -> None:
 
 @nox.session(reuse_venv=True)
 def pyright(session: nox.Session) -> None:
-    sync(session, "pyright")
+    """Type-check with basedpyright (recommended mode; warnings fail).
 
+    The session venv must contain everything the *checked code* imports
+    (pytest/hypothesis for tests, nox for this file) — otherwise imports
+    resolve only via silent fallback to the root .venv, which CI lacks.
+    """
+    sync(session, "nox", "pyright", "pytest")
     session.run("basedpyright")
 
 
