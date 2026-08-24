@@ -8,15 +8,17 @@ Sessions arriving with later milestones: asan/ubsan + fuzz (M5), bench (M8).
 
 from __future__ import annotations
 
-from pathlib import Path
+import json
+import pathlib
+import sysconfig
 
 import nox
 
 nox.options.default_venv_backend = "uv"
-nox.options.sessions = ["reformat", "pytest"]
+nox.options.sessions = ["reformat", "pytest", "pyright", "tidy", "lint"]
 
 PATHS = ["noxfile.py", "src", "tests"]
-C_PATHS = sorted(str(p) for p in Path("src").rglob("*.[ch]"))
+C_PATHS = sorted(str(p) for p in pathlib.Path("src").rglob("*.[ch]"))
 
 
 def sync(session: nox.Session, /, *groups: str, project: bool = True) -> None:
@@ -25,8 +27,9 @@ def sync(session: nox.Session, /, *groups: str, project: bool = True) -> None:
     ``project=False`` skips building/installing radixly itself, for sessions
     that only need a tool — no point compiling a C extension to run a linter.
     """
+    args: list[str]
     if project:
-        args = ["--no-default-groups"]
+        args = ["--no-default-groups", "--reinstall-package", "radixly"]
         for group in groups:
             args += ["--group", group]
     else:
@@ -46,20 +49,43 @@ def sync(session: nox.Session, /, *groups: str, project: bool = True) -> None:
 def reformat(session: nox.Session) -> None:
     """Rewrite files: apply formatting and safe lint fixes."""
     sync(session, "ruff", "clang", project=False)
-    session.run("ruff", "format", *PATHS)
-    session.run("ruff", "check", "--fix-only", *PATHS)
+    session.run("ruff", "format", *PATHS, *session.posargs)
+    session.run(
+        "ruff",
+        "check",
+        *PATHS,
+        "--select",
+        "I,RUF022,RUF023",
+        "--fix",
+        *session.posargs,
+    )
     if C_PATHS:
         session.run("clang-format", "-i", *C_PATHS)
+
+
+@nox.session(name="format-check", reuse_venv=True)
+def reformat_check(session: nox.Session) -> None:
+    # Non-mutating counterpart to `reformat`, for CI.
+    sync(session, "ruff", "clang", project=False)
+    session.run("ruff", "format", "--check", *PATHS, *session.posargs)
+    session.run("ruff", "check", *PATHS, "--select", "I,RUF022,RUF023", *session.posargs)
+    if C_PATHS:
+        session.run("clang-format", "--dry-run", "-Werror", *C_PATHS)
 
 
 @nox.session(reuse_venv=True)
 def lint(session: nox.Session) -> None:
     """Check-only twin of reformat, for CI: fails instead of rewriting."""
     sync(session, "ruff", "clang", project=False)
-    session.run("ruff", "format", "--check", *PATHS)
-    session.run("ruff", "check", *PATHS)
-    if C_PATHS:
-        session.run("clang-format", "--dry-run", "-Werror", *C_PATHS)
+    session.run("ruff", "check", *PATHS, *session.posargs)
+
+
+@nox.session(reuse_venv=True)
+def pyright(session: nox.Session) -> None:
+    """Type-check with basedpyright (recommended mode; warnings fail)."""
+    sync(session, "nox", "pyright", "pytest")
+    python = pathlib.Path(session.virtualenv.location) / "bin" / "python"
+    session.run("basedpyright", "--pythonpath", str(python))
 
 
 def _write_compiledb() -> None:
@@ -68,14 +94,13 @@ def _write_compiledb() -> None:
     Machine-specific (absolute include paths), so it is generated on demand
     and gitignored rather than committed.
     """
-    import json
-    import sysconfig
 
-    include = sysconfig.get_config_var("INCLUDEPY")
+    include: object = sysconfig.get_config_var("INCLUDEPY")  # pyright: ignore[reportAny]
+    assert isinstance(include, str), "INCLUDEPY missing from sysconfig"
     sources = [p for p in C_PATHS if p.endswith(".c")]
     entries = [
         {
-            "directory": str(Path.cwd()),
+            "directory": str(pathlib.Path.cwd()),
             "file": path,
             # -std matches PEP 7's target (C11); analysis-side only until the
             # build pins its own -std with the M5 hardening flags.
@@ -83,7 +108,7 @@ def _write_compiledb() -> None:
         }
         for path in sources
     ]
-    Path("compile_commands.json").write_text(json.dumps(entries, indent=2))
+    pathlib.Path("compile_commands.json").write_text(json.dumps(entries, indent=2), encoding="utf-8")
 
 
 @nox.session(reuse_venv=True)

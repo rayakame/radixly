@@ -7,17 +7,24 @@ generated locally by running qntm's actual JS (see the vectors README) —
 his vectors only ever exercise three of the 128 seven-bit characters.
 """
 
+from __future__ import annotations
+
+import pathlib
 import re
+import typing
 import unicodedata
-from pathlib import Path
 
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
-from reference.base32768 import BITS_PER_CHAR, LOOKUP_D, LOOKUP_E, decode, encode
+from reference.base32768 import BITS_PER_CHAR
+from reference.base32768 import LOOKUP_D
+from reference.base32768 import LOOKUP_E
+from reference.base32768 import decode
+from reference.base32768 import encode
 
-VECTOR_DIR = Path(__file__).parent / "vectors" / "base32768"
-PAIRS: list[Path] = sorted((VECTOR_DIR / "pairs").rglob("*.bin"))
+VECTOR_DIR = pathlib.Path(__file__).parent / "vectors" / "base32768"
+PAIRS: list[pathlib.Path] = sorted((VECTOR_DIR / "pairs").rglob("*.bin"))
 
 # Each bad vector pins both the failure mode and the position it occurs at.
 BAD_CASES: dict[str, str] = {
@@ -36,20 +43,22 @@ ALPHABET: str = "".join(LOOKUP_D)
 # (ZWJ, bidi controls) get stripped or reordered; Zs/Zl/Zp whitespace gets
 # trimmed or collapsed; Co private-use has no interoperable meaning;
 # Mn/Mc/Me combining marks would merge with a neighbour and change the string.
-UNSAFE_CATEGORIES = frozenset(
-    {"Cc", "Cf", "Cn", "Co", "Cs", "Mc", "Me", "Mn", "Zl", "Zp", "Zs"}
-)
+UNSAFE_CATEGORIES = frozenset({"Cc", "Cf", "Cn", "Co", "Cs", "Mc", "Me", "Mn", "Zl", "Zp", "Zs"})
 
 
-@pytest.mark.parametrize("bin_path", PAIRS, ids=lambda path: path.stem)
-def test_encode_conformance(bin_path: Path) -> None:
+def path_id(path: pathlib.Path) -> str:
+    return path.stem
+
+
+@pytest.mark.parametrize("bin_path", PAIRS, ids=path_id)
+def test_encode_conformance(bin_path: pathlib.Path) -> None:
     payload = bin_path.read_bytes()
     expected = bin_path.with_suffix(".txt").read_text(encoding="utf-8")
     assert encode(payload) == expected
 
 
-@pytest.mark.parametrize("bin_path", PAIRS, ids=lambda path: path.stem)
-def test_decode_conformance(bin_path: Path) -> None:
+@pytest.mark.parametrize("bin_path", PAIRS, ids=path_id)
+def test_decode_conformance(bin_path: pathlib.Path) -> None:
     payload = bin_path.read_bytes()
     encoded = bin_path.with_suffix(".txt").read_text(encoding="utf-8")
     assert decode(encoded) == payload
@@ -88,9 +97,7 @@ HOSTILE_NON_BMP: dict[str, tuple[str, str]] = {
 }
 
 
-@pytest.mark.parametrize(
-    ("string", "message"), HOSTILE_NON_BMP.values(), ids=HOSTILE_NON_BMP
-)
+@pytest.mark.parametrize(("string", "message"), HOSTILE_NON_BMP.values(), ids=HOSTILE_NON_BMP)
 def test_decode_rejects_astral_and_surrogate_input(string: str, message: str) -> None:
     """Astral characters and lone surrogates must be rejected with a position.
 
@@ -170,7 +177,9 @@ def test_alphabet_has_no_unsafe_characters() -> None:
 
 
 @pytest.mark.parametrize("form", ["NFC", "NFD", "NFKC", "NFKD"])
-def test_alphabet_is_normalization_stable(form: str) -> None:
+def test_alphabet_is_normalization_stable(
+    form: typing.Literal["NFC", "NFD", "NFKC", "NFKD"],
+) -> None:
     """Encoded text must survive any normalization a transport might apply.
 
     Joined rather than per-character, so composition across a character
@@ -188,7 +197,5 @@ def test_vectors_are_present() -> None:
     """Guard against an empty parametrize list silently passing the suite."""
     assert PAIRS
     single_bytes = [p for p in PAIRS if p.parent.name == "single-bytes"]
-    assert len(single_bytes) == 256, (
-        f"expected 256 single-byte cases, got {len(single_bytes)}"
-    )
+    assert len(single_bytes) == 256, f"expected 256 single-byte cases, got {len(single_bytes)}"
     assert len(PAIRS) == 265  # qntm's 264 + the local seven-bit-final vector
