@@ -8,12 +8,13 @@ Sessions arriving with later milestones: asan/ubsan + fuzz (M5), bench (M8).
 
 from __future__ import annotations
 
+import typing
 from pathlib import Path
 
 import nox
 
 nox.options.default_venv_backend = "uv"
-nox.options.sessions = ["reformat", "pytest"]
+nox.options.sessions = ["reformat", "pytest", "pyright", "tidy"]
 
 PATHS = ["noxfile.py", "src", "tests"]
 C_PATHS = sorted(str(p) for p in Path("src").rglob("*.[ch]"))
@@ -25,6 +26,7 @@ def sync(session: nox.Session, /, *groups: str, project: bool = True) -> None:
     ``project=False`` skips building/installing radixly itself, for sessions
     that only need a tool — no point compiling a C extension to run a linter.
     """
+    args: list[str]
     if project:
         args = ["--no-default-groups"]
         for group in groups:
@@ -46,20 +48,47 @@ def sync(session: nox.Session, /, *groups: str, project: bool = True) -> None:
 def reformat(session: nox.Session) -> None:
     """Rewrite files: apply formatting and safe lint fixes."""
     sync(session, "ruff", "clang", project=False)
-    session.run("ruff", "format", *PATHS)
-    session.run("ruff", "check", "--fix-only", *PATHS)
+    session.run("ruff", "format", *PATHS, *session.posargs)
+    session.run(
+        "ruff",
+        "check",
+        *PATHS,
+        "--select",
+        "I,RUF022,RUF023",
+        "--fix",
+        *session.posargs,
+    )
     if C_PATHS:
         session.run("clang-format", "-i", *C_PATHS)
+
+
+@nox.session(name="format-check", reuse_venv=True)
+def reformat_check(session: nox.Session) -> None:
+    # Non-mutating counterpart to `reformat`, for CI.
+    sync(session, "ruff", "clang", project=False)
+
+    session.run("ruff", "format", "--check", *PATHS, *session.posargs)
+    session.run(
+        "ruff", "check", *PATHS, "--select", "I,RUF022,RUF023", *session.posargs
+    )
+    if C_PATHS:
+        session.run("clang-format", "--dry-run", "-Werror", *C_PATHS)
 
 
 @nox.session(reuse_venv=True)
 def lint(session: nox.Session) -> None:
     """Check-only twin of reformat, for CI: fails instead of rewriting."""
     sync(session, "ruff", "clang", project=False)
-    session.run("ruff", "format", "--check", *PATHS)
-    session.run("ruff", "check", *PATHS)
+    session.run("ruff", "check", *PATHS, *session.posargs)
     if C_PATHS:
         session.run("clang-format", "--dry-run", "-Werror", *C_PATHS)
+
+
+@nox.session(reuse_venv=True)
+def pyright(session: nox.Session) -> None:
+    sync(session, "pyright")
+
+    session.run("basedpyright")
 
 
 def _write_compiledb() -> None:
@@ -71,7 +100,8 @@ def _write_compiledb() -> None:
     import json
     import sysconfig
 
-    include = sysconfig.get_config_var("INCLUDEPY")
+    # get_config_var returns Any; INCLUDEPY is always a str path.
+    include = typing.cast(str, sysconfig.get_config_var("INCLUDEPY"))
     sources = [p for p in C_PATHS if p.endswith(".c")]
     entries = [
         {

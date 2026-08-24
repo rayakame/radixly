@@ -27,6 +27,30 @@ jobs:
       - name: Run ruff checks
         run: uv run --group nox nox -s lint
 
+  format-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+      - name: Check formatting (ruff + clang-format)
+        run: uv run --group nox nox -s format-check
+
+  pyright:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+      - name: Run basedpyright (recommended mode, warnings fail)
+        run: uv run --group nox nox -s pyright
+
   tidy:
     runs-on: ubuntu-latest
     steps:

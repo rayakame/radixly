@@ -97,7 +97,7 @@ def decode(string: str) -> bytes:
         if num_z_bits != BITS_PER_CHAR and index != last_index:
             raise ValueError(
                 f"{num_z_bits}-bit character {char!r} at index {index}, "
-                f"only valid at index {last_index}"
+                + f"only valid at index {last_index}"
             )
 
         acc = (acc << num_z_bits) | z
@@ -125,7 +125,7 @@ def decode(string: str) -> bytes:
     if final_num_z_bits <= num_pad:
         raise ValueError(
             f"non-canonical input: {final_num_z_bits}-bit final character "
-            f"{string[-1]!r} at index {last_index} carries no payload bits"
+            + f"{string[-1]!r} at index {last_index} carries no payload bits"
         )
 
     # The drain loop masks acc after every byte, so acc holds exactly num_pad
@@ -136,7 +136,7 @@ def decode(string: str) -> bytes:
     if acc != expected_padding:
         raise ValueError(
             f"expected {num_pad} padding bits set to 1 in final character "
-            f"at index {last_index}, got 0b{acc:0{num_pad}b}"
+            + f"at index {last_index}, got 0b{acc:0{num_pad}b}"
         )
 
     return bytes(out)

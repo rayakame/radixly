@@ -7,17 +7,18 @@ generated locally by running qntm's actual JS (see the vectors README) —
 his vectors only ever exercise three of the 128 seven-bit characters.
 """
 
+import pathlib
 import re
+import typing
 import unicodedata
-from pathlib import Path
 
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 from reference.base32768 import BITS_PER_CHAR, LOOKUP_D, LOOKUP_E, decode, encode
 
-VECTOR_DIR = Path(__file__).parent / "vectors" / "base32768"
-PAIRS: list[Path] = sorted((VECTOR_DIR / "pairs").rglob("*.bin"))
+VECTOR_DIR = pathlib.Path(__file__).parent / "vectors" / "base32768"
+PAIRS: list[pathlib.Path] = sorted((VECTOR_DIR / "pairs").rglob("*.bin"))
 
 # Each bad vector pins both the failure mode and the position it occurs at.
 BAD_CASES: dict[str, str] = {
@@ -41,15 +42,19 @@ UNSAFE_CATEGORIES = frozenset(
 )
 
 
-@pytest.mark.parametrize("bin_path", PAIRS, ids=lambda path: path.stem)
-def test_encode_conformance(bin_path: Path) -> None:
+def path_id(path: pathlib.Path) -> str:
+    return path.stem
+
+
+@pytest.mark.parametrize("bin_path", PAIRS, ids=path_id)
+def test_encode_conformance(bin_path: pathlib.Path) -> None:
     payload = bin_path.read_bytes()
     expected = bin_path.with_suffix(".txt").read_text(encoding="utf-8")
     assert encode(payload) == expected
 
 
-@pytest.mark.parametrize("bin_path", PAIRS, ids=lambda path: path.stem)
-def test_decode_conformance(bin_path: Path) -> None:
+@pytest.mark.parametrize("bin_path", PAIRS, ids=path_id)
+def test_decode_conformance(bin_path: pathlib.Path) -> None:
     payload = bin_path.read_bytes()
     encoded = bin_path.with_suffix(".txt").read_text(encoding="utf-8")
     assert decode(encoded) == payload
@@ -170,7 +175,9 @@ def test_alphabet_has_no_unsafe_characters() -> None:
 
 
 @pytest.mark.parametrize("form", ["NFC", "NFD", "NFKC", "NFKD"])
-def test_alphabet_is_normalization_stable(form: str) -> None:
+def test_alphabet_is_normalization_stable(
+    form: typing.Literal["NFC", "NFD", "NFKC", "NFKD"],
+) -> None:
     """Encoded text must survive any normalization a transport might apply.
 
     Joined rather than per-character, so composition across a character
