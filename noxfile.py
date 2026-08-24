@@ -17,7 +17,7 @@ import nox
 nox.options.default_venv_backend = "uv"
 nox.options.sessions = ["reformat", "pytest", "pyright", "tidy", "lint"]
 
-PATHS = ["noxfile.py", "src", "tests"]
+PATHS = ["noxfile.py", "benchmarks", "scripts", "src", "tests"]
 C_PATHS = sorted(str(p) for p in pathlib.Path("src").rglob("*.[ch]"))
 
 
@@ -84,8 +84,7 @@ def lint(session: nox.Session) -> None:
 def pyright(session: nox.Session) -> None:
     """Type-check with basedpyright (recommended mode; warnings fail)."""
     sync(session, "nox", "pyright", "pytest")
-    python = pathlib.Path(session.virtualenv.location) / "bin" / "python"
-    session.run("basedpyright", "--pythonpath", str(python))
+    session.run("basedpyright", "--pythonpath", str(pathlib.Path(session.virtualenv.bin) / "python"))
 
 
 def _write_compiledb() -> None:

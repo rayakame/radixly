@@ -50,28 +50,28 @@ pyright = [
 
 [tool.basedpyright]
 typeCheckingMode = "recommended"
-pythonVersion = "3.11"
-include = ["noxfile.py", "src", "tests"]
+include = ["noxfile.py", "src", "tests", "scripts", "benchmarks"]
 # Resolve radixly from src/ as first-party typed code, not as an untyped
 # site-packages library (py.typed ships at M9; the checker needn't wait).
 extraPaths = ["src"]
 executionEnvironments = [
-    # Test modules import the reference oracle as `from reference...`,
-    # resolved at runtime by pytest putting tests/ on sys.path; mirror that
-    # for the checker, scoped to test code only.
-    { root = "tests", extraPaths = ["tests", "src"] },
+    { root = "tests", extraPaths = ["tests", "src"], pythonVersion = "3.11" },
+    { root = "src", pythonVersion = "3.11" },
+    { root = "scripts", pythonVersion = "3.14" },
+    { root = "benchmarks", extraPaths = ["tests", "src"], pythonVersion = "3.11"  },
 ]
 
 reportUnusedCallResult = "none" # every nox.session() triggers this
 
 [tool.setuptools]
 ext-modules = [
-  {name = "radixly._core", sources=["src/radixly/_core.c"]}
+  {name = "radixly._core", sources=["src/radixly/_core.c", "src/radixly/base32768/base32768.c"]}
 ]
 
-# Keep C sources out of binary wheels; sdists still include them via ext-modules.
+# Keep C sources and headers out of binary wheels for every (sub)package;
+# sdists still ship them (ext-modules sources + MANIFEST.in headers).
 [tool.setuptools.exclude-package-data]
-radixly = ["*.c"]
+"*" = ["*.c", "*.h"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

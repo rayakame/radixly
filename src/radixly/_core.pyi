@@ -1,0 +1,3 @@
+from _typeshed import ReadableBuffer
+
+def base32768_encode(data: ReadableBuffer, /) -> str: ...

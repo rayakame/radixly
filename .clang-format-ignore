@@ -1,0 +1,2 @@
+# Generated files are exempt from hand-code style enforcement.
+src/radixly/*/_tables.h

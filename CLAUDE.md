@@ -37,11 +37,12 @@ CJK block from U+4E00, 14 bits/char, length-prefix char), braille (8 bits) and
 hexagram (6 bits) as presets of a contiguous-block factory. Post-1.0: base65536,
 base2048, base91, Z85.
 
-Performance bars (user-measured, base32768, 187 B payload, gcc -O3, CPython 3.12 —
-the C implementation must hit or beat these): hand C encode 0.27 µs / decode
-0.37 µs; ~850 MB/s encode sustained at 64 KB; 0.058 µs per-call floor on a 1-byte
-payload (pure call overhead — protect it; this is why METH_FASTCALL matters and
-why the object layer must not add Python call frames).
+Performance bars (measured by benchmarks/bench_base32768.py, i9-13900K,
+performance governor, CPython 3.13 — protect these; regressions need a reason):
+encode 0.112 µs / 187 B, 1880 MB/s at 64 KiB (flat to 1 MiB), 0.020 µs per-call
+floor at 1 B (METH_O, no arg parsing — why the object layer must not add Python
+call frames). 103x the pure-Python reference. Decode bar pending M4; legacy
+prototype measured 0.37 µs / 187 B decode on older hardware.
 
 ## Fixed decisions — do not relitigate
 
@@ -52,6 +53,12 @@ why the object layer must not add Python call frames).
 - One extension module `radixly._core` (the engine room); public per-codec
   namespaces are thin Python modules. Multiple .c files later still link into the
   single extension.
+- **Layout convention (decided M3, user's call): one folder per codec**, always,
+  even one-file presets — `src/radixly/<codec>/` holds its `__init__.py` (public
+  face), bespoke `.c` if any, generated `_tables.h` if any. Shared C engine lives
+  in `src/radixly/_common/` (M7). `_core.c` stays a wiring hub (module init +
+  method table). Uniformity is deliberate: "where is X?" has one answer for
+  every codec.
 - Multi-phase module init (`PyModuleDef_Init`); table init goes in a `Py_mod_exec`
   slot when it arrives (M4).
 - setuptools backend; extension declared via the experimental
@@ -75,12 +82,16 @@ why the object layer must not add Python call frames).
   264 vector pairs + 3 bad vectors vendored under `tests/vectors/` with MIT
   attribution, conformance both directions, Hypothesis round-trip, alphabet
   sanity (categories + 4 normalization forms), error positions pinned in tests.
-- **M2 — CURRENT** — C API bootcamp on a throwaway function: buffer protocol, refcounting
-  ownership, NULL⇔exception convention, METH_O/METH_FASTCALL.
-- **M3** — base32768 encode in C: forward table (static const uint16_t[32768]),
-  PyUnicode_New(n, 0xFFFF) + PyUnicode_2BYTE_DATA, exact output length up front.
-  Pitfall: PyUnicode_New(0, 0xFFFF) returns the UCS-1 empty string.
-- **M4** — decode: reverse table int16_t[0x10000] filled at module init, every
+- **M2 — C API bootcamp: DONE.** Throwaway function written under both METH_O and
+  METH_FASTCALL, all exit paths correct, then deleted with its spike branch as
+  designed. Free rejection message for non-buffer args ("a bytes-like object is
+  required, not 'str'") measured and judged sufficient for the charter.
+- **M3 — base32768 encode in C: DONE.** Committed generated header (option A);
+  per-codec layout born; encode byte-identical to the oracle (265 vectors,
+  lengths 0-600 x 3 payload flavors, Hypothesis); conftest hook dedups vector
+  parametrization; _core.pyi stub begun. Benchmarked 2.4x ahead of the legacy
+  bars (see Performance bars above).
+- **M4 — CURRENT** — decode: reverse table int16_t[0x10000] filled at module init, every
   lookup guarded by cp < 0x10000 (attacker-controlled input), padding verification,
   DecodeError with position, error paths DECREF before returning NULL.
   Deferred here from the M1 review: restructure error assertions to shared

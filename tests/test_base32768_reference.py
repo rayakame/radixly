@@ -9,7 +9,6 @@ his vectors only ever exercise three of the 128 seven-bit characters.
 
 from __future__ import annotations
 
-import pathlib
 import re
 import typing
 import unicodedata
@@ -23,8 +22,8 @@ from reference.base32768 import LOOKUP_E
 from reference.base32768 import decode
 from reference.base32768 import encode
 
-VECTOR_DIR = pathlib.Path(__file__).parent / "vectors" / "base32768"
-PAIRS: list[pathlib.Path] = sorted((VECTOR_DIR / "pairs").rglob("*.bin"))
+if typing.TYPE_CHECKING:
+    import pathlib
 
 # Each bad vector pins both the failure mode and the position it occurs at.
 BAD_CASES: dict[str, str] = {
@@ -46,27 +45,21 @@ ALPHABET: str = "".join(LOOKUP_D)
 UNSAFE_CATEGORIES = frozenset({"Cc", "Cf", "Cn", "Co", "Cs", "Mc", "Me", "Mn", "Zl", "Zp", "Zs"})
 
 
-def path_id(path: pathlib.Path) -> str:
-    return path.stem
-
-
-@pytest.mark.parametrize("bin_path", PAIRS, ids=path_id)
-def test_encode_conformance(bin_path: pathlib.Path) -> None:
-    payload = bin_path.read_bytes()
-    expected = bin_path.with_suffix(".txt").read_text(encoding="utf-8")
+def test_encode_conformance(base32768_bin_path: pathlib.Path) -> None:
+    payload = base32768_bin_path.read_bytes()
+    expected = base32768_bin_path.with_suffix(".txt").read_text(encoding="utf-8")
     assert encode(payload) == expected
 
 
-@pytest.mark.parametrize("bin_path", PAIRS, ids=path_id)
-def test_decode_conformance(bin_path: pathlib.Path) -> None:
-    payload = bin_path.read_bytes()
-    encoded = bin_path.with_suffix(".txt").read_text(encoding="utf-8")
+def test_decode_conformance(base32768_bin_path: pathlib.Path) -> None:
+    payload = base32768_bin_path.read_bytes()
+    encoded = base32768_bin_path.with_suffix(".txt").read_text(encoding="utf-8")
     assert decode(encoded) == payload
 
 
 @pytest.mark.parametrize("name", sorted(BAD_CASES))
-def test_decode_rejects_bad_input(name: str) -> None:
-    bad = (VECTOR_DIR / "bad" / f"{name}.txt").read_text(encoding="utf-8")
+def test_decode_rejects_bad_input(name: str, vector_dir: pathlib.Path) -> None:
+    bad = (vector_dir / "bad" / f"{name}.txt").read_text(encoding="utf-8")
     with pytest.raises(ValueError, match=re.escape(BAD_CASES[name])):
         decode(bad)
 
@@ -141,7 +134,7 @@ def test_decode_accepts_canonical_seven_padding_bits() -> None:
     assert decode(encode(b"\x00")) == b"\x00"
 
 
-def test_seven_bit_final_vector_pins_fresh_repertoire() -> None:
+def test_seven_bit_final_vector_pins_fresh_repertoire(vector_dir: pathlib.Path) -> None:
     """qntm's vectors only ever use z = 47, 63, 127 of the 128 seven-bit
     characters, so a transcription error in the 'ƀƟɀʟ' pair string could
     survive them. The locally generated seven-bit-final vector pins a fourth,
@@ -149,7 +142,7 @@ def test_seven_bit_final_vector_pins_fresh_repertoire() -> None:
     itself: regenerating it from a payload whose encoding does not end in a
     fresh 7-bit character would silently drop that coverage.
     """
-    encoded = (VECTOR_DIR / "pairs" / "seven-bit-final.txt").read_text(encoding="utf-8")
+    encoded = (vector_dir / "pairs" / "seven-bit-final.txt").read_text(encoding="utf-8")
     num_z_bits, z = LOOKUP_D[encoded[-1]]
     assert num_z_bits == 7
     assert z < 32, "final character must come from the 'ƀ'..'Ɵ' block"
@@ -193,9 +186,8 @@ def test_round_trip(payload: bytes) -> None:
     assert decode(encode(payload)) == payload
 
 
-def test_vectors_are_present() -> None:
+def test_vectors_are_present(vector_pairs: tuple[pathlib.Path, ...]) -> None:
     """Guard against an empty parametrize list silently passing the suite."""
-    assert PAIRS
-    single_bytes = [p for p in PAIRS if p.parent.name == "single-bytes"]
+    single_bytes = [p for p in vector_pairs if p.parent.name == "single-bytes"]
     assert len(single_bytes) == 256, f"expected 256 single-byte cases, got {len(single_bytes)}"
-    assert len(PAIRS) == 265  # qntm's 264 + the local seven-bit-final vector
+    assert len(vector_pairs) == 265  # qntm's 264 + the local seven-bit-final vector

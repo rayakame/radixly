@@ -4,4 +4,10 @@
 # graft, setuptools ships the top-level test files but not reference/ or
 # vectors/, leaving an uncollectable suite.
 graft tests
+# Headers are not auto-collected the way ext-modules .c sources are; without
+# this line an sdist cannot compile.
+recursive-include src/radixly *.h
+# Stubs are source too: keep the sdist a faithful tree snapshot (the
+# wheel-shipping decision with py.typed is M9's).
+recursive-include src/radixly *.pyi
 global-exclude __pycache__ *.py[cod]
