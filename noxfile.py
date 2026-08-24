@@ -29,7 +29,7 @@ def sync(session: nox.Session, /, *groups: str, project: bool = True) -> None:
     """
     args: list[str]
     if project:
-        args = ["--no-default-groups"]
+        args = ["--no-default-groups", "--reinstall-package", "radixly"]
         for group in groups:
             args += ["--group", group]
     else:
@@ -82,17 +82,8 @@ def lint(session: nox.Session) -> None:
 
 @nox.session(reuse_venv=True)
 def pyright(session: nox.Session) -> None:
-    """Type-check with basedpyright (recommended mode; warnings fail).
-
-    The session venv must contain everything the *checked code* imports
-    (pytest/hypothesis for tests, nox for this file). Without them the
-    checker silently resolves imports from whatever ambient root .venv
-    exists — unlocked, unpinned, and different per machine. radixly
-    itself resolves from src/ via extraPaths + the stub; no build needed.
-    """
-    sync(session, "nox", "pyright", "pytest", project=False)
-    # pyright auto-detects the ROOT .venv by default; point it at this
-    # session's venv so the check runs against the locked env we just built.
+    """Type-check with basedpyright (recommended mode; warnings fail)."""
+    sync(session, "nox", "pyright", "pytest")
     python = pathlib.Path(session.virtualenv.location) / "bin" / "python"
     session.run("basedpyright", "--pythonpath", str(python))
 
