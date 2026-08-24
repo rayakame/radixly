@@ -84,8 +84,7 @@ def lint(session: nox.Session) -> None:
 def pyright(session: nox.Session) -> None:
     """Type-check with basedpyright (recommended mode; warnings fail)."""
     sync(session, "nox", "pyright", "pytest")
-    python = pathlib.Path(session.virtualenv.location) / "bin" / "python"
-    session.run("basedpyright", "--pythonpath", str(python))
+    session.run("basedpyright", "--pythonpath", str(pathlib.Path(session.virtualenv.bin) / "python"))
 
 
 def _write_compiledb() -> None:

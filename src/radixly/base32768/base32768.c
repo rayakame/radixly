@@ -60,23 +60,20 @@ radixly_base32768_encode(PyObject *Py_UNUSED(self), PyObject *arg)
 
     if (num_bits > 0) {
         unsigned width;
+        const uint16_t *table;
         if (num_bits <= (BITS_PER_CHAR - BITS_PER_BYTE)) {
             width = BITS_PER_CHAR - BITS_PER_BYTE;
+            table = RADIXLY_B32768_FWD7;
         }
         else {
             width = BITS_PER_CHAR;
+            table = RADIXLY_B32768_FWD15;
         }
 
         const unsigned gap = width - num_bits;
         acc = (acc << gap) | ((1U << gap) - 1);
-        if (width == BITS_PER_CHAR) {
-            out[out_i] = RADIXLY_B32768_FWD15[acc];
-            out_i++;
-        }
-        else {
-            out[out_i] = RADIXLY_B32768_FWD7[acc];
-            out_i++;
-        }
+        out[out_i] = table[acc];
+        out_i++;
     }
     assert(out_i == n_chars);
     PyBuffer_Release(&view);

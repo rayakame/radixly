@@ -45,15 +45,15 @@ ALPHABET: str = "".join(LOOKUP_D)
 UNSAFE_CATEGORIES = frozenset({"Cc", "Cf", "Cn", "Co", "Cs", "Mc", "Me", "Mn", "Zl", "Zp", "Zs"})
 
 
-def test_encode_conformance(bin_path: pathlib.Path) -> None:
-    payload = bin_path.read_bytes()
-    expected = bin_path.with_suffix(".txt").read_text(encoding="utf-8")
+def test_encode_conformance(base32768_bin_path: pathlib.Path) -> None:
+    payload = base32768_bin_path.read_bytes()
+    expected = base32768_bin_path.with_suffix(".txt").read_text(encoding="utf-8")
     assert encode(payload) == expected
 
 
-def test_decode_conformance(bin_path: pathlib.Path) -> None:
-    payload = bin_path.read_bytes()
-    encoded = bin_path.with_suffix(".txt").read_text(encoding="utf-8")
+def test_decode_conformance(base32768_bin_path: pathlib.Path) -> None:
+    payload = base32768_bin_path.read_bytes()
+    encoded = base32768_bin_path.with_suffix(".txt").read_text(encoding="utf-8")
     assert decode(encoded) == payload
 
 
@@ -186,9 +186,8 @@ def test_round_trip(payload: bytes) -> None:
     assert decode(encode(payload)) == payload
 
 
-def test_vectors_are_present(vector_pairs: list[pathlib.Path]) -> None:
+def test_vectors_are_present(vector_pairs: tuple[pathlib.Path]) -> None:
     """Guard against an empty parametrize list silently passing the suite."""
-    assert vector_pairs
     single_bytes = [p for p in vector_pairs if p.parent.name == "single-bytes"]
     assert len(single_bytes) == 256, f"expected 256 single-byte cases, got {len(single_bytes)}"
     assert len(vector_pairs) == 265  # qntm's 264 + the local seven-bit-final vector

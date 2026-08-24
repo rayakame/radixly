@@ -8,9 +8,7 @@ CURRENT_PATH: typing.Final[pathlib.Path] = pathlib.Path(__file__).resolve()
 REPO_ROOT: typing.Final[pathlib.Path] = CURRENT_PATH.parent.parent.parent
 CURRENT_RELATIVE_PATH: typing.Final[pathlib.Path] = CURRENT_PATH.relative_to(REPO_ROOT)
 # Base32768
-BASE_32768_PATH: typing.Final[pathlib.Path] = (
-    CURRENT_PATH.parent.parent.parent / "src" / "radixly" / "base32768" / "_tables.h"
-)
+BASE_32768_PATH: typing.Final[pathlib.Path] = REPO_ROOT / "src" / "radixly" / "base32768" / "_tables.h"
 BASE_32768_BITS_PER_CHAR: typing.Final = 15
 BASE_32768_BITS_PER_BYTE: typing.Final = 8
 # alphabet data copied from qntm's base32768 (github.com/qntm/base32768), MIT licensed, copyright qntm.
