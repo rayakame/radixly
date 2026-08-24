@@ -48,11 +48,6 @@ pyright = [
     "basedpyright>=1.39.10",
 ]
 
-[tool.ruff.lint]
-# Rule selection lives in config so every ruff entry point (sessions,
-# editors, LSP) enforces the same set; sessions never pass --select.
-extend-select = ["I", "RUF022", "RUF023"]
-
 [tool.basedpyright]
 typeCheckingMode = "recommended"
 pythonVersion = "3.11"

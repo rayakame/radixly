@@ -104,8 +104,8 @@ why the object layer must not add Python call frames).
 ## Commands
 
 - Inner loop: `uv run pytest`; after editing C: `uv sync --reinstall-package radixly`
-- Full check: `uv run nox` (reformat + lint + pytest + pyright + tidy, each in
-  its own venv); formatting-only gate: `uv run nox -s format-check`
+- Full check: `uv run nox` (reformat + pytest + pyright + tidy); CI gates:
+  `nox -s format-check` and `nox -s lint`
 - Build artifacts: `uv build` (wheel must contain `_core.*.so`, never the .c)
 - Diagnostic when imports act weird: `python -c "import radixly._core; print(radixly._core.__file__)"`
   (src/ path is normal under the editable install; site-packages in nox/CI venvs)
