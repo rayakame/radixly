@@ -55,10 +55,10 @@ include = ["noxfile.py", "src", "tests", "scripts", "benchmarks"]
 # site-packages library (py.typed ships at M9; the checker needn't wait).
 extraPaths = ["src"]
 executionEnvironments = [
-    { root = "tests", extraPaths = ["tests", "src"], pythonVersion = "3.11" },
+    { root = "tests", extraPaths = [".", "src"], pythonVersion = "3.11" },
     { root = "src", pythonVersion = "3.11" },
     { root = "scripts", pythonVersion = "3.14" },
-    { root = "benchmarks", extraPaths = ["tests", "src"], pythonVersion = "3.11"  },
+    { root = "benchmarks", extraPaths = [".", "src"], pythonVersion = "3.11"  },
 ]
 
 reportUnusedCallResult = "none" # every nox.session() triggers this

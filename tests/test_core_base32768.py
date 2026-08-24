@@ -15,9 +15,9 @@ if typing.TYPE_CHECKING:
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
-from reference.base32768 import encode as reference_encode
 
-from radixly._core import base32768_encode
+from radixly import _core
+from tests.reference import base32768 as base32768_reference
 
 
 # Seeded, not os.urandom: when a length fails in CI, the exact payload can be
@@ -41,7 +41,7 @@ PAYLOAD_FLAVORS: dict[str, Callable[[int], bytes]] = {
 def test_encode_conformance(base32768_bin_path: pathlib.Path) -> None:
     payload = base32768_bin_path.read_bytes()
     expected = base32768_bin_path.with_suffix(".txt").read_text(encoding="utf-8")
-    assert base32768_encode(payload) == expected
+    assert _core.base32768_encode(payload) == expected
 
 
 @pytest.mark.parametrize("n", range(601))
@@ -51,26 +51,26 @@ def test_encode_matches_reference_every_length(flavor: str, n: int) -> None:
     through the 8-vs-15 cycle -- wrong length math or a broken tail can't hide
     between sampled lengths."""
     payload = PAYLOAD_FLAVORS[flavor](n)
-    assert base32768_encode(payload) == reference_encode(payload)
+    assert _core.base32768_encode(payload) == base32768_reference.encode(payload)
 
 
 @given(st.binary())
 def test_encode_matches_reference(payload: bytes) -> None:
-    assert base32768_encode(payload) == reference_encode(payload)
+    assert _core.base32768_encode(payload) == base32768_reference.encode(payload)
 
 
 @pytest.mark.parametrize("view", [bytes, bytearray, memoryview])
 def test_encode_accepts_any_buffer(view: Callable[[bytes], ReadableBuffer]) -> None:
     """The charter: encode() accepts any buffer-protocol object, not just bytes."""
     payload = random.Random(99).randbytes(187)
-    assert base32768_encode(view(payload)) == base32768_encode(payload)
+    assert _core.base32768_encode(view(payload)) == _core.base32768_encode(payload)
 
 
 def test_encode_matches_reference_megabyte() -> None:
     """MB-scale differential: the vectors top out at 128 KiB, and size-dependent
     bugs (output-length math, allocation) only surface past their comfort zone."""
     payload = random.Random(2**20).randbytes(2**20)
-    assert base32768_encode(payload) == reference_encode(payload)
+    assert _core.base32768_encode(payload) == base32768_reference.encode(payload)
 
 
 @pytest.mark.parametrize("bad", ["text", 42], ids=["str", "int"])
@@ -78,9 +78,9 @@ def test_encode_rejects_non_buffer(bad: str | int) -> None:
     """str input is the charter's explicit TypeError; the exact prose is the
     platform's, so match only the load-bearing phrase."""
     with pytest.raises(TypeError, match="bytes-like"):
-        base32768_encode(bad)  # pyright: ignore[reportArgumentType]
+        _core.base32768_encode(bad)  # pyright: ignore[reportArgumentType]
 
 
 def test_signature_is_pinned() -> None:
     """Fails if the text-signature block in the C docstring is mangled or lost."""
-    assert str(inspect.signature(base32768_encode)) == "(data, /)"
+    assert str(inspect.signature(_core.base32768_encode)) == "(data, /)"

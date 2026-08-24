@@ -12,13 +12,12 @@ import typing
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
 
-# The pure-Python reference deliberately lives in tests/, not in the package,
-# so the benchmark reaches it the same way the test suite does.
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "tests"))
+# The pure-Python reference deliberately lives in the tests package, outside
+# radixly; put the repo root on the path so `tests.` resolves.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
-from reference.base32768 import encode as reference_encode
-
-from radixly._core import base32768_encode
+from radixly import _core
+from tests.reference import base32768 as base32768_reference
 
 REPEAT: typing.Final = 7
 
@@ -70,11 +69,11 @@ def main() -> None:
     big: bytes = random.Random(65536).randbytes(65536)
     huge: bytes = random.Random(1_048_576).randbytes(1_048_576)
 
-    t_1b: float = seconds_per_call(base32768_encode, one, number=3_000_000)
-    t_187: float = seconds_per_call(base32768_encode, discord, number=500_000)
-    t_64k: float = seconds_per_call(base32768_encode, big, number=3_000)
-    t_1m: float = seconds_per_call(base32768_encode, huge, number=400)
-    t_ref: float = seconds_per_call(reference_encode, discord, number=10_000)
+    t_1b: float = seconds_per_call(_core.base32768_encode, one, number=3_000_000)
+    t_187: float = seconds_per_call(_core.base32768_encode, discord, number=500_000)
+    t_64k: float = seconds_per_call(_core.base32768_encode, big, number=3_000)
+    t_1m: float = seconds_per_call(_core.base32768_encode, huge, number=400)
+    t_ref: float = seconds_per_call(base32768_reference.encode, discord, number=10_000)
 
     mbps_64k: float = len(big) / t_64k / 1e6
     mbps_1m: float = len(huge) / t_1m / 1e6

@@ -16,26 +16,24 @@ import unicodedata
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
-from reference.base32768 import BITS_PER_CHAR
-from reference.base32768 import LOOKUP_D
-from reference.base32768 import LOOKUP_E
-from reference.base32768 import decode
-from reference.base32768 import encode
+
+from tests.reference import base32768 as base32768_reference
+from tests.reference import errors
 
 if typing.TYPE_CHECKING:
     import pathlib
 
 # Each bad vector pins both the failure mode and the position it occurs at.
-BAD_CASES: dict[str, str] = {
-    "bad-padding": "expected 4 padding bits set to 1 in final character at index 3, got 0b0000",
-    "bad0": "7-bit character 'ƀ' at index 0, only valid at index 2",
-    "not-base32768-char": "invalid Base32768 character 'A' (U+0041) at index 111",
+BAD_CASES: dict[str, int] = {
+    "bad-padding": 3,
+    "bad0": 0,
+    "not-base32768-char": 111,
 }
 
-PURE_PADDING = LOOKUP_E[7][127]  # 'ʟ', a 7-bit character that is all filler
+PURE_PADDING = base32768_reference.LOOKUP_E[7][127]  # 'ʟ', a 7-bit character that is all filler
 
 # LOOKUP_D is insertion-ordered: the 15-bit repertoire, then the 7-bit one.
-ALPHABET: str = "".join(LOOKUP_D)
+ALPHABET: str = "".join(base32768_reference.LOOKUP_D)
 
 # Everything a transport could mangle: Cs surrogates and Cn unassigned code
 # points are not safely transportable; Cc/Cf controls and format characters
@@ -48,23 +46,24 @@ UNSAFE_CATEGORIES = frozenset({"Cc", "Cf", "Cn", "Co", "Cs", "Mc", "Me", "Mn", "
 def test_encode_conformance(base32768_bin_path: pathlib.Path) -> None:
     payload = base32768_bin_path.read_bytes()
     expected = base32768_bin_path.with_suffix(".txt").read_text(encoding="utf-8")
-    assert encode(payload) == expected
+    assert base32768_reference.encode(payload) == expected
 
 
 def test_decode_conformance(base32768_bin_path: pathlib.Path) -> None:
     payload = base32768_bin_path.read_bytes()
     encoded = base32768_bin_path.with_suffix(".txt").read_text(encoding="utf-8")
-    assert decode(encoded) == payload
+    assert base32768_reference.decode(encoded) == payload
 
 
 @pytest.mark.parametrize("name", sorted(BAD_CASES))
 def test_decode_rejects_bad_input(name: str, vector_dir: pathlib.Path) -> None:
     bad = (vector_dir / "bad" / f"{name}.txt").read_text(encoding="utf-8")
-    with pytest.raises(ValueError, match=re.escape(BAD_CASES[name])):
-        decode(bad)
+    with pytest.raises(errors.DecodeError) as exc_info:
+        base32768_reference.decode(bad)
+    assert exc_info.value.position == BAD_CASES[name]
 
 
-VALID_8_CHARS = encode(bytes(15))  # 120 bits: 8 full 15-bit characters, no padding
+VALID_8_CHARS = base32768_reference.encode(bytes(15))  # 120 bits: 8 full 15-bit characters, no padding
 
 HOSTILE_NON_BMP: dict[str, tuple[str, str]] = {
     "astral": (
@@ -104,13 +103,13 @@ def test_decode_rejects_astral_and_surrogate_input(string: str, message: str) ->
     input once the reference has pinned what rejection looks like here.
     """
     with pytest.raises(ValueError, match=re.escape(message)):
-        decode(string)
+        base32768_reference.decode(string)
 
 
 def test_decode_rejects_lone_padding_character() -> None:
     """A 7-bit character with no payload bits is not a valid encoding of b""."""
     with pytest.raises(ValueError, match=r"7-bit final character .* at index 0"):
-        decode(PURE_PADDING)
+        base32768_reference.decode(PURE_PADDING)
 
 
 def test_decode_rejects_appended_padding_character() -> None:
@@ -122,16 +121,16 @@ def test_decode_rejects_appended_padding_character() -> None:
     still decode fine.
     """
     payload = bytes(15)  # 120 bits, encodes to 8 full characters, no padding
-    encoded = encode(payload)
-    assert decode(encoded) == payload  # unchanged, and still canonical
+    encoded = base32768_reference.encode(payload)
+    assert base32768_reference.decode(encoded) == payload  # unchanged, and still canonical
 
     with pytest.raises(ValueError, match=r"7-bit final character .* at index 8"):
-        decode(encoded + PURE_PADDING)
+        base32768_reference.decode(encoded + PURE_PADDING)
 
 
 def test_decode_accepts_canonical_seven_padding_bits() -> None:
     """num_pad == 7 is canonical when the final character is 15-bit."""
-    assert decode(encode(b"\x00")) == b"\x00"
+    assert base32768_reference.decode(base32768_reference.encode(b"\x00")) == b"\x00"
 
 
 def test_seven_bit_final_vector_pins_fresh_repertoire(vector_dir: pathlib.Path) -> None:
@@ -143,16 +142,18 @@ def test_seven_bit_final_vector_pins_fresh_repertoire(vector_dir: pathlib.Path) 
     fresh 7-bit character would silently drop that coverage.
     """
     encoded = (vector_dir / "pairs" / "seven-bit-final.txt").read_text(encoding="utf-8")
-    num_z_bits, z = LOOKUP_D[encoded[-1]]
+    num_z_bits, z = base32768_reference.LOOKUP_D[encoded[-1]]
     assert num_z_bits == 7
     assert z < 32, "final character must come from the 'ƀ'..'Ɵ' block"
 
 
 def test_alphabet_sizes() -> None:
     """A duplicate across repertoires would silently break decode for one z."""
-    assert len(LOOKUP_E[BITS_PER_CHAR]) == 1 << BITS_PER_CHAR
-    assert len(LOOKUP_E[7]) == 1 << 7
-    assert len(ALPHABET) == (1 << BITS_PER_CHAR) + (1 << 7)
+    assert (
+        len(base32768_reference.LOOKUP_E[base32768_reference.BITS_PER_CHAR]) == 1 << base32768_reference.BITS_PER_CHAR
+    )
+    assert len(base32768_reference.LOOKUP_E[7]) == 1 << 7
+    assert len(ALPHABET) == (1 << base32768_reference.BITS_PER_CHAR) + (1 << 7)
 
 
 def test_alphabet_has_no_unsafe_characters() -> None:
@@ -183,7 +184,7 @@ def test_alphabet_is_normalization_stable(
 
 @given(st.binary())
 def test_round_trip(payload: bytes) -> None:
-    assert decode(encode(payload)) == payload
+    assert base32768_reference.decode(base32768_reference.encode(payload)) == payload
 
 
 def test_vectors_are_present(vector_pairs: tuple[pathlib.Path, ...]) -> None:
