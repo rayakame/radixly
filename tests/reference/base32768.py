@@ -99,10 +99,7 @@ def decode(string: str) -> bytes:
 
         num_z_bits, z = entry
         if num_z_bits != BITS_PER_CHAR and index != last_index:
-            msg = (
-                f"{num_z_bits}-bit character {char!r} at index {index}, "
-                + f"only valid at index {last_index}"
-            )
+            msg = f"{num_z_bits}-bit character {char!r} at index {index}, " + f"only valid at index {last_index}"
             raise ValueError(msg)
 
         acc = (acc << num_z_bits) | z

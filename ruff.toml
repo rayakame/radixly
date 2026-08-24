@@ -1,4 +1,4 @@
-line-length = 110
+line-length = 120
 target-version = "py311"
 
 [format]
@@ -31,7 +31,17 @@ ignore = [
     "S101",    # use of assert
     "PLR2004", # magic value comparison
     "SLF001", # private memeber access
+    "PLC2701", # private name import
     "INP001", # add __init__.py
+    "S311", # weak pseudo-random number generators
+]
+"{benchmarks,scripts}/**" = [
+    "S101",    # use of assert
+    "PLR2004", # magic value comparison
+    "INP001", # add __init__.py
+    "T201", # print
+    "S311", # weak pseudo-random number generators
+    "PLC2701", # private name import
 ]
 "noxfile.py" = [
     "S101",    # use of assert

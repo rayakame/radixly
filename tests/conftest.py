@@ -6,6 +6,9 @@ The pairs glob lives here, once. Any test function that declares a
 (the presence guard) take the ``vector_pairs`` fixture.
 """
 
+from __future__ import annotations
+
+import pathlib
 from pathlib import Path
 
 import pytest
@@ -14,9 +17,13 @@ VECTOR_DIR = Path(__file__).parent / "vectors" / "base32768"
 PAIRS: list[Path] = sorted((VECTOR_DIR / "pairs").rglob("*.bin"))
 
 
+def _path_id(path: pathlib.Path) -> str:
+    return path.stem
+
+
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     if "bin_path" in metafunc.fixturenames:
-        metafunc.parametrize("bin_path", PAIRS, ids=lambda path: path.stem)
+        metafunc.parametrize("bin_path", PAIRS, ids=_path_id)
 
 
 @pytest.fixture

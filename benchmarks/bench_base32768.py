@@ -10,28 +10,30 @@ CPU governor first and restore it after:
 Run three times; if the minimums agree within a couple percent, believe them.
 """
 
+from __future__ import annotations
+
+import pathlib
 import platform
 import random
 import sys
 import timeit
-from collections.abc import Callable
-from pathlib import Path
-from typing import Final
+import typing
+
+if typing.TYPE_CHECKING:
+    from collections.abc import Callable
 
 # The pure-Python reference deliberately lives in tests/, not in the package,
 # so the benchmark reaches it the same way the test suite does.
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tests"))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "tests"))
 
 from reference.base32768 import encode as reference_encode
 
 from radixly._core import base32768_encode
 
-REPEAT: Final = 7
+REPEAT: typing.Final = 7
 
 
-def seconds_per_call(
-    func: Callable[[bytes], str], payload: bytes, number: int
-) -> float:
+def seconds_per_call(func: Callable[[bytes], str], payload: bytes, number: int) -> float:
     """Best-of-REPEAT seconds for one ``func(payload)`` call.
 
     The statement is a *string*: timeit compiles it into a synthetic function
@@ -52,20 +54,14 @@ def print_environment() -> None:
     """A benchmark that records its own conditions can be believed later."""
     cpu: str
     try:
-        with open("/proc/cpuinfo", encoding="utf-8") as f:
-            cpu = next(
-                line.split(":", 1)[1].strip()
-                for line in f
-                if line.startswith("model name")
-            )
+        with pathlib.Path("/proc/cpuinfo").open(encoding="utf-8") as f:
+            cpu = next(line.split(":", 1)[1].strip() for line in f if line.startswith("model name"))
     except (OSError, StopIteration):
         cpu = "unknown"
     governor: str
     try:
         governor = (
-            Path("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor")
-            .read_text(encoding="utf-8")
-            .strip()
+            pathlib.Path("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor").read_text(encoding="utf-8").strip()
         )
     except OSError:
         governor = "unknown"

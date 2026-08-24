@@ -10,14 +10,14 @@ enum {
     CEIL_PAD = BITS_PER_CHAR - 1,
 };
 
-const char radixly_base32768_encode_doc[] = PyDoc_STR(
-    "base32768_encode($module, data, /)\n"
-    "--\n"
-    "\n"
-    "Encode a bytes-like object as base32768 text.\n"
-    "\n"
-    "Returns a str of BMP code points, 15 bits of payload per character\n"
-    "(7 in a final short character). Exact output length: ceil(8*n/15).");
+const char radixly_base32768_encode_doc[] =
+    PyDoc_STR("base32768_encode($module, data, /)\n"
+              "--\n"
+              "\n"
+              "Encode a bytes-like object as base32768 text.\n"
+              "\n"
+              "Returns a str of BMP code points, 15 bits of payload per character\n"
+              "(7 in a final short character). Exact output length: ceil(8*n/15).");
 PyObject *
 radixly_base32768_encode(PyObject *Py_UNUSED(self), PyObject *arg)
 {
@@ -33,8 +33,7 @@ radixly_base32768_encode(PyObject *Py_UNUSED(self), PyObject *arg)
         PyBuffer_Release(&view);
         return PyErr_NoMemory();
     }
-    const Py_ssize_t n_chars =
-        ((BITS_PER_BYTE * view.len) + CEIL_PAD) / BITS_PER_CHAR;
+    const Py_ssize_t n_chars = ((BITS_PER_BYTE * view.len) + CEIL_PAD) / BITS_PER_CHAR;
 
     PyObject *result = PyUnicode_New(n_chars, MAX_CHAR);
     if (result == NULL) {

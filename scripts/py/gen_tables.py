@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import pathlib
 import typing
 from itertools import batched
@@ -21,9 +23,7 @@ BASE_32768_PAIR_STRINGS: typing.Final[tuple[str, ...]] = (
 class IndentWriter:
     """Indent writer used for dynamically generate files."""
 
-    def __init__(
-        self, file_path: pathlib.Path, *, indent_char: str = " ", indent_amount: int = 4
-    ) -> None:
+    def __init__(self, file_path: pathlib.Path, *, indent_char: str = " ", indent_amount: int = 4) -> None:
         """Construct a new indent writer object."""
         self.file_path = file_path
         self.lines: list[tuple[str, int]] = []
@@ -63,38 +63,26 @@ def _build_base32768_tables() -> dict[int, tuple[int, ...]]:
 
 
 def _verify_base32768_tables(lookup_e: dict[int, tuple[int, ...]]) -> None:
-    overlap = set(lookup_e[BASE_32768_BITS_PER_CHAR]) & set(
-        lookup_e[BASE_32768_BITS_PER_CHAR - 8]
-    )
-    assert len(overlap) == 0, (
-        f"repertoires overlap: {sorted(hex(cp) for cp in overlap)}"
-    )
+    overlap = set(lookup_e[BASE_32768_BITS_PER_CHAR]) & set(lookup_e[BASE_32768_BITS_PER_CHAR - 8])
+    assert len(overlap) == 0, f"repertoires overlap: {sorted(hex(cp) for cp in overlap)}"
 
     assert len(lookup_e[BASE_32768_BITS_PER_CHAR]) == 32768, (
         f"15-bit repertoire has {len(lookup_e[BASE_32768_BITS_PER_CHAR])} code points, expected 32768"
     )
-    assert len(lookup_e[BASE_32768_BITS_PER_CHAR]) == len(
-        set(lookup_e[BASE_32768_BITS_PER_CHAR])
-    ), (
+    assert len(lookup_e[BASE_32768_BITS_PER_CHAR]) == len(set(lookup_e[BASE_32768_BITS_PER_CHAR])), (
         f"15-bit repertoire contains {32768 - len(set(lookup_e[BASE_32768_BITS_PER_CHAR]))} duplicate code points"
     )
 
     assert len(lookup_e[BASE_32768_BITS_PER_CHAR - 8]) == 128, (
         f"7-bit repertoire has {len(lookup_e[BASE_32768_BITS_PER_CHAR - 8])} code points, expected 128"
     )
-    assert len(lookup_e[BASE_32768_BITS_PER_CHAR - 8]) == len(
-        set(lookup_e[BASE_32768_BITS_PER_CHAR - 8])
-    ), (
+    assert len(lookup_e[BASE_32768_BITS_PER_CHAR - 8]) == len(set(lookup_e[BASE_32768_BITS_PER_CHAR - 8])), (
         f"7-bit repertoire contains {128 - len(set(lookup_e[BASE_32768_BITS_PER_CHAR - 8]))} duplicate code points"
     )
     for codepoints in lookup_e.values():
         for cp in codepoints:
-            assert cp <= 0xFFFF, (
-                f"code point U+{cp:04X} outside uint16/canonical range [0x100, 0xFFFF]"
-            )
-            assert cp >= 0x100, (
-                f"code point U+{cp:04X} outside uint16/canonical range [0x100, 0xFFFF]"
-            )
+            assert cp <= 0xFFFF, f"code point U+{cp:04X} outside uint16/canonical range [0x100, 0xFFFF]"
+            assert cp >= 0x100, f"code point U+{cp:04X} outside uint16/canonical range [0x100, 0xFFFF]"
 
 
 def write_base_32768_table() -> None:
@@ -115,17 +103,13 @@ def write_base_32768_table() -> None:
 
     writer.write_line("static const uint16_t RADIXLY_B32768_FWD15[32768] = {")
     for chunk in batched(lookup_e[BASE_32768_BITS_PER_CHAR], 14):
-        writer.write_line(
-            ", ".join(f"0x{cp:04X}" for cp in chunk) + ",", indent_depth=1
-        )
+        writer.write_line(", ".join(f"0x{cp:04X}" for cp in chunk) + ",", indent_depth=1)
     writer.write_line("};")
     writer.write_blank()
 
     writer.write_line("static const uint16_t RADIXLY_B32768_FWD7[128] = {")
     for chunk in batched(lookup_e[BASE_32768_BITS_PER_CHAR - 8], 14):
-        writer.write_line(
-            ", ".join(f"0x{cp:04X}" for cp in chunk) + ",", indent_depth=1
-        )
+        writer.write_line(", ".join(f"0x{cp:04X}" for cp in chunk) + ",", indent_depth=1)
     writer.write_line("};")
     writer.write_blank()
 
@@ -135,4 +119,3 @@ def write_base_32768_table() -> None:
 
 if __name__ == "__main__":
     write_base_32768_table()
-    print(CURRENT_RELATIVE_PATH)

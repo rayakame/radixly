@@ -9,7 +9,6 @@ his vectors only ever exercise three of the 128 seven-bit characters.
 
 from __future__ import annotations
 
-import pathlib
 import re
 import typing
 import unicodedata
@@ -22,6 +21,9 @@ from reference.base32768 import LOOKUP_D
 from reference.base32768 import LOOKUP_E
 from reference.base32768 import decode
 from reference.base32768 import encode
+
+if typing.TYPE_CHECKING:
+    import pathlib
 
 # Each bad vector pins both the failure mode and the position it occurs at.
 BAD_CASES: dict[str, str] = {

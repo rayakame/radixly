@@ -3,8 +3,7 @@
 #include "base32768/base32768.h"
 
 static PyMethodDef radixly_methods[] = {
-    {"base32768_encode", radixly_base32768_encode, METH_O,
-     radixly_base32768_encode_doc},
+    {"base32768_encode", radixly_base32768_encode, METH_O, radixly_base32768_encode_doc},
     {NULL, NULL, 0, NULL},
 };
 
