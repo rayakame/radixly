@@ -83,7 +83,7 @@ def decode(string: str) -> bytes:
     """Decode a Base32768 string back to bytes.
 
     Raises:
-        ValueError: on a character outside the alphabet; on a 7-bit character
+        errors.DecodeError: on a character outside the alphabet; on a 7-bit character
             anywhere but the final position; on a final character that carries
             no payload bits (non-canonical); or on padding bits that are not
             all 1. Every message names the position at fault.

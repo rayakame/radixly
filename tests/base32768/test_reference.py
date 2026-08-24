@@ -9,7 +9,6 @@ his vectors only ever exercise three of the 128 seven-bit characters.
 
 from __future__ import annotations
 
-import re
 import typing
 import unicodedata
 
@@ -18,7 +17,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from tests.reference import base32768 as base32768_reference
-from tests.reference import errors
+from tests.reference import errors as errors_reference
 
 if typing.TYPE_CHECKING:
     import pathlib
@@ -58,39 +57,39 @@ def test_decode_conformance(base32768_bin_path: pathlib.Path) -> None:
 @pytest.mark.parametrize("name", sorted(BAD_CASES))
 def test_decode_rejects_bad_input(name: str, vector_dir: pathlib.Path) -> None:
     bad = (vector_dir / "bad" / f"{name}.txt").read_text(encoding="utf-8")
-    with pytest.raises(errors.DecodeError) as exc_info:
+    with pytest.raises(errors_reference.DecodeError) as exc_info:
         base32768_reference.decode(bad)
     assert exc_info.value.position == BAD_CASES[name]
 
 
 VALID_8_CHARS = base32768_reference.encode(bytes(15))  # 120 bits: 8 full 15-bit characters, no padding
 
-HOSTILE_NON_BMP: dict[str, tuple[str, str]] = {
+HOSTILE_NON_BMP: dict[str, tuple[str, int]] = {
     "astral": (
         "\U0001f600",
-        "invalid Base32768 character '😀' (U+1F600) at index 0",
+        0,
     ),
     "high-surrogate": (
         "\ud800",
-        "invalid Base32768 character '\\ud800' (U+D800) at index 0",
+        0,
     ),
     "low-surrogate": (
         "\udfff",
-        "invalid Base32768 character '\\udfff' (U+DFFF) at index 0",
+        0,
     ),
     "astral-mid-string": (
         VALID_8_CHARS + "\U0001f600" + VALID_8_CHARS,
-        "invalid Base32768 character '😀' (U+1F600) at index 8",
+        8,
     ),
     "surrogate-mid-string": (
         VALID_8_CHARS + "\udc00" + VALID_8_CHARS,
-        "invalid Base32768 character '\\udc00' (U+DC00) at index 8",
+        8,
     ),
 }
 
 
-@pytest.mark.parametrize(("string", "message"), HOSTILE_NON_BMP.values(), ids=HOSTILE_NON_BMP)
-def test_decode_rejects_astral_and_surrogate_input(string: str, message: str) -> None:
+@pytest.mark.parametrize(("string", "position"), HOSTILE_NON_BMP.values(), ids=HOSTILE_NON_BMP)
+def test_decode_rejects_astral_and_surrogate_input(string: str, position: int) -> None:
     """Astral characters and lone surrogates must be rejected with a position.
 
     The alphabet is BMP-only by design, so both are invalid by definition —
@@ -102,14 +101,16 @@ def test_decode_rejects_astral_and_surrogate_input(string: str, message: str) ->
     same positions as the reference, which only means something on non-BMP
     input once the reference has pinned what rejection looks like here.
     """
-    with pytest.raises(ValueError, match=re.escape(message)):
+    with pytest.raises(errors_reference.DecodeError) as exc_info:
         base32768_reference.decode(string)
+    assert exc_info.value.position == position
 
 
 def test_decode_rejects_lone_padding_character() -> None:
     """A 7-bit character with no payload bits is not a valid encoding of b""."""
-    with pytest.raises(ValueError, match=r"7-bit final character .* at index 0"):
+    with pytest.raises(errors_reference.DecodeError) as exc_info:
         base32768_reference.decode(PURE_PADDING)
+    assert exc_info.value.position == 0
 
 
 def test_decode_rejects_appended_padding_character() -> None:
@@ -124,8 +125,9 @@ def test_decode_rejects_appended_padding_character() -> None:
     encoded = base32768_reference.encode(payload)
     assert base32768_reference.decode(encoded) == payload  # unchanged, and still canonical
 
-    with pytest.raises(ValueError, match=r"7-bit final character .* at index 8"):
+    with pytest.raises(errors_reference.DecodeError) as exc_info:
         base32768_reference.decode(encoded + PURE_PADDING)
+    assert exc_info.value.position == 8
 
 
 def test_decode_accepts_canonical_seven_padding_bits() -> None:
