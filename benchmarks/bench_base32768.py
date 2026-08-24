@@ -1,14 +1,4 @@
-"""Benchmark the base32768 C encoder.
-
-Run on a quiet machine (a closed browser counts). For a record run, pin the
-CPU governor first and restore it after:
-
-    sudo cpupower frequency-set -g performance
-    uv run python benchmarks/bench_base32768.py
-    sudo cpupower frequency-set -g schedutil
-
-Run three times; if the minimums agree within a couple percent, believe them.
-"""
+"""Benchmark the base32768 C encoder."""
 
 from __future__ import annotations
 
@@ -73,9 +63,7 @@ def print_environment() -> None:
 
 def main() -> None:
     print_environment()
-
-    # Loop counts hardcoded so each repeat lasts ~0.2 s: long enough to swamp
-    # timer granularity, short enough that 7 repeats stay pleasant.
+    
     # Auto-calibration is M8 polish.
     one: bytes = random.Random(1).randbytes(1)
     discord: bytes = random.Random(187).randbytes(187)
