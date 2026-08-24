@@ -30,6 +30,10 @@ Checks: >
 #   it from dlsym and break importing entirely; export is the ABI contract.
 # Only diagnose our code, not Python.h internals.
 HeaderFilterRegex: 'src/radixly/.*'
+# Generated tables are exempt, mirroring .clang-format-ignore: they can
+# only be regenerated, never hand-fixed, and a future ruleset diagnosing
+# a 2000-line initializer would otherwise turn CI red on machine output.
+ExcludeHeaderFilterRegex: '.*/_tables\.h'
 WarningsAsErrors: '*'
 CheckOptions:
   # Positive integer literals (and enum constants, which are int by language
