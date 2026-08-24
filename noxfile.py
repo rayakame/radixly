@@ -8,13 +8,12 @@ Sessions arriving with later milestones: asan/ubsan + fuzz (M5), bench (M8).
 
 from __future__ import annotations
 
-import typing
 from pathlib import Path
 
 import nox
 
 nox.options.default_venv_backend = "uv"
-nox.options.sessions = ["reformat", "pytest", "pyright", "tidy"]
+nox.options.sessions = ["reformat", "lint", "pytest", "pyright", "tidy"]
 
 PATHS = ["noxfile.py", "src", "tests"]
 C_PATHS = sorted(str(p) for p in Path("src").rglob("*.[ch]"))
@@ -46,42 +45,28 @@ def sync(session: nox.Session, /, *groups: str, project: bool = True) -> None:
 
 @nox.session(reuse_venv=True)
 def reformat(session: nox.Session) -> None:
-    """Rewrite files: apply formatting and safe lint fixes."""
+    """Rewrite files: apply safe lint fixes, then format (ruff's documented order)."""
     sync(session, "ruff", "clang", project=False)
-    session.run("ruff", "format", *PATHS, *session.posargs)
-    session.run(
-        "ruff",
-        "check",
-        *PATHS,
-        "--select",
-        "I,RUF022,RUF023",
-        "--fix",
-        *session.posargs,
-    )
+    session.run("ruff", "check", "--fix-only", *PATHS)
+    session.run("ruff", "format", *PATHS)
     if C_PATHS:
         session.run("clang-format", "-i", *C_PATHS)
 
 
 @nox.session(name="format-check", reuse_venv=True)
 def reformat_check(session: nox.Session) -> None:
-    # Non-mutating counterpart to `reformat`, for CI.
+    """Non-mutating formatting gate for CI: ruff format + clang-format, no lint."""
     sync(session, "ruff", "clang", project=False)
-
-    session.run("ruff", "format", "--check", *PATHS, *session.posargs)
-    session.run(
-        "ruff", "check", *PATHS, "--select", "I,RUF022,RUF023", *session.posargs
-    )
+    session.run("ruff", "format", "--check", *PATHS)
     if C_PATHS:
         session.run("clang-format", "--dry-run", "-Werror", *C_PATHS)
 
 
 @nox.session(reuse_venv=True)
 def lint(session: nox.Session) -> None:
-    """Check-only twin of reformat, for CI: fails instead of rewriting."""
-    sync(session, "ruff", "clang", project=False)
-    session.run("ruff", "check", *PATHS, *session.posargs)
-    if C_PATHS:
-        session.run("clang-format", "--dry-run", "-Werror", *C_PATHS)
+    """Full ruff rule check (selection lives in [tool.ruff.lint])."""
+    sync(session, "ruff", project=False)
+    session.run("ruff", "check", *PATHS)
 
 
 @nox.session(reuse_venv=True)
@@ -89,10 +74,12 @@ def pyright(session: nox.Session) -> None:
     """Type-check with basedpyright (recommended mode; warnings fail).
 
     The session venv must contain everything the *checked code* imports
-    (pytest/hypothesis for tests, nox for this file) — otherwise imports
-    resolve only via silent fallback to the root .venv, which CI lacks.
+    (pytest/hypothesis for tests, nox for this file). Without them the
+    checker silently resolves imports from whatever ambient root .venv
+    exists — unlocked, unpinned, and different per machine. radixly
+    itself resolves from src/ via extraPaths + the stub; no build needed.
     """
-    sync(session, "nox", "pyright", "pytest")
+    sync(session, "nox", "pyright", "pytest", project=False)
     session.run("basedpyright")
 
 
@@ -105,8 +92,12 @@ def _write_compiledb() -> None:
     import json
     import sysconfig
 
-    # get_config_var returns Any; INCLUDEPY is always a str path.
-    include = typing.cast(str, sysconfig.get_config_var("INCLUDEPY"))
+    # get_config_var returns Any (None when unset); fail here, at the
+    # source, rather than emitting a null include path for clang-tidy.
+    # sysconfig stubs return Any; the assert turns None/exotic values into
+    # a loud failure here instead of a null include path in the compiledb.
+    include: object = sysconfig.get_config_var("INCLUDEPY")  # pyright: ignore[reportAny]
+    assert isinstance(include, str), "INCLUDEPY missing from sysconfig"
     sources = [p for p in C_PATHS if p.endswith(".c")]
     entries = [
         {

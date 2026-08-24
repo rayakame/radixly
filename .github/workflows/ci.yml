@@ -25,7 +25,7 @@ jobs:
         with:
           enable-cache: true
       - name: Run ruff checks
-        run: uv run --group nox nox -s lint
+        run: uv run --only-group nox nox -s lint
 
   format-check:
     runs-on: ubuntu-latest
@@ -37,7 +37,7 @@ jobs:
         with:
           enable-cache: true
       - name: Check formatting (ruff + clang-format)
-        run: uv run --group nox nox -s format-check
+        run: uv run --only-group nox nox -s format-check
 
   pyright:
     runs-on: ubuntu-latest
@@ -49,7 +49,7 @@ jobs:
         with:
           enable-cache: true
       - name: Run basedpyright (recommended mode, warnings fail)
-        run: uv run --group nox nox -s pyright
+        run: uv run --only-group nox nox -s pyright
 
   tidy:
     runs-on: ubuntu-latest
@@ -61,7 +61,7 @@ jobs:
         with:
           enable-cache: true
       - name: Run clang-tidy (strict, warnings are errors)
-        run: uv run --group nox nox -s tidy
+        run: uv run --only-group nox nox -s tidy
 
   test:
     runs-on: ubuntu-latest
@@ -78,7 +78,7 @@ jobs:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
       - name: Run test suite
-        run: uv run --group nox nox -s pytest
+        run: uv run --only-group nox nox -s pytest
 
   build:
     runs-on: ubuntu-latest
