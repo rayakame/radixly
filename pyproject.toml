@@ -50,16 +50,15 @@ pyright = [
 
 [tool.basedpyright]
 typeCheckingMode = "recommended"
-pythonVersion = "3.11"
-include = ["noxfile.py", "src", "tests"]
+include = ["noxfile.py", "src", "tests", "scripts", "benchmarks"]
 # Resolve radixly from src/ as first-party typed code, not as an untyped
 # site-packages library (py.typed ships at M9; the checker needn't wait).
 extraPaths = ["src"]
 executionEnvironments = [
-    # Test modules import the reference oracle as `from reference...`,
-    # resolved at runtime by pytest putting tests/ on sys.path; mirror that
-    # for the checker, scoped to test code only.
-    { root = "tests", extraPaths = ["tests", "src"] },
+    { root = "tests", extraPaths = ["tests", "src"], pythonVersion = "3.11" },
+    { root = "src", pythonVersion = "3.11" },
+    { root = "scripts", pythonVersion = "3.14" },
+    { root = "benchmarks", extraPaths = ["tests", "src"], pythonVersion = "3.11"  },
 ]
 
 reportUnusedCallResult = "none" # every nox.session() triggers this

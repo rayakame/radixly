@@ -25,10 +25,10 @@ class IndentWriter:
 
     def __init__(self, file_path: pathlib.Path, *, indent_char: str = " ", indent_amount: int = 4) -> None:
         """Construct a new indent writer object."""
-        self.file_path = file_path
+        self.file_path: pathlib.Path = file_path
         self.lines: list[tuple[str, int]] = []
-        self.indent_char = indent_char
-        self.indent_amount = indent_amount
+        self.indent_char: str = indent_char
+        self.indent_amount: int = indent_amount
 
     def write_line(self, text: str, indent_depth: int = 0) -> None:
         """Write a line with a new line character at the end to the buffer."""
