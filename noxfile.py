@@ -15,7 +15,7 @@ import nox
 nox.options.default_venv_backend = "uv"
 nox.options.sessions = ["reformat", "pytest", "tidy"]
 
-PATHS = ["noxfile.py", "scripts", "src", "tests"]
+PATHS = ["noxfile.py", "benchmarks", "scripts", "src", "tests"]
 C_PATHS = sorted(str(p) for p in Path("src").rglob("*.[ch]"))
 
 
