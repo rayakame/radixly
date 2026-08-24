@@ -7,15 +7,21 @@ generated locally by running qntm's actual JS (see the vectors README) —
 his vectors only ever exercise three of the 128 seven-bit characters.
 """
 
+from __future__ import annotations
+
+import pathlib
 import re
 import typing
 import unicodedata
-from pathlib import Path
 
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
-from reference.base32768 import BITS_PER_CHAR, LOOKUP_D, LOOKUP_E, decode, encode
+from reference.base32768 import BITS_PER_CHAR
+from reference.base32768 import LOOKUP_D
+from reference.base32768 import LOOKUP_E
+from reference.base32768 import decode
+from reference.base32768 import encode
 
 # Each bad vector pins both the failure mode and the position it occurs at.
 BAD_CASES: dict[str, str] = {
@@ -34,25 +40,23 @@ ALPHABET: str = "".join(LOOKUP_D)
 # (ZWJ, bidi controls) get stripped or reordered; Zs/Zl/Zp whitespace gets
 # trimmed or collapsed; Co private-use has no interoperable meaning;
 # Mn/Mc/Me combining marks would merge with a neighbour and change the string.
-UNSAFE_CATEGORIES = frozenset(
-    {"Cc", "Cf", "Cn", "Co", "Cs", "Mc", "Me", "Mn", "Zl", "Zp", "Zs"}
-)
+UNSAFE_CATEGORIES = frozenset({"Cc", "Cf", "Cn", "Co", "Cs", "Mc", "Me", "Mn", "Zl", "Zp", "Zs"})
 
 
-def test_encode_conformance(bin_path: Path) -> None:
+def test_encode_conformance(bin_path: pathlib.Path) -> None:
     payload = bin_path.read_bytes()
     expected = bin_path.with_suffix(".txt").read_text(encoding="utf-8")
     assert encode(payload) == expected
 
 
-def test_decode_conformance(bin_path: Path) -> None:
+def test_decode_conformance(bin_path: pathlib.Path) -> None:
     payload = bin_path.read_bytes()
     encoded = bin_path.with_suffix(".txt").read_text(encoding="utf-8")
     assert decode(encoded) == payload
 
 
 @pytest.mark.parametrize("name", sorted(BAD_CASES))
-def test_decode_rejects_bad_input(name: str, vector_dir: Path) -> None:
+def test_decode_rejects_bad_input(name: str, vector_dir: pathlib.Path) -> None:
     bad = (vector_dir / "bad" / f"{name}.txt").read_text(encoding="utf-8")
     with pytest.raises(ValueError, match=re.escape(BAD_CASES[name])):
         decode(bad)
@@ -84,9 +88,7 @@ HOSTILE_NON_BMP: dict[str, tuple[str, str]] = {
 }
 
 
-@pytest.mark.parametrize(
-    ("string", "message"), HOSTILE_NON_BMP.values(), ids=HOSTILE_NON_BMP
-)
+@pytest.mark.parametrize(("string", "message"), HOSTILE_NON_BMP.values(), ids=HOSTILE_NON_BMP)
 def test_decode_rejects_astral_and_surrogate_input(string: str, message: str) -> None:
     """Astral characters and lone surrogates must be rejected with a position.
 
@@ -130,7 +132,7 @@ def test_decode_accepts_canonical_seven_padding_bits() -> None:
     assert decode(encode(b"\x00")) == b"\x00"
 
 
-def test_seven_bit_final_vector_pins_fresh_repertoire(vector_dir: Path) -> None:
+def test_seven_bit_final_vector_pins_fresh_repertoire(vector_dir: pathlib.Path) -> None:
     """qntm's vectors only ever use z = 47, 63, 127 of the 128 seven-bit
     characters, so a transcription error in the 'ƀƟɀʟ' pair string could
     survive them. The locally generated seven-bit-final vector pins a fourth,
@@ -182,11 +184,9 @@ def test_round_trip(payload: bytes) -> None:
     assert decode(encode(payload)) == payload
 
 
-def test_vectors_are_present(vector_pairs: list[Path]) -> None:
+def test_vectors_are_present(vector_pairs: list[pathlib.Path]) -> None:
     """Guard against an empty parametrize list silently passing the suite."""
     assert vector_pairs
     single_bytes = [p for p in vector_pairs if p.parent.name == "single-bytes"]
-    assert len(single_bytes) == 256, (
-        f"expected 256 single-byte cases, got {len(single_bytes)}"
-    )
+    assert len(single_bytes) == 256, f"expected 256 single-byte cases, got {len(single_bytes)}"
     assert len(vector_pairs) == 265  # qntm's 264 + the local seven-bit-final vector

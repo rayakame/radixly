@@ -1,0 +1,45 @@
+line-length = 110
+target-version = "py311"
+
+[format]
+docstring-code-format = true
+docstring-code-line-length = 80
+quote-style = "double"
+line-ending = "lf"
+
+[lint]
+preview = true
+select = ["ALL"]
+ignore = [
+    # Comment and docstring rules are disabled while the library is being
+    # (re)written; comments and docs are a dedicated pass at the end.
+    "CPY", # copyright header
+    "D",   # pydocstyle
+    "DOC", # pydoclint
+    "ERA", # commented-out code
+
+    "ISC003", # we prefer explicit string concatenation
+    "COM812", # missing trailing comma; conflicts with the formatter, which owns trailing commas
+]
+
+[lint.per-file-ignores]
+"**/__init__.py" = [
+    "F401", # imported but unused
+    "F403", # unable to detect undefined names
+]
+"tests/**" = [
+    "S101",    # use of assert
+    "PLR2004", # magic value comparison
+    "SLF001", # private memeber access
+    "INP001", # add __init__.py
+]
+"noxfile.py" = [
+    "S101",    # use of assert
+]
+
+[lint.isort]
+required-imports = ["from __future__ import annotations"]
+force-single-line = true
+
+[lint.pydocstyle]
+convention = "numpy"

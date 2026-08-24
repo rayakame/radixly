@@ -115,7 +115,8 @@ prototype measured 0.37 µs / 187 B decode on older hardware.
 ## Commands
 
 - Inner loop: `uv run pytest`; after editing C: `uv sync --reinstall-package radixly`
-- Full check: `uv run nox` (reformat + pytest in clean venv); `uv run nox -s lint`
+- Full check: `uv run nox` (reformat + pytest + pyright + tidy); CI gates:
+  `nox -s format-check` and `nox -s lint`
 - Build artifacts: `uv build` (wheel must contain `_core.*.so`, never the .c)
 - Diagnostic when imports act weird: `python -c "import radixly._core; print(radixly._core.__file__)"`
   (src/ path is normal under the editable install; site-packages in nox/CI venvs)

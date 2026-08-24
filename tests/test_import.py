@@ -1,8 +1,12 @@
+from __future__ import annotations
+
 from importlib.machinery import EXTENSION_SUFFIXES
+
+import radixly
+import radixly._core
 
 
 def test_import() -> None:
-    import radixly
 
     assert radixly.__author__ == "rayakame"
     assert radixly.__url__ == "https://github.com/rayakame/radixly"
@@ -10,6 +14,5 @@ def test_import() -> None:
 
 
 def test_extension_import() -> None:
-    import radixly._core
 
     assert radixly._core.__file__.endswith(tuple(EXTENSION_SUFFIXES))
