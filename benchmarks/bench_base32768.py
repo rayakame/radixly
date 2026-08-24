@@ -63,7 +63,7 @@ def print_environment() -> None:
 
 def main() -> None:
     print_environment()
-    
+
     # Auto-calibration is M8 polish.
     one: bytes = random.Random(1).randbytes(1)
     discord: bytes = random.Random(187).randbytes(187)
