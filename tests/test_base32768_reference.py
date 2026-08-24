@@ -186,7 +186,7 @@ def test_round_trip(payload: bytes) -> None:
     assert decode(encode(payload)) == payload
 
 
-def test_vectors_are_present(vector_pairs: tuple[pathlib.Path]) -> None:
+def test_vectors_are_present(vector_pairs: tuple[pathlib.Path, ...]) -> None:
     """Guard against an empty parametrize list silently passing the suite."""
     single_bytes = [p for p in vector_pairs if p.parent.name == "single-bytes"]
     assert len(single_bytes) == 256, f"expected 256 single-byte cases, got {len(single_bytes)}"
