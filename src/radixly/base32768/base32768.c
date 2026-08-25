@@ -2,6 +2,7 @@
 #include <Python.h>
 #include "_tables.h"
 #include "base32768.h"
+#include "_common/internal.h"
 
 enum {
     BITS_PER_BYTE = 8,
@@ -18,17 +19,15 @@ static uint16_t REV[MAX_CHAR + 1];
 int
 radixly_base32768_exec(PyObject *Py_UNUSED(module))
 {
-    const size_t REV_length = sizeof(REV) / sizeof(REV[0]);
-    for (size_t i = 0; i < REV_length; i++) {
+    for (size_t i = 0; i < RADIXLY_ARRAY_SIZE(REV); i++) {
         REV[i] = REV_INVALID;
     }
 
-    const size_t FWD15_length = sizeof(RADIXLY_B32768_FWD15) / sizeof(RADIXLY_B32768_FWD15[0]);
-    for (size_t i = 0; i < FWD15_length; i++) {
+    for (size_t i = 0; i < RADIXLY_ARRAY_SIZE(RADIXLY_B32768_FWD15); i++) {
         REV[RADIXLY_B32768_FWD15[i]] = i;
     }
-    const size_t FWD7_length = sizeof(RADIXLY_B32768_FWD7) / sizeof(RADIXLY_B32768_FWD7[0]);
-    for (size_t i = 0; i < FWD7_length; i++) {
+
+    for (size_t i = 0; i < RADIXLY_ARRAY_SIZE(RADIXLY_B32768_FWD7); i++) {
         REV[RADIXLY_B32768_FWD7[i]] = REV_7BIT_FLAG | i;
     }
     return 0;
