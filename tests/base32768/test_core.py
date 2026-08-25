@@ -242,6 +242,12 @@ def test_decode_error_attributes_are_read_only() -> None:
         err.message = "x"  # pyright: ignore[reportAttributeAccessIssue]
 
 
+def test_decode_error_raw_new_has_no_message() -> None:
+    """Pins the message getset's defensive branch: a raw __new__ has empty
+    args, and the C must answer None rather than crash."""
+    assert _core.DecodeError.__new__(_core.DecodeError).message is None
+
+
 def test_decode_error_requires_a_position() -> None:
     with pytest.raises(TypeError):
         _core.DecodeError()  # pyright: ignore[reportCallIssue]

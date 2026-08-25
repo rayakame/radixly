@@ -123,6 +123,15 @@ radixly_base32768_decode(PyObject *Py_UNUSED(self), PyObject *arg)
         PyErr_Format(PyExc_TypeError, "expected str, not %.200s", Py_TYPE(arg)->tp_name);
         return NULL;
     }
+#if PY_VERSION_HEX < 0x030C0000
+    /* 3.11 can still meet legacy, non-ready strings built by other C
+     * extensions via APIs removed in 3.12; GET_LENGTH/KIND/DATA on one is
+     * UB. Deprecated call, but it compiles out on 3.12+ -- the 3.11 build
+     * may need a deprecation suppression when M5 brings -Werror. */
+    if (PyUnicode_READY(arg) == -1) {
+        return NULL;
+    }
+#endif
     const Py_ssize_t num_chars = PyUnicode_GET_LENGTH(arg);
     if (num_chars == 0) {
         return PyBytes_FromStringAndSize("", 0);
@@ -196,6 +205,7 @@ radixly_base32768_decode(PyObject *Py_UNUSED(self), PyObject *arg)
             acc &= (1U << bits) - 1U;
         }
     }
+    assert(out_i == num_bytes);
     /* The drain loop masks acc after every byte, so acc holds exactly num_pad
      * bits here. Comparing all of acc — no mask — makes stray high bits
      * (payload that never reached the output) fail this check instead of
