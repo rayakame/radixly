@@ -7,6 +7,7 @@ enum {
     BITS_PER_BYTE = 8,
     BITS_PER_CHAR = 15,
     MAX_CHAR = 0xFFFF,
+    REV_INVALID = MAX_CHAR,
     CEIL_PAD = BITS_PER_CHAR - 1,
 };
 
@@ -19,7 +20,7 @@ radixly_base32768_exec(PyObject *Py_UNUSED(module))
 {
     const size_t REV_length = sizeof(REV) / sizeof(REV[0]);
     for (size_t i = 0; i < REV_length; i++) {
-        REV[i] = MAX_CHAR;
+        REV[i] = REV_INVALID;
     }
 
     const size_t FWD15_length = sizeof(RADIXLY_B32768_FWD15) / sizeof(RADIXLY_B32768_FWD15[0]);
