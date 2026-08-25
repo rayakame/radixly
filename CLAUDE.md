@@ -70,6 +70,16 @@ alternative if ever needed.
   M3 for build-time table codegen: commit a generated header vs switch to setup.py.
 - Python floor >= 3.11. Exceptions root at ValueError; DecodeError carries position.
 - encode() accepts any buffer-protocol object; str input raises TypeError.
+- **DecodeError message contract (M4 review round, user's call — option c):** `message`
+  stays keyword-only forever; `message=None` → generated text; `""` is a legal explicit
+  message (reference tightened from truthiness to `is None`). Pickle/copy work via
+  `__reduce__` + `__setstate__` (state carries the message) — never by making message
+  positional. Both implementations must match.
+- **Subinterpreters: not supported, and declared so** (M4 review round):
+  `Py_mod_multiple_interpreters` NOT_SUPPORTED slot in `_core.c` (3.12+; 3.11 has no
+  refusal mechanism for multi-phase modules — README documents it instead). The static
+  globals (DecodeError type object, REV table) are the reason. If ever demanded:
+  per-module state (`m_size > 0`, functions reach it via their module `self`) is the shape.
 - **Stricter than qntm's reference JS** (which accepts this): a final character
   that carries zero payload bits — e.g. a lone all-ones 7-bit char — is rejected,
   so decode is injective (one payload, one accepted spelling). Width-independent
