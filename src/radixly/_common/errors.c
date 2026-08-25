@@ -131,3 +131,43 @@ radixly_errors_exec(PyObject *module)
 
     return 0;
 }
+
+PyObject *
+radixly_raise_decode_error(Py_ssize_t position, const char *format, ...)
+{
+    PyObject *msg = NULL;
+    PyObject *args = NULL;
+    PyObject *kwargs = NULL;
+    PyObject *instance = NULL;
+
+    va_list vargs;
+    va_start(vargs, format);
+    msg = PyUnicode_FromFormatV(format, vargs);
+    va_end(vargs);
+    if (msg == NULL) {
+        goto done;
+    }
+    args = Py_BuildValue("(n)", position);
+    if (args == NULL) {
+        goto done;
+    }
+    kwargs = PyDict_New();
+    if (kwargs == NULL) {
+        goto done;
+    }
+    if (PyDict_SetItemString(kwargs, "message", msg) == -1) {
+        goto done;
+    }
+    instance = PyObject_Call(decode_error, args, kwargs);
+    if (instance == NULL) {
+        goto done;
+    }
+    PyErr_SetObject(decode_error, instance);
+
+done:
+    Py_XDECREF(msg);
+    Py_XDECREF(args);
+    Py_XDECREF(kwargs);
+    Py_XDECREF(instance);
+    return NULL;
+}
