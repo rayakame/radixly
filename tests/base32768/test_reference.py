@@ -16,20 +16,12 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
+from tests.base32768 import error_cases
 from tests.reference import base32768 as base32768_reference
 from tests.reference import errors as errors_reference
 
 if typing.TYPE_CHECKING:
     import pathlib
-
-# Each bad vector pins both the failure mode and the position it occurs at.
-BAD_CASES: dict[str, int] = {
-    "bad-padding": 3,
-    "bad0": 0,
-    "not-base32768-char": 111,
-}
-
-PURE_PADDING = base32768_reference.LOOKUP_E[7][127]  # 'ʟ', a 7-bit character that is all filler
 
 # LOOKUP_D is insertion-ordered: the 15-bit repertoire, then the 7-bit one.
 ALPHABET: str = "".join(base32768_reference.LOOKUP_D)
@@ -54,41 +46,19 @@ def test_decode_conformance(base32768_bin_path: pathlib.Path) -> None:
     assert base32768_reference.decode(encoded) == payload
 
 
-@pytest.mark.parametrize("name", sorted(BAD_CASES))
+@pytest.mark.parametrize("name", sorted(error_cases.BAD_CASES))
 def test_decode_rejects_bad_input(name: str, vector_dir: pathlib.Path) -> None:
     bad = (vector_dir / "bad" / f"{name}.txt").read_text(encoding="utf-8")
     with pytest.raises(errors_reference.DecodeError) as exc_info:
         base32768_reference.decode(bad)
-    assert exc_info.value.position == BAD_CASES[name]
+    assert exc_info.value.position == error_cases.BAD_CASES[name]
 
 
-VALID_8_CHARS = base32768_reference.encode(bytes(15))  # 120 bits: 8 full 15-bit characters, no padding
-
-HOSTILE_NON_BMP: dict[str, tuple[str, int]] = {
-    "astral": (
-        "\U0001f600",
-        0,
-    ),
-    "high-surrogate": (
-        "\ud800",
-        0,
-    ),
-    "low-surrogate": (
-        "\udfff",
-        0,
-    ),
-    "astral-mid-string": (
-        VALID_8_CHARS + "\U0001f600" + VALID_8_CHARS,
-        8,
-    ),
-    "surrogate-mid-string": (
-        VALID_8_CHARS + "\udc00" + VALID_8_CHARS,
-        8,
-    ),
-}
-
-
-@pytest.mark.parametrize(("string", "position"), HOSTILE_NON_BMP.values(), ids=HOSTILE_NON_BMP)
+@pytest.mark.parametrize(
+    ("string", "position"),
+    error_cases.HOSTILE_NON_BMP.values(),
+    ids=error_cases.HOSTILE_NON_BMP,
+)
 def test_decode_rejects_astral_and_surrogate_input(string: str, position: int) -> None:
     """Astral characters and lone surrogates must be rejected with a position.
 
@@ -106,28 +76,24 @@ def test_decode_rejects_astral_and_surrogate_input(string: str, position: int) -
     assert exc_info.value.position == position
 
 
-def test_decode_rejects_lone_padding_character() -> None:
-    """A 7-bit character with no payload bits is not a valid encoding of b""."""
+@pytest.mark.parametrize(
+    ("string", "position"),
+    error_cases.CANONICALITY_CASES.values(),
+    ids=error_cases.CANONICALITY_CASES,
+)
+def test_decode_rejects_zero_payload_final_character(string: str, position: int) -> None:
+    """The reasoning behind each case lives with the data in error_cases."""
     with pytest.raises(errors_reference.DecodeError) as exc_info:
-        base32768_reference.decode(PURE_PADDING)
-    assert exc_info.value.position == 0
+        base32768_reference.decode(string)
+    assert exc_info.value.position == position
 
 
-def test_decode_rejects_appended_padding_character() -> None:
-    """The sneaky cousin: valid encoding + 'ʟ' would decode to the same payload
-    under qntm's rules, and is rejected here instead.
-
-    A blanket "reject every 7-bit character" bug would also pass the lone-'ʟ'
-    test above, so this pins the middle ground: the unextended encoding must
-    still decode fine.
-    """
+def test_decode_accepts_appended_padding_base() -> None:
+    """The middle ground the appended-padding case leans on: its valid
+    8-character base must itself decode fine, or a blanket "reject every
+    7-bit character" bug would pass both canonicality rejections."""
     payload = bytes(15)  # 120 bits, encodes to 8 full characters, no padding
-    encoded = base32768_reference.encode(payload)
-    assert base32768_reference.decode(encoded) == payload  # unchanged, and still canonical
-
-    with pytest.raises(errors_reference.DecodeError) as exc_info:
-        base32768_reference.decode(encoded + PURE_PADDING)
-    assert exc_info.value.position == 8
+    assert base32768_reference.decode(base32768_reference.encode(payload)) == payload
 
 
 def test_decode_accepts_canonical_seven_padding_bits() -> None:

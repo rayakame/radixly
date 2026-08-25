@@ -1,4 +1,4 @@
-"""Conformance and differential tests for the C base32768 encoder."""
+"""Conformance and differential tests for the C base32768 codec."""
 
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from radixly import _core
+from tests.base32768 import error_cases
 from tests.reference import base32768 as base32768_reference
 
 
@@ -81,6 +82,136 @@ def test_encode_rejects_non_buffer(bad: str | int) -> None:
         _core.base32768_encode(bad)  # pyright: ignore[reportArgumentType]
 
 
-def test_signature_is_pinned() -> None:
+@pytest.mark.parametrize("func", [_core.base32768_encode, _core.base32768_decode])
+def test_signature_is_pinned(func: Callable[..., object]) -> None:
     """Fails if the text-signature block in the C docstring is mangled or lost."""
-    assert str(inspect.signature(_core.base32768_encode)) == "(data, /)"
+    assert str(inspect.signature(func)) == "(data, /)"
+
+
+# --- decode -----------------------------------------------------------------
+
+
+def test_decode_conformance(base32768_bin_path: pathlib.Path) -> None:
+    payload = base32768_bin_path.read_bytes()
+    encoded = base32768_bin_path.with_suffix(".txt").read_text(encoding="utf-8")
+    assert _core.base32768_decode(encoded) == payload
+
+
+# The cross-differentials: together with the encode-equality sweep above,
+# every arrow between the two implementations is tested independently — a bug
+# that round-trips self-consistently in C cannot survive crossing the
+# language border.
+
+
+@pytest.mark.parametrize("n", range(601))
+@pytest.mark.parametrize("flavor", PAYLOAD_FLAVORS)
+def test_decode_inverts_reference_encode(flavor: str, n: int) -> None:
+    payload = PAYLOAD_FLAVORS[flavor](n)
+    assert _core.base32768_decode(base32768_reference.encode(payload)) == payload
+
+
+@pytest.mark.parametrize("n", range(601))
+@pytest.mark.parametrize("flavor", PAYLOAD_FLAVORS)
+def test_reference_decode_inverts_encode(flavor: str, n: int) -> None:
+    payload = PAYLOAD_FLAVORS[flavor](n)
+    assert base32768_reference.decode(_core.base32768_encode(payload)) == payload
+
+
+@given(st.binary())
+def test_round_trip(payload: bytes) -> None:
+    """The C-only loop at unbounded lengths; the cross arrows are sweep-covered."""
+    assert _core.base32768_decode(_core.base32768_encode(payload)) == payload
+
+
+# The error differential: C must reject what the oracle rejects — same kind,
+# same position. The reference file asserts its side from the same tables.
+
+
+@pytest.mark.parametrize("name", sorted(error_cases.BAD_CASES))
+def test_decode_rejects_bad_input(name: str, vector_dir: pathlib.Path) -> None:
+    bad = (vector_dir / "bad" / f"{name}.txt").read_text(encoding="utf-8")
+    with pytest.raises(_core.DecodeError) as exc_info:
+        _core.base32768_decode(bad)
+    assert exc_info.value.position == error_cases.BAD_CASES[name]
+
+
+@pytest.mark.parametrize(
+    ("string", "position"),
+    error_cases.HOSTILE_NON_BMP.values(),
+    ids=error_cases.HOSTILE_NON_BMP,
+)
+def test_decode_rejects_astral_and_surrogate_input(string: str, position: int) -> None:
+    """These five were designed for this moment: the astral entries exercise
+    the bounds guard, the surrogates the painted reverse-table cells — each C
+    defense now has named, positioned proof."""
+    with pytest.raises(_core.DecodeError) as exc_info:
+        _core.base32768_decode(string)
+    assert exc_info.value.position == position
+
+
+@pytest.mark.parametrize(
+    ("string", "position"),
+    error_cases.CANONICALITY_CASES.values(),
+    ids=error_cases.CANONICALITY_CASES,
+)
+def test_decode_rejects_zero_payload_final_character(string: str, position: int) -> None:
+    """The M1 divergence from qntm, enforced identically on both sides of the
+    border; the reasoning lives with the data in error_cases."""
+    with pytest.raises(_core.DecodeError) as exc_info:
+        _core.base32768_decode(string)
+    assert exc_info.value.position == position
+
+
+# DecodeError's own contract: the public-facing class of the milestone.
+# Fails when anyone touches tp_init, the member table, or the getset
+# carelessly.
+
+
+def test_decode_error_is_a_value_error() -> None:
+    assert issubclass(_core.DecodeError, ValueError)
+
+
+def test_decode_error_default_message_names_the_position() -> None:
+    assert str(_core.DecodeError(7)) == "Decode Error at position 7"
+
+
+def test_decode_error_custom_message() -> None:
+    err = _core.DecodeError(3, message="boom")
+    assert (str(err), err.message, err.position) == ("boom", "boom", 3)
+
+
+def test_decode_error_attributes_are_read_only() -> None:
+    err = _core.DecodeError(1)
+    with pytest.raises(AttributeError):
+        err.position = 2  # pyright: ignore[reportAttributeAccessIssue]
+    with pytest.raises(AttributeError):
+        err.message = "x"  # pyright: ignore[reportAttributeAccessIssue]
+
+
+def test_decode_error_requires_a_position() -> None:
+    with pytest.raises(TypeError):
+        _core.DecodeError()  # pyright: ignore[reportCallIssue]
+
+
+# Housekeeping.
+
+
+def test_decode_empty_string_is_empty_payload() -> None:
+    assert _core.base32768_decode("") == b""
+
+
+def _type_id(value: object) -> str:
+    return type(value).__name__
+
+
+@pytest.mark.parametrize("bad", error_cases.NON_STR_INPUTS, ids=_type_id)
+def test_decode_rejects_non_str(bad: object) -> None:
+    with pytest.raises(TypeError):
+        _core.base32768_decode(bad)  # pyright: ignore[reportArgumentType]
+
+
+def test_decode_matches_reference_megabyte() -> None:
+    """The encode twin's mirror: size-dependent bugs live past the vectors'
+    comfort zone, decode direction."""
+    payload = random.Random(2**20).randbytes(2**20)
+    assert _core.base32768_decode(base32768_reference.encode(payload)) == payload
