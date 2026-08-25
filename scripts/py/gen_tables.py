@@ -38,7 +38,7 @@ class IndentWriter:
 
     def write_file(self) -> None:
         """Write content to file."""
-        with self.file_path.open("w", encoding="utf-8") as file:
+        with self.file_path.open("w", encoding="utf-8", newline="\n") as file:
             for line in self.lines:
                 indent: str = (self.indent_char * self.indent_amount) * line[1]
                 file.write(indent + line[0])
