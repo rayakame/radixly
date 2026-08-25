@@ -10,6 +10,10 @@ static PyMethodDef radixly_methods[] = {
 };
 
 static PyModuleDef_Slot radixly_execs[] = {
+/* Static globals make this module single-interpreter only; 3.11 cannot refuse (see README). */
+#if PY_VERSION_HEX >= 0x030C0000
+    {Py_mod_multiple_interpreters, Py_MOD_MULTIPLE_INTERPRETERS_NOT_SUPPORTED},
+#endif
     {Py_mod_exec, (void *)radixly_errors_exec},
     {Py_mod_exec, (void *)radixly_base32768_exec},
     {0, NULL},
