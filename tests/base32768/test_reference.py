@@ -9,6 +9,8 @@ his vectors only ever exercise three of the 128 seven-bit characters.
 
 from __future__ import annotations
 
+import copy
+import pickle  # ruff: ignore[suspicious-pickle-import] -- tests pickle only their own objects
 import typing
 import unicodedata
 
@@ -164,6 +166,32 @@ def test_decode_error_message_none_generates_text() -> None:
 def test_decode_error_empty_message_is_preserved() -> None:
     err = errors_reference.DecodeError(3, message="")
     assert (err.message, err.args) == ("", ("",))
+
+
+@pytest.mark.parametrize("protocol", range(pickle.HIGHEST_PROTOCOL + 1))
+@pytest.mark.parametrize("flavor", error_cases.PICKLE_MESSAGE_CASES)
+def test_decode_error_pickle_round_trip(flavor: str, protocol: int) -> None:
+    """Every view of the clone must agree: type, position (the int, not just
+    truthiness), and the message through .message, args, and str() — the last
+    is what catches a __setstate__ that fed only one of its two stores."""
+    kwargs, expected = error_cases.PICKLE_MESSAGE_CASES[flavor]
+    original = errors_reference.DecodeError(error_cases.PICKLE_POSITION, **kwargs)
+    clone: object = pickle.loads(pickle.dumps(original, protocol))  # ruff: ignore[suspicious-pickle-usage]  # pyright: ignore[reportAny]
+    assert type(clone) is errors_reference.DecodeError
+    assert clone.position == error_cases.PICKLE_POSITION
+    assert (clone.message, clone.args, str(clone)) == (expected, (expected,), expected)
+
+
+def test_decode_error_copy() -> None:
+    """copy.copy rides __reduce_ex__: nearly free extra coverage."""
+    clone = copy.copy(errors_reference.DecodeError(error_cases.PICKLE_POSITION, message="boom"))
+    assert type(clone) is errors_reference.DecodeError
+    assert (clone.position, clone.message, clone.args, str(clone)) == (
+        error_cases.PICKLE_POSITION,
+        "boom",
+        ("boom",),
+        "boom",
+    )
 
 
 @given(st.binary())

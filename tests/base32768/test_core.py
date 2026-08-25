@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import copy
 import inspect
+import pickle  # ruff: ignore[suspicious-pickle-import] -- tests pickle only their own objects
 import random
 import typing
 
@@ -197,6 +199,39 @@ def test_decode_error_rejects_non_str_message() -> None:
     """C-side only: the oracle deliberately trusts its annotations here."""
     with pytest.raises(TypeError, match="must be str or None"):
         _core.DecodeError(0, message=42)  # pyright: ignore[reportArgumentType]
+
+
+@pytest.mark.parametrize("protocol", range(pickle.HIGHEST_PROTOCOL + 1))
+@pytest.mark.parametrize("flavor", error_cases.PICKLE_MESSAGE_CASES)
+def test_decode_error_pickle_round_trip(flavor: str, protocol: int) -> None:
+    """Every view of the clone must agree: type, position (the int, not just
+    truthiness -- a silently stringified 5 must fail), and the message as seen
+    through .message, args, and str()."""
+    kwargs, expected = error_cases.PICKLE_MESSAGE_CASES[flavor]
+    original = _core.DecodeError(error_cases.PICKLE_POSITION, **kwargs)
+    clone: object = pickle.loads(pickle.dumps(original, protocol))  # ruff: ignore[suspicious-pickle-usage]  # pyright: ignore[reportAny]
+    assert type(clone) is _core.DecodeError
+    assert clone.position == error_cases.PICKLE_POSITION
+    assert (clone.message, clone.args, str(clone)) == (expected, (expected,), expected)
+
+
+def test_decode_error_copy() -> None:
+    """copy.copy rides __reduce_ex__: nearly free extra coverage."""
+    clone = copy.copy(_core.DecodeError(error_cases.PICKLE_POSITION, message="boom"))
+    assert type(clone) is _core.DecodeError
+    assert (clone.position, clone.message, clone.args, str(clone)) == (
+        error_cases.PICKLE_POSITION,
+        "boom",
+        ("boom",),
+        "boom",
+    )
+
+
+def test_decode_error_setstate_rejects_non_str_state() -> None:
+    """Pickle state is attacker-controlled like any decode input; a
+    hand-crafted pickle can send anything."""
+    with pytest.raises(TypeError, match="state must be str"):
+        _core.DecodeError(0).__setstate__(42)  # pyright: ignore[reportArgumentType]
 
 
 def test_decode_error_attributes_are_read_only() -> None:

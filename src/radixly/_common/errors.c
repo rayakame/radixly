@@ -102,14 +102,43 @@ static PyGetSetDef decode_error_getset[] = {
     {NULL},
 };
 
+static PyObject *
+decode_error_reduce(PyObject *self, PyObject *Py_UNUSED(ignored))
+{
+    const Py_ssize_t position = ((RadixlyDecodeErrorObject *)self)->position;
+    PyObject *msg = decode_error_get_message(self, NULL);
+    PyObject *result = Py_BuildValue("(O(n)O)", Py_TYPE(self), position, msg);
+    Py_DECREF(msg);
+    return result;
+}
+
+static PyObject *
+decode_error_setstate(PyObject *self, PyObject *state)
+{
+    if (PyUnicode_Check(state) == 0) {
+        PyErr_Format(PyExc_TypeError, "DecodeError.__setstate__() state must be str, not %.200s",
+                     Py_TYPE(state)->tp_name);
+        return NULL;
+    }
+    PyObject *packed = PyTuple_Pack(1, state);
+    if (packed == NULL) {
+        return NULL;
+    }
+    Py_XSETREF(((PyBaseExceptionObject *)self)->args, packed);
+    Py_RETURN_NONE;
+}
+
+static PyMethodDef decode_error_methods[] = {
+    {"__reduce__", decode_error_reduce, METH_NOARGS, PyDoc_STR("Helper for pickle.")},
+    {"__setstate__", decode_error_setstate, METH_O, PyDoc_STR("Restore the message from pickled state.")},
+    {NULL, NULL, 0, NULL},
+};
+
 static PyType_Slot decode_error_slots[] = {
-    {Py_tp_doc, (void *)radixly_decode_error_doc},
-    {Py_tp_init, (void *)decode_error_init},
-    {Py_tp_members, decode_error_members},
-    {Py_tp_traverse, (void *)decode_error_traverse},
-    {Py_tp_clear, (void *)decode_error_clear},
-    {Py_tp_getset, decode_error_getset},
-    {0, NULL},
+    {Py_tp_doc, (void *)radixly_decode_error_doc}, {Py_tp_init, (void *)decode_error_init},
+    {Py_tp_members, decode_error_members},         {Py_tp_traverse, (void *)decode_error_traverse},
+    {Py_tp_clear, (void *)decode_error_clear},     {Py_tp_getset, decode_error_getset},
+    {Py_tp_methods, decode_error_methods},         {0, NULL},
 };
 
 static PyType_Spec decode_error_spec = {

@@ -10,7 +10,14 @@ from __future__ import annotations
 
 from tests.reference import base32768 as base32768_reference
 
-__all__ = ("BAD_CASES", "CANONICALITY_CASES", "HOSTILE_NON_BMP", "NON_STR_INPUTS")
+__all__ = (
+    "BAD_CASES",
+    "CANONICALITY_CASES",
+    "HOSTILE_NON_BMP",
+    "NON_STR_INPUTS",
+    "PICKLE_MESSAGE_CASES",
+    "PICKLE_POSITION",
+)
 
 # Each bad vector pins both the failure mode and the position it occurs at.
 BAD_CASES: dict[str, int] = {
@@ -51,3 +58,14 @@ CANONICALITY_CASES: dict[str, tuple[str, int]] = {
 
 # For both implementations' type rejections: decode() takes str, full stop.
 NON_STR_INPUTS: tuple[object, ...] = (b"bytes", 42)
+
+# Pickle round-trip flavors: constructor kwargs -> the message every view of
+# the clone must agree on (.message, args[0], str()). "empty" is the
+# cross-check that the option-c message contract and the pickle state channel
+# compose: "" must survive verbatim, never replaced by the generated text.
+PICKLE_POSITION: int = 5
+PICKLE_MESSAGE_CASES: dict[str, tuple[dict[str, str], str]] = {
+    "explicit": ({"message": "boom"}, "boom"),
+    "empty": ({"message": ""}, ""),
+    "generated": ({}, f"Decode Error at position {PICKLE_POSITION}"),
+}
