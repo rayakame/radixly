@@ -10,6 +10,29 @@ enum {
     CEIL_PAD = BITS_PER_CHAR - 1,
 };
 
+static const uint16_t REV_7BIT_FLAG = 0x8000;
+
+static uint16_t REV[MAX_CHAR + 1];
+
+int
+radixly_base32768_exec(PyObject *Py_UNUSED(module))
+{
+    const size_t REV_length = sizeof(REV) / sizeof(REV[0]);
+    for (size_t i = 0; i < REV_length; i++) {
+        REV[i] = MAX_CHAR;
+    }
+
+    const size_t FWD15_length = sizeof(RADIXLY_B32768_FWD15) / sizeof(RADIXLY_B32768_FWD15[0]);
+    for (size_t i = 0; i < FWD15_length; i++) {
+        REV[RADIXLY_B32768_FWD15[i]] = i;
+    }
+    const size_t FWD7_length = sizeof(RADIXLY_B32768_FWD7) / sizeof(RADIXLY_B32768_FWD7[0]);
+    for (size_t i = 0; i < FWD7_length; i++) {
+        REV[RADIXLY_B32768_FWD7[i]] = REV_7BIT_FLAG | i;
+    }
+    return 0;
+}
+
 const char radixly_base32768_encode_doc[] =
     PyDoc_STR("base32768_encode($module, data, /)\n"
               "--\n"

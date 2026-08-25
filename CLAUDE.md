@@ -56,9 +56,10 @@ prototype measured 0.37 µs / 187 B decode on older hardware.
 - **Layout convention (decided M3, user's call): one folder per codec**, always,
   even one-file presets — `src/radixly/<codec>/` holds its `__init__.py` (public
   face), bespoke `.c` if any, generated `_tables.h` if any. Shared C engine lives
-  in `src/radixly/_common/` (M7). `_core.c` stays a wiring hub (module init +
-  method table). Uniformity is deliberate: "where is X?" has one answer for
-  every codec.
+  in `src/radixly/_common/` (born M4 with errors.c — DecodeError + raise helper
+  are engine-wide; user's call). `_core.c` stays a wiring hub (module init +
+  method table + one exec slot per codec, engine slot first). Uniformity is
+  deliberate: "where is X?" has one answer for every codec.
 - Multi-phase module init (`PyModuleDef_Init`); table init goes in a `Py_mod_exec`
   slot when it arrives (M4).
 - setuptools backend; extension declared via the experimental
