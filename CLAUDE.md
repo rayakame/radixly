@@ -41,8 +41,11 @@ Performance bars (measured by benchmarks/bench_base32768.py, i9-13900K,
 performance governor, CPython 3.13 — protect these; regressions need a reason):
 encode 0.112 µs / 187 B, 1880 MB/s at 64 KiB (flat to 1 MiB), 0.020 µs per-call
 floor at 1 B (METH_O, no arg parsing — why the object layer must not add Python
-call frames). 103x the pure-Python reference. Decode bar pending M4; legacy
-prototype measured 0.37 µs / 187 B decode on older hardware.
+call frames). 103x the pure-Python reference. Decode (measured M4): 0.196 µs /
+187 B (legacy bar 0.37 beaten 1.9x), 1118 MB/s at 64 KiB (flat to 1 MiB),
+0.017 µs floor at 1 B, 100x the reference — two-pass design's throughput cost
+vs encode is known and accepted; single-pass-resize is the measured-decision
+alternative if ever needed.
 
 ## Fixed decisions — do not relitigate
 
@@ -92,14 +95,15 @@ prototype measured 0.37 µs / 187 B decode on older hardware.
   lengths 0-600 x 3 payload flavors, Hypothesis); conftest hook dedups vector
   parametrization; _core.pyi stub begun. Benchmarked 2.4x ahead of the legacy
   bars (see Performance bars above).
-- **M4 — CURRENT** — decode: reverse table int16_t[0x10000] filled at module init, every
-  lookup guarded by cp < 0x10000 (attacker-controlled input), padding verification,
-  DecodeError with position, error paths DECREF before returning NULL.
-  Deferred here from the M1 review: restructure error assertions to shared
-  (failure kind, position) data instead of pinned prose messages, and give the
-  reference's exceptions a structured position, so C-vs-reference error
-  behavior can be diffed mechanically.
-- **M5** — hardening: -Wall -Wextra -Werror, pin -std=c11 in the build (PEP 7
+- **M4 — decode in C: DONE.** Two-pass decoder (validate-and-size, then fill):
+  every reverse-table index behind the cp <= MAX_CHAR guard, surrogates die on
+  painted cells, canonicality rule enforced in C (comment mirrored from the
+  oracle). DecodeError is a full C heap type (position member, message getset,
+  tp_init chaining to ValueError, GC delegation) in _common/errors.c with a
+  goto-ladder raise helper. Error contract shared as data
+  (tests/base32768/error_cases.py): both implementations pinned to the same
+  (input, position) tables. Suite 6521 tests. Measured: see bars above.
+- **M5 — CURRENT** — hardening: -Wall -Wextra -Werror, pin -std=c11 in the build (PEP 7
   target; analysis already parses as C11 via compile_commands.json), suite
   under ASan/UBSan in CI, decode
   fuzzing (must raise, never crash/hang), differential tests C vs reference for
