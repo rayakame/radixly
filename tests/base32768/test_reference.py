@@ -150,6 +150,22 @@ def test_alphabet_is_normalization_stable(
     assert unicodedata.normalize(form, ALPHABET) == ALPHABET
 
 
+# DecodeError message contract (option c, recorded in CLAUDE.md): None means
+# "generate the text", "" is a legal explicit message preserved verbatim.
+# test_core.py asserts the same of the C type; only the C enforces the
+# str-or-None type — the oracle deliberately trusts its annotations.
+
+
+def test_decode_error_message_none_generates_text() -> None:
+    err = errors_reference.DecodeError(7, message=None)
+    assert (str(err), err.message) == ("Decode Error at position 7", "Decode Error at position 7")
+
+
+def test_decode_error_empty_message_is_preserved() -> None:
+    err = errors_reference.DecodeError(3, message="")
+    assert (err.message, err.args) == ("", ("",))
+
+
 @given(st.binary())
 def test_round_trip(payload: bytes) -> None:
     assert base32768_reference.decode(base32768_reference.encode(payload)) == payload

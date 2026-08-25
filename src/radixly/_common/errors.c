@@ -27,20 +27,25 @@ decode_error_init(PyObject *self, PyObject *args, PyObject *kwargs)
     PyObject *message = NULL;
 
     static char *kwlist[] = {"position", "message", NULL};
-    if (PyArg_ParseTupleAndKeywords(args, kwargs, "n|$U:DecodeError", kwlist, &position, &message) == 0) {
+    if (PyArg_ParseTupleAndKeywords(args, kwargs, "n|$O:DecodeError", kwlist, &position, &message) == 0) {
         return -1;
     }
 
     ((RadixlyDecodeErrorObject *)self)->position = position;
     PyObject *msg;
-    if (message == NULL) {
+    if (message == NULL || message == Py_None) {
         msg = PyUnicode_FromFormat("Decode Error at position %zd", position);
         if (msg == NULL) {
             return -1;
         }
     }
-    else {
+    else if (PyUnicode_Check(message) != 0) {
         msg = Py_NewRef(message);
+    }
+    else {
+        PyErr_Format(PyExc_TypeError, "DecodeError() argument 'message' must be str or None, not %.200s",
+                     Py_TYPE(message)->tp_name);
+        return -1;
     }
     PyObject *base_args = PyTuple_Pack(1, msg);
     if (base_args == NULL) {

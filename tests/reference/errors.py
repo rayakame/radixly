@@ -11,7 +11,7 @@ class DecodeError(ValueError):
 
     def __init__(self, position: int, *, message: str | None = None) -> None:
         self._position = position
-        if message:
+        if message is not None:
             self._message = message
         else:
             self._message = f"Decode Error at position {position}"

@@ -180,6 +180,25 @@ def test_decode_error_custom_message() -> None:
     assert (str(err), err.message, err.position) == ("boom", "boom", 3)
 
 
+def test_decode_error_message_none_generates_text() -> None:
+    """Explicit message=None is the same as omitting it (option c)."""
+    err = _core.DecodeError(7, message=None)
+    assert (str(err), err.message) == ("Decode Error at position 7", "Decode Error at position 7")
+
+
+def test_decode_error_empty_message_is_preserved() -> None:
+    """ "" is a legal explicit message (option c): stored verbatim in both
+    .message and args[0], never replaced by the generated text."""
+    err = _core.DecodeError(3, message="")
+    assert (err.message, err.args) == ("", ("",))
+
+
+def test_decode_error_rejects_non_str_message() -> None:
+    """C-side only: the oracle deliberately trusts its annotations here."""
+    with pytest.raises(TypeError, match="must be str or None"):
+        _core.DecodeError(0, message=42)  # pyright: ignore[reportArgumentType]
+
+
 def test_decode_error_attributes_are_read_only() -> None:
     err = _core.DecodeError(1)
     with pytest.raises(AttributeError):
