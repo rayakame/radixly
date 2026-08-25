@@ -62,6 +62,10 @@ static PyMemberDef decode_error_members[] = {
 static int
 decode_error_traverse(PyObject *self, visitproc visit, void *arg)
 {
+    /* Instances of heap types own a strong reference to their type, and the
+     * collector only learns about it here; ValueError's traverse is a
+     * static-type traverse and will never report it for us. */
+    Py_VISIT(Py_TYPE(self));
     return ((PyTypeObject *)PyExc_ValueError)->tp_traverse(self, visit, arg);
 }
 
@@ -86,7 +90,10 @@ decode_error_get_message(PyObject *self, void *Py_UNUSED(closure))
 }
 
 static PyGetSetDef decode_error_getset[] = {
-    {"message", decode_error_get_message, NULL, PyDoc_STR("..."), NULL},
+    {"message", decode_error_get_message, NULL,
+     PyDoc_STR(
+         "Human-readable description of the failure, or None if the exception was built without arguments."),
+     NULL},
     {NULL},
 };
 
