@@ -138,10 +138,18 @@ alternative if ever needed.
   exhaustive 65,536 single-char sweep (256 accepted, pinned), multi-MB hostile
   tail. 6,571 tests, all clean under sanitizers. The planned every-length
   differential was already satisfied by the M3/M4 sweeps.
-- **M6 — CURRENT** — Python object layer: Codec objects (bind C functions as instance
-  attributes — no delegating def methods), registry, Protocol, max_bytes/encoded_len.
-  Benchmark the wrapper cost before committing to layering.
-- **M7** — contiguous-block factory in C + uro14/braille/hexagram (references in
+- **M6 — Python object layer: DONE.** The public API born: per-codec faces
+  (base32768/_api.py binds the raw C functions under bare names; inits are pure
+  re-export faces per ruff's non-empty-init rule), frozen slots Codec dataclass +
+  registry (get_codec with helpful errors, read-only CODECS view, public register
+  refusing duplicates) in _codec.py, size math with maximality-pinned and
+  encoder-differential tests, DecodeError + eager codec imports at the root
+  (subprocess-pinned). Import graph cycle-free: within the package, imports go
+  directly to submodules, never through `radixly` itself. Wrapper cost measured
+  and the layering committed: at the 1 B floor the dotted shapes cost ~1 ns over
+  the raw C call (module +0.9, codec +1.1; hoisted pre-bound = baseline) — no
+  Python frame anywhere; benchmarks/bench_api.py is the receipt. Suite 7,600 tests.
+- **M7 — CURRENT** — contiguous-block factory in C + uro14/braille/hexagram (references in
   tests/ first; uro14's length prefix must provably catch truncation).
 - **M8** — benchmark suite as product: honest README table, CI regression gates.
 - **M9** — ship 1.0: cibuildwheel matrix, .pyi stubs + py.typed, docs stating the
