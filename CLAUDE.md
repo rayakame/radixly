@@ -57,8 +57,14 @@ alternative if ever needed.
   namespaces are thin Python modules. Multiple .c files later still link into the
   single extension.
 - **Layout convention (decided M3, user's call): one folder per codec**, always,
-  even one-file presets — `src/radixly/<codec>/` holds its `__init__.py` (public
-  face), bespoke `.c` if any, generated `_tables.h` if any. Shared C engine lives
+  even one-file presets — `src/radixly/<codec>/` holds its `_api.py` (the Python
+  face: bindings, size math, Codec instance + registration — revised M6, user's
+  call seconded by ruff's non-empty-init rule), `__init__.py` (pure re-export of
+  `_api`, no `__all__`), bespoke `.c` if any, generated `_tables.h` if any.
+  Within the package, submodules import their siblings directly, never the bare
+  `radixly` package — keeps the import graph cycle-free. (The root __init__
+  importing its own children is the tree edge, not a cycle risk — exempt.)
+  Shared C engine lives
   in `src/radixly/_common/` (born M4 with errors.c — DecodeError + raise helper
   are engine-wide; user's call). `_core.c` stays a wiring hub (module init +
   method table + one exec slot per codec, engine slot first). Uniformity is
@@ -80,6 +86,19 @@ alternative if ever needed.
   refusal mechanism for multi-phase modules — README documents it instead). The static
   globals (DecodeError type object, REV table) are the reason. If ever demanded:
   per-module state (`m_size > 0`, functions reach it via their module `self`) is the shape.
+- **M6 API shape (user's rulings, 2026-08-26):** per-codec modules bind the raw C
+  functions under bare names (base32768.encode — the module namespaces, like base64's
+  prefixes do); root exports DecodeError and imports codec modules eagerly (the one .so
+  loads anyway; registry guaranteed populated after `import radixly`). Codec = frozen
+  slots dataclass in `_codec.py` — private on purpose: one public path per name, and a
+  public `radixly.codec` would read like a codec named "codec" next to radixly.base32768.
+  Size math (encoded_len = ceil(8n/15), max_bytes = floor(15N/8); integer arithmetic
+  only, never floats) defined in the codec module, Codec fields hold those same objects.
+  Registry: get_codec() with a helpful unknown-name error + CODECS MappingProxy, one
+  dict behind both; registration explicit only — never automatic in __post_init__.
+  **No typing Protocol through 1.0**: the one concrete Codec class is the interface;
+  revisit only if a structurally different codec type (C-implemented, third-party)
+  ever appears.
 - **Stricter than qntm's reference JS** (which accepts this): a final character
   that carries zero payload bits — e.g. a lone all-ones 7-bit char — is rejected,
   so decode is injective (one payload, one accepted spelling). Width-independent
@@ -125,10 +144,18 @@ alternative if ever needed.
   exhaustive 65,536 single-char sweep (256 accepted, pinned), multi-MB hostile
   tail. 6,571 tests, all clean under sanitizers. The planned every-length
   differential was already satisfied by the M3/M4 sweeps.
-- **M6 — CURRENT** — Python object layer: Codec objects (bind C functions as instance
-  attributes — no delegating def methods), registry, Protocol, max_bytes/encoded_len.
-  Benchmark the wrapper cost before committing to layering.
-- **M7** — contiguous-block factory in C + uro14/braille/hexagram (references in
+- **M6 — Python object layer: DONE.** The public API born: per-codec faces
+  (base32768/_api.py binds the raw C functions under bare names; inits are pure
+  re-export faces per ruff's non-empty-init rule), frozen slots Codec dataclass +
+  registry (get_codec with helpful errors, read-only CODECS view, public register
+  refusing duplicates) in _codec.py, size math with maximality-pinned and
+  encoder-differential tests, DecodeError + eager codec imports at the root
+  (subprocess-pinned). Import graph cycle-free: within the package, imports go
+  directly to submodules, never through `radixly` itself. Wrapper cost measured
+  and the layering committed: at the 1 B floor the dotted shapes cost ~1 ns over
+  the raw C call (module +0.9, codec +1.1; hoisted pre-bound = baseline) — no
+  Python frame anywhere; benchmarks/bench_api.py is the receipt. Suite 7,600 tests.
+- **M7 — CURRENT** — contiguous-block factory in C + uro14/braille/hexagram (references in
   tests/ first; uro14's length prefix must provably catch truncation).
 - **M8** — benchmark suite as product: honest README table, CI regression gates.
 - **M9** — ship 1.0: cibuildwheel matrix, .pyi stubs + py.typed, docs stating the
