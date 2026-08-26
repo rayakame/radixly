@@ -80,9 +80,6 @@ jobs:
       - name: Run test suite
         run: uv run --only-group nox nox -s pytest
 
-  # The full matrix on purpose (user's call): the C is identical across
-  # versions, but each interpreter drives it differently — allocation
-  # patterns, string kinds, GC timing.
   asan:
     runs-on: ubuntu-latest
     strategy:

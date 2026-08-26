@@ -1,10 +1,4 @@
-"""Task runner for reproducible dev invocations.
-
-The day-to-day inner loop stays `uv run pytest`. These sessions exist so that
-CI and a local machine run byte-identical commands.
-
-Sessions arriving with later milestones: fuzz (M5), bench (M8).
-"""
+"""Task runner for reproducible dev invocations."""
 
 from __future__ import annotations
 
@@ -29,17 +23,7 @@ def sync(
     editable: bool = True,
     build_env: dict[str, str] | None = None,
 ) -> None:
-    """Install dependency groups (and by default the project) into the session venv.
-
-    ``project=False`` skips building/installing radixly itself, for sessions
-    that only need a tool — no point compiling a C extension to run a linter.
-    ``build_env`` overrides or extends the build environment — the asan
-    session swaps in its sanitizer CFLAGS this way. ``editable=False``
-    installs radixly as a built wheel into the venv instead of the editable
-    install: every editable env shares the ONE in-place .so under src/, so a
-    session building with special flags must isolate its artifact or it
-    poisons every other env's import.
-    """
+    """Install dependency groups (and by default the project) into the session venv."""
     args: list[str]
     if project:
         args = ["--no-default-groups", "--reinstall-package", "radixly"]
@@ -51,9 +35,6 @@ def sync(
         args = []
         for group in groups:
             args += ["--only-group", group]
-    # -Werror rides only dev/CI builds (M5): warnings the automatic
-    # setuptools build would swallow become loud failures here, while the
-    # shipped metadata stays tolerant for end users' future compilers.
     env = {"UV_PROJECT_ENVIRONMENT": session.virtualenv.location, "CFLAGS": "-Werror"}
     if build_env is not None:
         env |= build_env
@@ -142,14 +123,7 @@ _SANITIZE = "-fsanitize=address,undefined"
 
 @nox.session(reuse_venv=True)
 def asan(session: nox.Session) -> None:
-    """Run the suite with the extension built under ASan+UBSan. CI gate; on demand locally.
-
-    The python binary itself is uninstrumented, so the ASan runtime must be
-    LD_PRELOADed in, and PYTHONMALLOC=malloc bypasses pymalloc's arenas —
-    inside them, small overflows between Python objects are invisible to
-    ASan. Leak detection stays off: CPython deliberately leaves internal
-    state allocated at exit. UBSan findings halt instead of merely printing.
-    """
+    """Run the suite with the extension built under ASan+UBSan. CI gate; on demand locally."""
     sync(
         session,
         "pytest",
