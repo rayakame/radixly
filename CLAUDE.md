@@ -61,8 +61,10 @@ alternative if ever needed.
   face: bindings, size math, Codec instance + registration — revised M6, user's
   call seconded by ruff's non-empty-init rule), `__init__.py` (pure re-export of
   `_api`, no `__all__`), bespoke `.c` if any, generated `_tables.h` if any.
-  Within the package, modules import sibling submodules directly, never the bare
-  `radixly` package — keeps the import graph cycle-free. Shared C engine lives
+  Within the package, submodules import their siblings directly, never the bare
+  `radixly` package — keeps the import graph cycle-free. (The root __init__
+  importing its own children is the tree edge, not a cycle risk — exempt.)
+  Shared C engine lives
   in `src/radixly/_common/` (born M4 with errors.c — DecodeError + raise helper
   are engine-wide; user's call). `_core.c` stays a wiring hub (module init +
   method table + one exec slot per codec, engine slot first). Uniformity is

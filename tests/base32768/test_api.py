@@ -32,6 +32,12 @@ def test_codec_fields() -> None:
     assert codec.bits_per_char == 15 == radixly.base32768.BITS_PER_CHAR
 
 
+def test_api_all_is_nonempty() -> None:
+    """An emptied __all__ would make the re-export parametrization collect zero
+    cases and skip -- green while guarding nothing. This test makes that loud."""
+    assert _api.__all__
+
+
 @pytest.mark.parametrize("name", _api.__all__)
 def test_package_reexports_the_api(name: str) -> None:
     assert getattr(radixly.base32768, name) is getattr(_api, name)
