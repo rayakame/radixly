@@ -35,7 +35,7 @@ def test_codec_fields() -> None:
 def test_api_all_is_nonempty() -> None:
     """An emptied __all__ would make the re-export parametrization collect zero
     cases and skip -- green while guarding nothing. This test makes that loud."""
-    assert _api.__all__
+    assert len(_api.__all__) > 0
 
 
 @pytest.mark.parametrize("name", _api.__all__)
