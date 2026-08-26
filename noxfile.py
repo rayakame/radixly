@@ -3,7 +3,7 @@
 The day-to-day inner loop stays `uv run pytest`. These sessions exist so that
 CI and a local machine run byte-identical commands.
 
-Sessions arriving with later milestones: asan/ubsan + fuzz (M5), bench (M8).
+Sessions arriving with later milestones: fuzz (M5), bench (M8).
 """
 
 from __future__ import annotations
@@ -21,31 +21,43 @@ PATHS = ["noxfile.py", "benchmarks", "scripts", "src", "tests"]
 C_PATHS = sorted(str(p) for p in pathlib.Path("src").rglob("*.[ch]"))
 
 
-def sync(session: nox.Session, /, *groups: str, project: bool = True) -> None:
+def sync(
+    session: nox.Session,
+    /,
+    *groups: str,
+    project: bool = True,
+    editable: bool = True,
+    build_env: dict[str, str] | None = None,
+) -> None:
     """Install dependency groups (and by default the project) into the session venv.
 
     ``project=False`` skips building/installing radixly itself, for sessions
     that only need a tool — no point compiling a C extension to run a linter.
+    ``build_env`` overrides or extends the build environment — the asan
+    session swaps in its sanitizer CFLAGS this way. ``editable=False``
+    installs radixly as a built wheel into the venv instead of the editable
+    install: every editable env shares the ONE in-place .so under src/, so a
+    session building with special flags must isolate its artifact or it
+    poisons every other env's import.
     """
     args: list[str]
     if project:
         args = ["--no-default-groups", "--reinstall-package", "radixly"]
+        if not editable:
+            args.append("--no-editable")
         for group in groups:
             args += ["--group", group]
     else:
         args = []
         for group in groups:
             args += ["--only-group", group]
-    session.run_install(
-        "uv",
-        "sync",
-        "--locked",
-        *args,
-        # -Werror rides only dev/CI builds (M5): warnings the automatic
-        # setuptools build would swallow become loud failures here, while the
-        # shipped metadata stays tolerant for end users' future compilers.
-        env={"UV_PROJECT_ENVIRONMENT": session.virtualenv.location, "CFLAGS": "-Werror"},
-    )
+    # -Werror rides only dev/CI builds (M5): warnings the automatic
+    # setuptools build would swallow become loud failures here, while the
+    # shipped metadata stays tolerant for end users' future compilers.
+    env = {"UV_PROJECT_ENVIRONMENT": session.virtualenv.location, "CFLAGS": "-Werror"}
+    if build_env is not None:
+        env |= build_env
+    session.run_install("uv", "sync", "--locked", *args, env=env)
 
 
 @nox.session(reuse_venv=True)
@@ -123,6 +135,42 @@ def tidy(session: nox.Session) -> None:
     sources = [p for p in C_PATHS if p.endswith(".c")]
     if sources:
         session.run("clang-tidy", "-p", ".", *sources)
+
+
+_SANITIZE = "-fsanitize=address,undefined"
+
+
+@nox.session(reuse_venv=True)
+def asan(session: nox.Session) -> None:
+    """Run the suite with the extension built under ASan+UBSan. CI gate; on demand locally.
+
+    The python binary itself is uninstrumented, so the ASan runtime must be
+    LD_PRELOADed in, and PYTHONMALLOC=malloc bypasses pymalloc's arenas —
+    inside them, small overflows between Python objects are invisible to
+    ASan. Leak detection stays off: CPython deliberately leaves internal
+    state allocated at exit. UBSan findings halt instead of merely printing.
+    """
+    sync(
+        session,
+        "pytest",
+        editable=False,
+        build_env={
+            "CFLAGS": f"-Werror {_SANITIZE} -g -fno-omit-frame-pointer",
+            "LDFLAGS": _SANITIZE,
+        },
+    )
+    libasan = session.run("cc", "-print-file-name=libasan.so", silent=True, external=True)
+    assert isinstance(libasan, str), "cc -print-file-name=libasan.so produced no output"
+    session.run(
+        "pytest",
+        *session.posargs,
+        env={
+            "LD_PRELOAD": libasan.strip(),
+            "PYTHONMALLOC": "malloc",
+            "ASAN_OPTIONS": "detect_leaks=0",
+            "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1",
+        },
+    )
 
 
 @nox.session(reuse_venv=True)
