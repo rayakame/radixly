@@ -1,11 +1,5 @@
-"""Conformance tests for the pure-Python Base32768 reference codec.
-
-Vectors are qntm's official test-data: every ``pairs/*.bin`` payload has a
-sibling ``*.txt`` holding its expected encoding, and ``bad/*.txt`` holds
-strings that must be rejected. The one exception is ``seven-bit-final``,
-generated locally by running qntm's actual JS (see the vectors README) —
-his vectors only ever exercise three of the 128 seven-bit characters.
-"""
+"""Conformance tests for the pure-Python reference, against qntm's vectors
+(plus the locally generated seven-bit-final — see the vectors README)."""
 
 from __future__ import annotations
 
@@ -28,11 +22,8 @@ if typing.TYPE_CHECKING:
 # LOOKUP_D is insertion-ordered: the 15-bit repertoire, then the 7-bit one.
 ALPHABET: str = "".join(base32768_reference.LOOKUP_D)
 
-# Everything a transport could mangle: Cs surrogates and Cn unassigned code
-# points are not safely transportable; Cc/Cf controls and format characters
-# (ZWJ, bidi controls) get stripped or reordered; Zs/Zl/Zp whitespace gets
-# trimmed or collapsed; Co private-use has no interoperable meaning;
-# Mn/Mc/Me combining marks would merge with a neighbour and change the string.
+# Everything a transport could mangle: surrogates, unassigned, controls/format,
+# private use, combining marks, separators.
 UNSAFE_CATEGORIES = frozenset({"Cc", "Cf", "Cn", "Co", "Cs", "Mc", "Me", "Mn", "Zl", "Zp", "Zs"})
 
 
@@ -62,17 +53,8 @@ def test_decode_rejects_bad_input(name: str, vector_dir: pathlib.Path) -> None:
     ids=error_cases.HOSTILE_NON_BMP,
 )
 def test_decode_rejects_astral_and_surrogate_input(string: str, position: int) -> None:
-    """Astral characters and lone surrogates must be rejected with a position.
-
-    The alphabet is BMP-only by design, so both are invalid by definition —
-    but they stress two different parts of the C decoder's defense (M4): a
-    lone surrogate's code point is below 0x10000 and goes through the reverse
-    table, relying on those 2048 entries being -1, while an astral code point
-    would index past the table entirely, relying on the cp < 0x10000 bounds
-    guard. The differential harness asserts C rejects the same inputs at the
-    same positions as the reference, which only means something on non-BMP
-    input once the reference has pinned what rejection looks like here.
-    """
+    """Pins non-BMP rejection so the C differential has a spec: surrogates ride
+    through the reverse table, astral would index past it."""
     with pytest.raises(errors_reference.DecodeError) as exc_info:
         base32768_reference.decode(string)
     assert exc_info.value.position == position
@@ -91,9 +73,7 @@ def test_decode_rejects_zero_payload_final_character(string: str, position: int)
 
 
 def test_decode_accepts_appended_padding_base() -> None:
-    """The middle ground the appended-padding case leans on: its valid
-    8-character base must itself decode fine, or a blanket "reject every
-    7-bit character" bug would pass both canonicality rejections."""
+    """A blanket reject-every-7-bit bug would pass both canonicality cases."""
     payload = bytes(15)  # 120 bits, encodes to 8 full characters, no padding
     assert base32768_reference.decode(base32768_reference.encode(payload)) == payload
 
@@ -104,13 +84,8 @@ def test_decode_accepts_canonical_seven_padding_bits() -> None:
 
 
 def test_seven_bit_final_vector_pins_fresh_repertoire(vector_dir: pathlib.Path) -> None:
-    """qntm's vectors only ever use z = 47, 63, 127 of the 128 seven-bit
-    characters, so a transcription error in the 'ƀƟɀʟ' pair string could
-    survive them. The locally generated seven-bit-final vector pins a fourth,
-    from the 'ƀ'..'Ɵ' block they never touch. This test guards the vector
-    itself: regenerating it from a payload whose encoding does not end in a
-    fresh 7-bit character would silently drop that coverage.
-    """
+    """qntm's vectors use only z = 47/63/127; seven-bit-final pins the untouched
+    'ƀ'..'Ɵ' block, and this guards the vector's own coverage."""
     encoded = (vector_dir / "pairs" / "seven-bit-final.txt").read_text(encoding="utf-8")
     num_z_bits, z = base32768_reference.LOOKUP_D[encoded[-1]]
     assert num_z_bits == 7
@@ -127,11 +102,7 @@ def test_alphabet_sizes() -> None:
 
 
 def test_alphabet_has_no_unsafe_characters() -> None:
-    """A mangled pair string would silently shift a whole code point range.
-
-    Cn is interpreter-version-sensitive by design: it also flags a code point
-    that was assigned when the alphabet was written but is not any more.
-    """
+    """A mangled pair string would shift a whole range; Cn re-audits per interpreter."""
     offenders = {
         f"U+{ord(char):04X}": unicodedata.category(char)
         for char in ALPHABET
@@ -144,18 +115,11 @@ def test_alphabet_has_no_unsafe_characters() -> None:
 def test_alphabet_is_normalization_stable(
     form: typing.Literal["NFC", "NFD", "NFKC", "NFKD"],
 ) -> None:
-    """Encoded text must survive any normalization a transport might apply.
-
-    Joined rather than per-character, so composition across a character
-    boundary would show up too.
-    """
+    """Joined rather than per-character, so cross-boundary composition shows too."""
     assert unicodedata.normalize(form, ALPHABET) == ALPHABET
 
 
-# DecodeError message contract (option c, recorded in CLAUDE.md): None means
-# "generate the text", "" is a legal explicit message preserved verbatim.
-# test_core.py asserts the same of the C type; only the C enforces the
-# str-or-None type — the oracle deliberately trusts its annotations.
+# Option c (CLAUDE.md): None -> generated text, "" preserved; only the C enforces the type.
 
 
 def test_decode_error_message_none_generates_text() -> None:
@@ -171,9 +135,7 @@ def test_decode_error_empty_message_is_preserved() -> None:
 @pytest.mark.parametrize("protocol", range(pickle.HIGHEST_PROTOCOL + 1))
 @pytest.mark.parametrize("flavor", error_cases.PICKLE_MESSAGE_CASES)
 def test_decode_error_pickle_round_trip(flavor: str, protocol: int) -> None:
-    """Every view of the clone must agree: type, position (the int, not just
-    truthiness), and the message through .message, args, and str() — the last
-    is what catches a __setstate__ that fed only one of its two stores."""
+    """Every view must agree; str() catches a __setstate__ feeding only one store."""
     kwargs, expected = error_cases.PICKLE_MESSAGE_CASES[flavor]
     original = errors_reference.DecodeError(error_cases.PICKLE_POSITION, **kwargs)
     clone: object = pickle.loads(pickle.dumps(original, protocol))  # ruff: ignore[suspicious-pickle-usage]  # pyright: ignore[reportAny]

@@ -1,10 +1,4 @@
-"""Task runner for reproducible dev invocations.
-
-The day-to-day inner loop stays `uv run pytest`. These sessions exist so that
-CI and a local machine run byte-identical commands.
-
-Sessions arriving with later milestones: asan/ubsan + fuzz (M5), bench (M8).
-"""
+"""Task runner for reproducible dev invocations."""
 
 from __future__ import annotations
 
@@ -21,28 +15,30 @@ PATHS = ["noxfile.py", "benchmarks", "scripts", "src", "tests"]
 C_PATHS = sorted(str(p) for p in pathlib.Path("src").rglob("*.[ch]"))
 
 
-def sync(session: nox.Session, /, *groups: str, project: bool = True) -> None:
-    """Install dependency groups (and by default the project) into the session venv.
-
-    ``project=False`` skips building/installing radixly itself, for sessions
-    that only need a tool — no point compiling a C extension to run a linter.
-    """
+def sync(
+    session: nox.Session,
+    /,
+    *groups: str,
+    project: bool = True,
+    editable: bool = True,
+    build_env: dict[str, str] | None = None,
+) -> None:
+    """Install dependency groups (and by default the project) into the session venv."""
     args: list[str]
     if project:
         args = ["--no-default-groups", "--reinstall-package", "radixly"]
+        if not editable:
+            args.append("--no-editable")
         for group in groups:
             args += ["--group", group]
     else:
         args = []
         for group in groups:
             args += ["--only-group", group]
-    session.run_install(
-        "uv",
-        "sync",
-        "--locked",
-        *args,
-        env={"UV_PROJECT_ENVIRONMENT": session.virtualenv.location},
-    )
+    env = {"UV_PROJECT_ENVIRONMENT": session.virtualenv.location, "CFLAGS": "-Werror"}
+    if build_env is not None:
+        env |= build_env
+    session.run_install("uv", "sync", "--locked", *args, env=env)
 
 
 @nox.session(reuse_venv=True)
@@ -102,7 +98,7 @@ def _write_compiledb() -> None:
             "directory": str(pathlib.Path.cwd()),
             "file": path,
             # -std matches PEP 7's target (C11); analysis-side only until the
-            # build pins its own -std with the M5 hardening flags.
+            # build pins its own -std.
             # src/radixly mirrors the build's include root so quoted
             # includes resolve identically for the compiler and the tools.
             "arguments": ["cc", "-std=c11", "-I", include, "-I", "src/radixly", "-c", path],
@@ -120,6 +116,35 @@ def tidy(session: nox.Session) -> None:
     sources = [p for p in C_PATHS if p.endswith(".c")]
     if sources:
         session.run("clang-tidy", "-p", ".", *sources)
+
+
+_SANITIZE = "-fsanitize=address,undefined"
+
+
+@nox.session(reuse_venv=True)
+def asan(session: nox.Session) -> None:
+    """Run the suite with the extension built under ASan+UBSan. CI gate; on demand locally."""
+    sync(
+        session,
+        "pytest",
+        editable=False,
+        build_env={
+            "CFLAGS": f"-Werror {_SANITIZE} -g -fno-omit-frame-pointer",
+            "LDFLAGS": _SANITIZE,
+        },
+    )
+    libasan = session.run("cc", "-print-file-name=libasan.so", silent=True, external=True)
+    assert isinstance(libasan, str), "cc -print-file-name=libasan.so produced no output"
+    session.run(
+        "pytest",
+        *session.posargs,
+        env={
+            "LD_PRELOAD": libasan.strip(),
+            "PYTHONMALLOC": "malloc",
+            "ASAN_OPTIONS": "detect_leaks=0",
+            "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1",
+        },
+    )
 
 
 @nox.session(reuse_venv=True)

@@ -124,10 +124,9 @@ radixly_base32768_decode(PyObject *Py_UNUSED(self), PyObject *arg)
         return NULL;
     }
 #if PY_VERSION_HEX < 0x030C0000
-    /* 3.11 can still meet legacy, non-ready strings built by other C
-     * extensions via APIs removed in 3.12; GET_LENGTH/KIND/DATA on one is
-     * UB. Deprecated call, but it compiles out on 3.12+ -- the 3.11 build
-     * may need a deprecation suppression when M5 brings -Werror. */
+    /* 3.11 can still meet legacy, non-ready strings from other C extensions;
+     * GET_LENGTH/KIND/DATA on one is UB. Deprecated call, compiles out on
+     * 3.12+; a 3.11 -Werror build may need a suppression. */
     if (PyUnicode_READY(arg) == -1) {
         return NULL;
     }
