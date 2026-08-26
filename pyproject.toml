@@ -64,8 +64,14 @@ executionEnvironments = [
 reportUnusedCallResult = "none" # every nox.session() triggers this
 
 [tool.setuptools]
+# extra-compile-args pins the PEP 7 dialect and the warning set for every
+# build, ours and end users'. -Werror is deliberately NOT here: a stranger
+# building the sdist in 2028 must not fail over a warning a future compiler
+# invented. Dev and CI builds add it via CFLAGS (see noxfile sync()).
+# GCC/Clang flags only; the M9 Windows wheels need their own story (MSVC
+# ignores unknown dash-options with a D9002 warning, so this stays harmless).
 ext-modules = [
-  {name = "radixly._core", sources=["src/radixly/_core.c", "src/radixly/base32768/base32768.c", "src/radixly/_common/errors.c"], include-dirs=["src/radixly"]}
+  {name = "radixly._core", sources=["src/radixly/_core.c", "src/radixly/base32768/base32768.c", "src/radixly/_common/errors.c"], include-dirs=["src/radixly"], extra-compile-args=["-std=c11", "-Wall", "-Wextra"]}
 ]
 
 # Keep C sources and headers out of binary wheels for every (sub)package;

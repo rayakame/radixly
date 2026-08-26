@@ -41,7 +41,10 @@ def sync(session: nox.Session, /, *groups: str, project: bool = True) -> None:
         "sync",
         "--locked",
         *args,
-        env={"UV_PROJECT_ENVIRONMENT": session.virtualenv.location},
+        # -Werror rides only dev/CI builds (M5): warnings the automatic
+        # setuptools build would swallow become loud failures here, while the
+        # shipped metadata stays tolerant for end users' future compilers.
+        env={"UV_PROJECT_ENVIRONMENT": session.virtualenv.location, "CFLAGS": "-Werror"},
     )
 
 
