@@ -57,8 +57,12 @@ alternative if ever needed.
   namespaces are thin Python modules. Multiple .c files later still link into the
   single extension.
 - **Layout convention (decided M3, user's call): one folder per codec**, always,
-  even one-file presets — `src/radixly/<codec>/` holds its `__init__.py` (public
-  face), bespoke `.c` if any, generated `_tables.h` if any. Shared C engine lives
+  even one-file presets — `src/radixly/<codec>/` holds its `_api.py` (the Python
+  face: bindings, size math, Codec instance + registration — revised M6, user's
+  call seconded by ruff's non-empty-init rule), `__init__.py` (pure re-export of
+  `_api`, no `__all__`), bespoke `.c` if any, generated `_tables.h` if any.
+  Within the package, modules import sibling submodules directly, never the bare
+  `radixly` package — keeps the import graph cycle-free. Shared C engine lives
   in `src/radixly/_common/` (born M4 with errors.c — DecodeError + raise helper
   are engine-wide; user's call). `_core.c` stays a wiring hub (module init +
   method table + one exec slot per codec, engine slot first). Uniformity is
