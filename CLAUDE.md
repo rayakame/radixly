@@ -80,6 +80,19 @@ alternative if ever needed.
   refusal mechanism for multi-phase modules — README documents it instead). The static
   globals (DecodeError type object, REV table) are the reason. If ever demanded:
   per-module state (`m_size > 0`, functions reach it via their module `self`) is the shape.
+- **M6 API shape (user's rulings, 2026-08-26):** per-codec modules bind the raw C
+  functions under bare names (base32768.encode — the module namespaces, like base64's
+  prefixes do); root exports DecodeError and imports codec modules eagerly (the one .so
+  loads anyway; registry guaranteed populated after `import radixly`). Codec = frozen
+  slots dataclass in `_codec.py` — private on purpose: one public path per name, and a
+  public `radixly.codec` would read like a codec named "codec" next to radixly.base32768.
+  Size math (encoded_len = ceil(8n/15), max_bytes = floor(15N/8); integer arithmetic
+  only, never floats) defined in the codec module, Codec fields hold those same objects.
+  Registry: get_codec() with a helpful unknown-name error + CODECS MappingProxy, one
+  dict behind both; registration explicit only — never automatic in __post_init__.
+  **No typing Protocol through 1.0**: the one concrete Codec class is the interface;
+  revisit only if a structurally different codec type (C-implemented, third-party)
+  ever appears.
 - **Stricter than qntm's reference JS** (which accepts this): a final character
   that carries zero payload bits — e.g. a lone all-ones 7-bit char — is rejected,
   so decode is injective (one payload, one accepted spelling). Width-independent
