@@ -1,4 +1,4 @@
-"""Shared vector machinery, loaded by pytest for every module in tests/."""
+"""base32768 vector machinery, scoped by location to this codec's tests."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import pathlib
 
 import pytest
 
-VECTOR_DIR = pathlib.Path(__file__).parent / "vectors" / "base32768"
+VECTOR_DIR = pathlib.Path(__file__).parent.parent / "vectors" / "base32768"
 PAIRS: list[pathlib.Path] = sorted((VECTOR_DIR / "pairs").rglob("*.bin"))
 
 

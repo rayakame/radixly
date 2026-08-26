@@ -103,7 +103,9 @@ def _write_compiledb() -> None:
             "file": path,
             # -std matches PEP 7's target (C11); analysis-side only until the
             # build pins its own -std with the M5 hardening flags.
-            "arguments": ["cc", "-std=c11", "-I", include, "-c", path],
+            # src/radixly mirrors the build's include root so quoted
+            # includes resolve identically for the compiler and the tools.
+            "arguments": ["cc", "-std=c11", "-I", include, "-I", "src/radixly", "-c", path],
         }
         for path in sources
     ]

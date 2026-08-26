@@ -6,12 +6,15 @@ speed; this module is never shipped in the wheel.
 
 from __future__ import annotations
 
+import types
 import typing
-from types import MappingProxyType
+
+from tests.reference import errors
 
 if typing.TYPE_CHECKING:
     from collections.abc import Mapping
 
+__all__ = ("BITS_PER_BYTE", "BITS_PER_CHAR", "LOOKUP_D", "LOOKUP_E", "PAIR_STRINGS", "decode", "encode")
 
 BITS_PER_CHAR: typing.Final = 15  # Base32768 is a 15-bit encoding
 BITS_PER_BYTE: typing.Final = 8
@@ -43,8 +46,8 @@ def _build_tables() -> tuple[dict[int, tuple[str, ...]], dict[str, tuple[int, in
 
 _lookup_e, _lookup_d = _build_tables()
 
-LOOKUP_E: typing.Final[Mapping[int, tuple[str, ...]]] = MappingProxyType(_lookup_e)
-LOOKUP_D: typing.Final[Mapping[str, tuple[int, int]]] = MappingProxyType(_lookup_d)
+LOOKUP_E: typing.Final[Mapping[int, tuple[str, ...]]] = types.MappingProxyType(_lookup_e)
+LOOKUP_D: typing.Final[Mapping[str, tuple[int, int]]] = types.MappingProxyType(_lookup_d)
 
 del _lookup_e, _lookup_d
 
@@ -80,7 +83,7 @@ def decode(string: str) -> bytes:
     """Decode a Base32768 string back to bytes.
 
     Raises:
-        ValueError: on a character outside the alphabet; on a 7-bit character
+        errors.DecodeError: on a character outside the alphabet; on a 7-bit character
             anywhere but the final position; on a final character that carries
             no payload bits (non-canonical); or on padding bits that are not
             all 1. Every message names the position at fault.
@@ -95,12 +98,12 @@ def decode(string: str) -> bytes:
         entry = LOOKUP_D.get(char)
         if entry is None:
             msg = f"invalid Base32768 character {char!r} (U+{ord(char):04X}) at index {index}"
-            raise ValueError(msg)
+            raise errors.DecodeError(index, message=msg)
 
         num_z_bits, z = entry
         if num_z_bits != BITS_PER_CHAR and index != last_index:
-            msg = f"{num_z_bits}-bit character {char!r} at index {index}, " + f"only valid at index {last_index}"
-            raise ValueError(msg)
+            msg = f"{num_z_bits}-bit character {char!r} at index {index}, only valid at index {last_index}"
+            raise errors.DecodeError(index, message=msg)
 
         acc = (acc << num_z_bits) | z
         num_bits += num_z_bits
@@ -125,10 +128,11 @@ def decode(string: str) -> bytes:
     # such a string. radixly rejects it so that decode is injective: one payload,
     # exactly one accepted spelling. Keep this behaviour in the C extension.
     if final_num_z_bits <= num_pad:
-        raise ValueError(
+        msg = (
             f"non-canonical input: {final_num_z_bits}-bit final character "
             + f"{string[-1]!r} at index {last_index} carries no payload bits"
         )
+        raise errors.DecodeError(last_index, message=msg)
 
     # The drain loop masks acc after every byte, so acc holds exactly num_pad
     # bits here. Comparing all of acc — no mask — makes stray high bits
@@ -136,9 +140,10 @@ def decode(string: str) -> bytes:
     # being silently stripped.
     expected_padding = (1 << num_pad) - 1
     if acc != expected_padding:
-        raise ValueError(
-            f"expected {num_pad} padding bits set to 1 in final character "
-            + f"at index {last_index}, got 0b{acc:0{num_pad}b}"
+        msg = (
+            f"expected {num_pad} padding bits set to 1 in final character at index {last_index}, "
+            + f"got 0b{acc:0{num_pad}b}"
         )
+        raise errors.DecodeError(last_index, message=msg)
 
     return bytes(out)

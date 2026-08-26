@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import itertools
 import pathlib
 import typing
-from itertools import batched
 
 CURRENT_PATH: typing.Final[pathlib.Path] = pathlib.Path(__file__).resolve()
 REPO_ROOT: typing.Final[pathlib.Path] = CURRENT_PATH.parent.parent.parent
@@ -38,7 +38,7 @@ class IndentWriter:
 
     def write_file(self) -> None:
         """Write content to file."""
-        with self.file_path.open("w", encoding="utf-8") as file:
+        with self.file_path.open("w", encoding="utf-8", newline="\n") as file:
             for line in self.lines:
                 indent: str = (self.indent_char * self.indent_amount) * line[1]
                 file.write(indent + line[0])
@@ -100,13 +100,13 @@ def write_base_32768_table() -> None:
     writer.write_blank()
 
     writer.write_line("static const uint16_t RADIXLY_B32768_FWD15[32768] = {")
-    for chunk in batched(lookup_e[BASE_32768_BITS_PER_CHAR], 14):
+    for chunk in itertools.batched(lookup_e[BASE_32768_BITS_PER_CHAR], 14):
         writer.write_line(", ".join(f"0x{cp:04X}" for cp in chunk) + ",", indent_depth=1)
     writer.write_line("};")
     writer.write_blank()
 
     writer.write_line("static const uint16_t RADIXLY_B32768_FWD7[128] = {")
-    for chunk in batched(lookup_e[BASE_32768_BITS_PER_CHAR - 8], 14):
+    for chunk in itertools.batched(lookup_e[BASE_32768_BITS_PER_CHAR - 8], 14):
         writer.write_line(", ".join(f"0x{cp:04X}" for cp in chunk) + ",", indent_depth=1)
     writer.write_line("};")
     writer.write_blank()

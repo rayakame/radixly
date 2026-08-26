@@ -41,8 +41,11 @@ Performance bars (measured by benchmarks/bench_base32768.py, i9-13900K,
 performance governor, CPython 3.13 — protect these; regressions need a reason):
 encode 0.112 µs / 187 B, 1880 MB/s at 64 KiB (flat to 1 MiB), 0.020 µs per-call
 floor at 1 B (METH_O, no arg parsing — why the object layer must not add Python
-call frames). 103x the pure-Python reference. Decode bar pending M4; legacy
-prototype measured 0.37 µs / 187 B decode on older hardware.
+call frames). 103x the pure-Python reference. Decode (measured M4): 0.196 µs /
+187 B (legacy bar 0.37 beaten 1.9x), 1118 MB/s at 64 KiB (flat to 1 MiB),
+0.017 µs floor at 1 B, 100x the reference — two-pass design's throughput cost
+vs encode is known and accepted; single-pass-resize is the measured-decision
+alternative if ever needed.
 
 ## Fixed decisions — do not relitigate
 
@@ -56,9 +59,10 @@ prototype measured 0.37 µs / 187 B decode on older hardware.
 - **Layout convention (decided M3, user's call): one folder per codec**, always,
   even one-file presets — `src/radixly/<codec>/` holds its `__init__.py` (public
   face), bespoke `.c` if any, generated `_tables.h` if any. Shared C engine lives
-  in `src/radixly/_common/` (M7). `_core.c` stays a wiring hub (module init +
-  method table). Uniformity is deliberate: "where is X?" has one answer for
-  every codec.
+  in `src/radixly/_common/` (born M4 with errors.c — DecodeError + raise helper
+  are engine-wide; user's call). `_core.c` stays a wiring hub (module init +
+  method table + one exec slot per codec, engine slot first). Uniformity is
+  deliberate: "where is X?" has one answer for every codec.
 - Multi-phase module init (`PyModuleDef_Init`); table init goes in a `Py_mod_exec`
   slot when it arrives (M4).
 - setuptools backend; extension declared via the experimental
@@ -66,6 +70,16 @@ prototype measured 0.37 µs / 187 B decode on older hardware.
   M3 for build-time table codegen: commit a generated header vs switch to setup.py.
 - Python floor >= 3.11. Exceptions root at ValueError; DecodeError carries position.
 - encode() accepts any buffer-protocol object; str input raises TypeError.
+- **DecodeError message contract (M4 review round, user's call — option c):** `message`
+  stays keyword-only forever; `message=None` → generated text; `""` is a legal explicit
+  message (reference tightened from truthiness to `is None`). Pickle/copy work via
+  `__reduce__` + `__setstate__` (state carries the message) — never by making message
+  positional. Both implementations must match.
+- **Subinterpreters: not supported, and declared so** (M4 review round):
+  `Py_mod_multiple_interpreters` NOT_SUPPORTED slot in `_core.c` (3.12+; 3.11 has no
+  refusal mechanism for multi-phase modules — README documents it instead). The static
+  globals (DecodeError type object, REV table) are the reason. If ever demanded:
+  per-module state (`m_size > 0`, functions reach it via their module `self`) is the shape.
 - **Stricter than qntm's reference JS** (which accepts this): a final character
   that carries zero payload bits — e.g. a lone all-ones 7-bit char — is rejected,
   so decode is injective (one payload, one accepted spelling). Width-independent
@@ -91,14 +105,15 @@ prototype measured 0.37 µs / 187 B decode on older hardware.
   lengths 0-600 x 3 payload flavors, Hypothesis); conftest hook dedups vector
   parametrization; _core.pyi stub begun. Benchmarked 2.4x ahead of the legacy
   bars (see Performance bars above).
-- **M4 — CURRENT** — decode: reverse table int16_t[0x10000] filled at module init, every
-  lookup guarded by cp < 0x10000 (attacker-controlled input), padding verification,
-  DecodeError with position, error paths DECREF before returning NULL.
-  Deferred here from the M1 review: restructure error assertions to shared
-  (failure kind, position) data instead of pinned prose messages, and give the
-  reference's exceptions a structured position, so C-vs-reference error
-  behavior can be diffed mechanically.
-- **M5** — hardening: -Wall -Wextra -Werror, pin -std=c11 in the build (PEP 7
+- **M4 — decode in C: DONE.** Two-pass decoder (validate-and-size, then fill):
+  every reverse-table index behind the cp <= MAX_CHAR guard, surrogates die on
+  painted cells, canonicality rule enforced in C (comment mirrored from the
+  oracle). DecodeError is a full C heap type (position member, message getset,
+  tp_init chaining to ValueError, GC delegation) in _common/errors.c with a
+  goto-ladder raise helper. Error contract shared as data
+  (tests/base32768/error_cases.py): both implementations pinned to the same
+  (input, position) tables. Suite 6566 tests. Measured: see bars above.
+- **M5 — CURRENT** — hardening: -Wall -Wextra -Werror, pin -std=c11 in the build (PEP 7
   target; analysis already parses as C11 via compile_commands.json), suite
   under ASan/UBSan in CI, decode
   fuzzing (must raise, never crash/hang), differential tests C vs reference for

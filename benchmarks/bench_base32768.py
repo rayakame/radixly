@@ -1,4 +1,4 @@
-"""Benchmark the base32768 C encoder."""
+"""Benchmark the base32768 C codec."""
 
 from __future__ import annotations
 
@@ -11,19 +11,21 @@ import typing
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
+    from collections.abc import Sequence
 
-# The pure-Python reference deliberately lives in tests/, not in the package,
-# so the benchmark reaches it the same way the test suite does.
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "tests"))
+# The pure-Python reference deliberately lives in the tests package, outside
+# radixly; put the repo root on the path so `tests.` resolves.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
-from reference.base32768 import encode as reference_encode
-
-from radixly._core import base32768_encode
+from radixly import _core
+from tests.reference import base32768 as base32768_reference
 
 REPEAT: typing.Final = 7
 
+_T = typing.TypeVar("_T")
 
-def seconds_per_call(func: Callable[[bytes], str], payload: bytes, number: int) -> float:
+
+def seconds_per_call(func: Callable[[_T], object], payload: _T, number: int) -> float:
     """Best-of-REPEAT seconds for one ``func(payload)`` call.
 
     The statement is a *string*: timeit compiles it into a synthetic function
@@ -61,31 +63,65 @@ def print_environment() -> None:
     print()
 
 
+def report_direction(
+    title: str,
+    func: Callable[[_T], object],
+    reference: Callable[[_T], object],
+    cases: Sequence[tuple[str, _T, int, int]],
+) -> None:
+    """Measure and print one direction: four rows, then the reference + ratio.
+
+    Each case is (label, input, loop count, payload bytes). MB/s counts
+    payload bytes moved per second in both directions, so they compare 1:1;
+    it is printed only where per-call time stops being the readable unit.
+    The reference row and ratio reuse the case labelled "187 B".
+    """
+    timings: dict[str, float] = {}
+    print(title)
+    for label, value, number, payload_len in cases:
+        t = seconds_per_call(func, value, number)
+        timings[label] = t
+        throughput = f"   {payload_len / t / 1e6:.0f} MB/s" if payload_len >= 65536 else ""
+        print(f"  {label:8} {t * 1e6:8.3f} us/call{throughput}")
+    ref_input = next(value for label, value, _, _ in cases if label == "187 B")
+    t_ref = seconds_per_call(reference, ref_input, number=10_000)
+    print()
+    print(f"  reference (pure Python), 187 B: {t_ref * 1e6:.2f} us/call")
+    print(f"  C vs reference at 187 B: {t_ref / timings['187 B']:.0f}x")
+
+
 def main() -> None:
     print_environment()
 
-    # Auto-calibration is M8 polish.
+    # Auto-calibration is M8 polish; loop counts keep each repeat near 0.2 s.
     one: bytes = random.Random(1).randbytes(1)
     discord: bytes = random.Random(187).randbytes(187)
     big: bytes = random.Random(65536).randbytes(65536)
     huge: bytes = random.Random(1_048_576).randbytes(1_048_576)
 
-    t_1b: float = seconds_per_call(base32768_encode, one, number=3_000_000)
-    t_187: float = seconds_per_call(base32768_encode, discord, number=500_000)
-    t_64k: float = seconds_per_call(base32768_encode, big, number=3_000)
-    t_1m: float = seconds_per_call(base32768_encode, huge, number=400)
-    t_ref: float = seconds_per_call(reference_encode, discord, number=10_000)
-
-    mbps_64k: float = len(big) / t_64k / 1e6
-    mbps_1m: float = len(huge) / t_1m / 1e6
-    print("base32768 encode")
-    print(f"  1 B      {t_1b * 1e6:7.3f} us/call")
-    print(f"  187 B    {t_187 * 1e6:7.3f} us/call")
-    print(f"  64 KiB   {t_64k * 1e6:7.1f} us/call   {mbps_64k:.0f} MB/s")
-    print(f"  1 MiB    {t_1m * 1e6:7.1f} us/call   {mbps_1m:.0f} MB/s")
+    report_direction(
+        "base32768 encode",
+        _core.base32768_encode,
+        base32768_reference.encode,
+        [
+            ("1 B", one, 3_000_000, len(one)),
+            ("187 B", discord, 500_000, len(discord)),
+            ("64 KiB", big, 3_000, len(big)),
+            ("1 MiB", huge, 400, len(huge)),
+        ],
+    )
     print()
-    print(f"  reference (pure Python), 187 B: {t_ref * 1e6:.2f} us/call")
-    print(f"  C vs reference at 187 B: {t_ref / t_187:.0f}x")
+    report_direction(
+        "base32768 decode",
+        _core.base32768_decode,
+        base32768_reference.decode,
+        [
+            ("1 B", _core.base32768_encode(one), 3_000_000, len(one)),
+            ("187 B", _core.base32768_encode(discord), 500_000, len(discord)),
+            ("64 KiB", _core.base32768_encode(big), 3_000, len(big)),
+            ("1 MiB", _core.base32768_encode(huge), 400, len(huge)),
+        ],
+    )
 
 
 if __name__ == "__main__":

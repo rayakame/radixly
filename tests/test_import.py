@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from importlib.machinery import EXTENSION_SUFFIXES
+import importlib.machinery
 
 import radixly
 import radixly._core
@@ -15,4 +15,4 @@ def test_import() -> None:
 
 def test_extension_import() -> None:
 
-    assert radixly._core.__file__.endswith(tuple(EXTENSION_SUFFIXES))
+    assert radixly._core.__file__.endswith(tuple(importlib.machinery.EXTENSION_SUFFIXES))

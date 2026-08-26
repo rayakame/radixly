@@ -9,33 +9,24 @@ his vectors only ever exercise three of the 128 seven-bit characters.
 
 from __future__ import annotations
 
-import re
+import copy
+import pickle  # ruff: ignore[suspicious-pickle-import] -- tests pickle only their own objects
 import typing
 import unicodedata
 
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
-from reference.base32768 import BITS_PER_CHAR
-from reference.base32768 import LOOKUP_D
-from reference.base32768 import LOOKUP_E
-from reference.base32768 import decode
-from reference.base32768 import encode
+
+from tests.base32768 import error_cases
+from tests.reference import base32768 as base32768_reference
+from tests.reference import errors as errors_reference
 
 if typing.TYPE_CHECKING:
     import pathlib
 
-# Each bad vector pins both the failure mode and the position it occurs at.
-BAD_CASES: dict[str, str] = {
-    "bad-padding": "expected 4 padding bits set to 1 in final character at index 3, got 0b0000",
-    "bad0": "7-bit character 'ƀ' at index 0, only valid at index 2",
-    "not-base32768-char": "invalid Base32768 character 'A' (U+0041) at index 111",
-}
-
-PURE_PADDING = LOOKUP_E[7][127]  # 'ʟ', a 7-bit character that is all filler
-
 # LOOKUP_D is insertion-ordered: the 15-bit repertoire, then the 7-bit one.
-ALPHABET: str = "".join(LOOKUP_D)
+ALPHABET: str = "".join(base32768_reference.LOOKUP_D)
 
 # Everything a transport could mangle: Cs surrogates and Cn unassigned code
 # points are not safely transportable; Cc/Cf controls and format characters
@@ -48,50 +39,29 @@ UNSAFE_CATEGORIES = frozenset({"Cc", "Cf", "Cn", "Co", "Cs", "Mc", "Me", "Mn", "
 def test_encode_conformance(base32768_bin_path: pathlib.Path) -> None:
     payload = base32768_bin_path.read_bytes()
     expected = base32768_bin_path.with_suffix(".txt").read_text(encoding="utf-8")
-    assert encode(payload) == expected
+    assert base32768_reference.encode(payload) == expected
 
 
 def test_decode_conformance(base32768_bin_path: pathlib.Path) -> None:
     payload = base32768_bin_path.read_bytes()
     encoded = base32768_bin_path.with_suffix(".txt").read_text(encoding="utf-8")
-    assert decode(encoded) == payload
+    assert base32768_reference.decode(encoded) == payload
 
 
-@pytest.mark.parametrize("name", sorted(BAD_CASES))
+@pytest.mark.parametrize("name", sorted(error_cases.BAD_CASES))
 def test_decode_rejects_bad_input(name: str, vector_dir: pathlib.Path) -> None:
     bad = (vector_dir / "bad" / f"{name}.txt").read_text(encoding="utf-8")
-    with pytest.raises(ValueError, match=re.escape(BAD_CASES[name])):
-        decode(bad)
+    with pytest.raises(errors_reference.DecodeError) as exc_info:
+        base32768_reference.decode(bad)
+    assert exc_info.value.position == error_cases.BAD_CASES[name]
 
 
-VALID_8_CHARS = encode(bytes(15))  # 120 bits: 8 full 15-bit characters, no padding
-
-HOSTILE_NON_BMP: dict[str, tuple[str, str]] = {
-    "astral": (
-        "\U0001f600",
-        "invalid Base32768 character '😀' (U+1F600) at index 0",
-    ),
-    "high-surrogate": (
-        "\ud800",
-        "invalid Base32768 character '\\ud800' (U+D800) at index 0",
-    ),
-    "low-surrogate": (
-        "\udfff",
-        "invalid Base32768 character '\\udfff' (U+DFFF) at index 0",
-    ),
-    "astral-mid-string": (
-        VALID_8_CHARS + "\U0001f600" + VALID_8_CHARS,
-        "invalid Base32768 character '😀' (U+1F600) at index 8",
-    ),
-    "surrogate-mid-string": (
-        VALID_8_CHARS + "\udc00" + VALID_8_CHARS,
-        "invalid Base32768 character '\\udc00' (U+DC00) at index 8",
-    ),
-}
-
-
-@pytest.mark.parametrize(("string", "message"), HOSTILE_NON_BMP.values(), ids=HOSTILE_NON_BMP)
-def test_decode_rejects_astral_and_surrogate_input(string: str, message: str) -> None:
+@pytest.mark.parametrize(
+    ("string", "position"),
+    error_cases.HOSTILE_NON_BMP.values(),
+    ids=error_cases.HOSTILE_NON_BMP,
+)
+def test_decode_rejects_astral_and_surrogate_input(string: str, position: int) -> None:
     """Astral characters and lone surrogates must be rejected with a position.
 
     The alphabet is BMP-only by design, so both are invalid by definition —
@@ -103,35 +73,34 @@ def test_decode_rejects_astral_and_surrogate_input(string: str, message: str) ->
     same positions as the reference, which only means something on non-BMP
     input once the reference has pinned what rejection looks like here.
     """
-    with pytest.raises(ValueError, match=re.escape(message)):
-        decode(string)
+    with pytest.raises(errors_reference.DecodeError) as exc_info:
+        base32768_reference.decode(string)
+    assert exc_info.value.position == position
 
 
-def test_decode_rejects_lone_padding_character() -> None:
-    """A 7-bit character with no payload bits is not a valid encoding of b""."""
-    with pytest.raises(ValueError, match=r"7-bit final character .* at index 0"):
-        decode(PURE_PADDING)
+@pytest.mark.parametrize(
+    ("string", "position"),
+    error_cases.CANONICALITY_CASES.values(),
+    ids=error_cases.CANONICALITY_CASES,
+)
+def test_decode_rejects_zero_payload_final_character(string: str, position: int) -> None:
+    """The reasoning behind each case lives with the data in error_cases."""
+    with pytest.raises(errors_reference.DecodeError) as exc_info:
+        base32768_reference.decode(string)
+    assert exc_info.value.position == position
 
 
-def test_decode_rejects_appended_padding_character() -> None:
-    """The sneaky cousin: valid encoding + 'ʟ' would decode to the same payload
-    under qntm's rules, and is rejected here instead.
-
-    A blanket "reject every 7-bit character" bug would also pass the lone-'ʟ'
-    test above, so this pins the middle ground: the unextended encoding must
-    still decode fine.
-    """
+def test_decode_accepts_appended_padding_base() -> None:
+    """The middle ground the appended-padding case leans on: its valid
+    8-character base must itself decode fine, or a blanket "reject every
+    7-bit character" bug would pass both canonicality rejections."""
     payload = bytes(15)  # 120 bits, encodes to 8 full characters, no padding
-    encoded = encode(payload)
-    assert decode(encoded) == payload  # unchanged, and still canonical
-
-    with pytest.raises(ValueError, match=r"7-bit final character .* at index 8"):
-        decode(encoded + PURE_PADDING)
+    assert base32768_reference.decode(base32768_reference.encode(payload)) == payload
 
 
 def test_decode_accepts_canonical_seven_padding_bits() -> None:
     """num_pad == 7 is canonical when the final character is 15-bit."""
-    assert decode(encode(b"\x00")) == b"\x00"
+    assert base32768_reference.decode(base32768_reference.encode(b"\x00")) == b"\x00"
 
 
 def test_seven_bit_final_vector_pins_fresh_repertoire(vector_dir: pathlib.Path) -> None:
@@ -143,16 +112,18 @@ def test_seven_bit_final_vector_pins_fresh_repertoire(vector_dir: pathlib.Path) 
     fresh 7-bit character would silently drop that coverage.
     """
     encoded = (vector_dir / "pairs" / "seven-bit-final.txt").read_text(encoding="utf-8")
-    num_z_bits, z = LOOKUP_D[encoded[-1]]
+    num_z_bits, z = base32768_reference.LOOKUP_D[encoded[-1]]
     assert num_z_bits == 7
     assert z < 32, "final character must come from the 'ƀ'..'Ɵ' block"
 
 
 def test_alphabet_sizes() -> None:
     """A duplicate across repertoires would silently break decode for one z."""
-    assert len(LOOKUP_E[BITS_PER_CHAR]) == 1 << BITS_PER_CHAR
-    assert len(LOOKUP_E[7]) == 1 << 7
-    assert len(ALPHABET) == (1 << BITS_PER_CHAR) + (1 << 7)
+    assert (
+        len(base32768_reference.LOOKUP_E[base32768_reference.BITS_PER_CHAR]) == 1 << base32768_reference.BITS_PER_CHAR
+    )
+    assert len(base32768_reference.LOOKUP_E[7]) == 1 << 7
+    assert len(ALPHABET) == (1 << base32768_reference.BITS_PER_CHAR) + (1 << 7)
 
 
 def test_alphabet_has_no_unsafe_characters() -> None:
@@ -181,9 +152,51 @@ def test_alphabet_is_normalization_stable(
     assert unicodedata.normalize(form, ALPHABET) == ALPHABET
 
 
+# DecodeError message contract (option c, recorded in CLAUDE.md): None means
+# "generate the text", "" is a legal explicit message preserved verbatim.
+# test_core.py asserts the same of the C type; only the C enforces the
+# str-or-None type — the oracle deliberately trusts its annotations.
+
+
+def test_decode_error_message_none_generates_text() -> None:
+    err = errors_reference.DecodeError(7, message=None)
+    assert (str(err), err.message) == ("Decode Error at position 7", "Decode Error at position 7")
+
+
+def test_decode_error_empty_message_is_preserved() -> None:
+    err = errors_reference.DecodeError(3, message="")
+    assert (err.message, err.args) == ("", ("",))
+
+
+@pytest.mark.parametrize("protocol", range(pickle.HIGHEST_PROTOCOL + 1))
+@pytest.mark.parametrize("flavor", error_cases.PICKLE_MESSAGE_CASES)
+def test_decode_error_pickle_round_trip(flavor: str, protocol: int) -> None:
+    """Every view of the clone must agree: type, position (the int, not just
+    truthiness), and the message through .message, args, and str() — the last
+    is what catches a __setstate__ that fed only one of its two stores."""
+    kwargs, expected = error_cases.PICKLE_MESSAGE_CASES[flavor]
+    original = errors_reference.DecodeError(error_cases.PICKLE_POSITION, **kwargs)
+    clone: object = pickle.loads(pickle.dumps(original, protocol))  # ruff: ignore[suspicious-pickle-usage]  # pyright: ignore[reportAny]
+    assert type(clone) is errors_reference.DecodeError
+    assert clone.position == error_cases.PICKLE_POSITION
+    assert (clone.message, clone.args, str(clone)) == (expected, (expected,), expected)
+
+
+def test_decode_error_copy() -> None:
+    """copy.copy rides __reduce_ex__: nearly free extra coverage."""
+    clone = copy.copy(errors_reference.DecodeError(error_cases.PICKLE_POSITION, message="boom"))
+    assert type(clone) is errors_reference.DecodeError
+    assert (clone.position, clone.message, clone.args, str(clone)) == (
+        error_cases.PICKLE_POSITION,
+        "boom",
+        ("boom",),
+        "boom",
+    )
+
+
 @given(st.binary())
 def test_round_trip(payload: bytes) -> None:
-    assert decode(encode(payload)) == payload
+    assert base32768_reference.decode(base32768_reference.encode(payload)) == payload
 
 
 def test_vectors_are_present(vector_pairs: tuple[pathlib.Path, ...]) -> None:
