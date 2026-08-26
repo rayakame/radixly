@@ -112,7 +112,7 @@ alternative if ever needed.
   tp_init chaining to ValueError, GC delegation) in _common/errors.c with a
   goto-ladder raise helper. Error contract shared as data
   (tests/base32768/error_cases.py): both implementations pinned to the same
-  (input, position) tables. Suite 6521 tests. Measured: see bars above.
+  (input, position) tables. Suite 6566 tests. Measured: see bars above.
 - **M5 — CURRENT** — hardening: -Wall -Wextra -Werror, pin -std=c11 in the build (PEP 7
   target; analysis already parses as C11 via compile_commands.json), suite
   under ASan/UBSan in CI, decode
