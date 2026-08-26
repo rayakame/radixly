@@ -10,14 +10,14 @@ import types
 import typing
 
 from tests.reference import errors
+from tests.reference import shared
 
 if typing.TYPE_CHECKING:
     from collections.abc import Mapping
 
-__all__ = ("BITS_PER_BYTE", "BITS_PER_CHAR", "LOOKUP_D", "LOOKUP_E", "PAIR_STRINGS", "decode", "encode")
+__all__ = ("BITS_PER_CHAR", "LOOKUP_D", "LOOKUP_E", "PAIR_STRINGS", "decode", "encode")
 
 BITS_PER_CHAR: typing.Final = 15  # Base32768 is a 15-bit encoding
-BITS_PER_BYTE: typing.Final = 8
 
 # alphabet data copied from qntm's base32768 (github.com/qntm/base32768), MIT licensed, copyright qntm.
 PAIR_STRINGS: typing.Final[tuple[str, ...]] = (
@@ -36,7 +36,7 @@ def _build_tables() -> tuple[dict[int, tuple[str, ...]], dict[str, tuple[int, in
             first, last = ord(pair_string[i]), ord(pair_string[i + 1])
             repertoire.extend(chr(cp) for cp in range(first, last + 1))
 
-        num_z_bits = BITS_PER_CHAR - BITS_PER_BYTE * r  # 0 -> 15, 1 -> 7
+        num_z_bits = BITS_PER_CHAR - shared.BITS_PER_BYTE * r  # 0 -> 15, 1 -> 7
         lookup_e[num_z_bits] = tuple(repertoire)
         for z, char in enumerate(repertoire):
             lookup_d[char] = (num_z_bits, z)
@@ -61,8 +61,8 @@ def encode(data: bytes) -> str:
 
     # Main loop: 8 bits in, 15 bits out whenever enough have piled up
     for byte in data:
-        acc = (acc << BITS_PER_BYTE) | byte
-        num_bits += BITS_PER_BYTE
+        acc = (acc << shared.BITS_PER_BYTE) | byte
+        num_bits += shared.BITS_PER_BYTE
 
         while num_bits >= BITS_PER_CHAR:
             num_bits -= BITS_PER_CHAR
@@ -111,9 +111,9 @@ def decode(string: str) -> bytes:
 
         # Drain completed bytes as we go. Letting acc grow to hold the whole
         # payload makes every shift copy a bignum, which is quadratic.
-        while num_bits >= BITS_PER_BYTE:
-            num_bits -= BITS_PER_BYTE
-            out.append((acc >> num_bits) & 0xFF)
+        while num_bits >= shared.BITS_PER_BYTE:
+            num_bits -= shared.BITS_PER_BYTE
+            out.append(acc >> num_bits)
             acc &= (1 << num_bits) - 1
 
     num_pad = num_bits  # 0..7 bits of padding are all that can be left
