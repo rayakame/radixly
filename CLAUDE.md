@@ -113,12 +113,19 @@ alternative if ever needed.
   goto-ladder raise helper. Error contract shared as data
   (tests/base32768/error_cases.py): both implementations pinned to the same
   (input, position) tables. Suite 6566 tests. Measured: see bars above.
-- **M5 — CURRENT** — hardening: -Wall -Wextra -Werror, pin -std=c11 in the build (PEP 7
-  target; analysis already parses as C11 via compile_commands.json), suite
-  under ASan/UBSan in CI, decode
-  fuzzing (must raise, never crash/hang), differential tests C vs reference for
-  every length from 0 up.
-- **M6** — Python object layer: Codec objects (bind C functions as instance
+- **M5 — hardening: DONE.** -std=c11 -Wall -Wextra pinned in the build metadata;
+  -Werror rides dev/CI builds only (CFLAGS in nox sync — a stranger building the
+  sdist under a future compiler must not fail). asan nox session: extension
+  rebuilt under ASan+UBSan, non-editable install on purpose (editable envs share
+  the one in-place .so), LD_PRELOAD'd runtime, PYTHONMALLOC=malloc (pymalloc
+  arenas hide object overflows from ASan), leak detection off (CPython exits
+  dirty by design); CI gate across the full 3.11–3.14 matrix. Fuzz suite
+  (tests/base32768/test_fuzz.py): oracle-parity property over hostile inputs —
+  raw-code-point strings incl. surrogates, alphabet-biased corruption fuzz,
+  exhaustive 65,536 single-char sweep (256 accepted, pinned), multi-MB hostile
+  tail. 6,571 tests, all clean under sanitizers. The planned every-length
+  differential was already satisfied by the M3/M4 sweeps.
+- **M6 — CURRENT** — Python object layer: Codec objects (bind C functions as instance
   attributes — no delegating def methods), registry, Protocol, max_bytes/encoded_len.
   Benchmark the wrapper cost before committing to layering.
 - **M7** — contiguous-block factory in C + uro14/braille/hexagram (references in
