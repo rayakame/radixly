@@ -1,10 +1,5 @@
-"""Shared rejection tables: the error-differential contract as data.
-
-Both implementations must reject each input here with the same kind at the
-same position. test_reference.py asserts the oracle's side and test_core.py
-the C side, from these tables — so the two decoders are pinned to each other
-through the data, not through parallel hand-maintained assertions.
-"""
+"""Shared rejection tables: both implementations must reject each input with
+the same kind at the same position, pinned to each other through this data."""
 
 from __future__ import annotations
 
@@ -28,11 +23,8 @@ BAD_CASES: dict[str, int] = {
 
 _VALID_8_CHARS = base32768_reference.encode(bytes(15))  # 120 bits: 8 full 15-bit characters, no padding
 
-# The two non-BMP input kinds stress two different C defenses: an astral code
-# point would index past the reverse table entirely (the cp bounds guard),
-# while a lone surrogate sails through it and relies on those 2048 cells
-# holding the sentinel. The mid-string entries pin that the reported position
-# is the code-point index of the offender, not 0 and not a byte offset.
+# Astral exercises the bounds guard, surrogates the painted reverse-table cells;
+# the mid-string entries pin the position as a code-point index.
 HOSTILE_NON_BMP: dict[str, tuple[str, int]] = {
     "astral": ("\U0001f600", 0),
     "high-surrogate": ("\ud800", 0),
@@ -43,14 +35,8 @@ HOSTILE_NON_BMP: dict[str, tuple[str, int]] = {
 
 _PURE_PADDING = base32768_reference.LOOKUP_E[7][127]  # 'ʟ', a 7-bit character that is all filler
 
-# The M1 divergence from qntm's reference JS (see CLAUDE.md): a final
-# character carrying zero payload bits is rejected so that decode is
-# injective -- one payload, exactly one accepted spelling.
-# - lone-padding: 'ʟ' alone would be a second spelling of b"".
-# - appended-padding, the sneaky cousin: a valid 8-character encoding plus
-#   'ʟ' would decode to the same payload under qntm's rules. A blanket
-#   "reject every 7-bit character" bug would pass both of these, which is
-#   why the reference file also asserts the unextended base still decodes.
+# The deliberate divergence from qntm (CLAUDE.md): zero-payload final chars are
+# rejected so decode is injective. Both would decode fine under qntm's rules.
 CANONICALITY_CASES: dict[str, tuple[str, int]] = {
     "lone-padding": (_PURE_PADDING, 0),
     "appended-padding": (_VALID_8_CHARS + _PURE_PADDING, 8),
@@ -59,10 +45,8 @@ CANONICALITY_CASES: dict[str, tuple[str, int]] = {
 # For both implementations' type rejections: decode() takes str, full stop.
 NON_STR_INPUTS: tuple[object, ...] = (b"bytes", 42)
 
-# Pickle round-trip flavors: constructor kwargs -> the message every view of
-# the clone must agree on (.message, args[0], str()). "empty" is the
-# cross-check that the option-c message contract and the pickle state channel
-# compose: "" must survive verbatim, never replaced by the generated text.
+# Pickle flavors: kwargs -> the message every view of the clone must agree on;
+# "empty" cross-checks that option c and the pickle state channel compose.
 PICKLE_POSITION: int = 5
 PICKLE_MESSAGE_CASES: dict[str, tuple[dict[str, str], str]] = {
     "explicit": ({"message": "boom"}, "boom"),

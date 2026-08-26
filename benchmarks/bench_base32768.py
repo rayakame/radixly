@@ -93,7 +93,7 @@ def report_direction(
 def main() -> None:
     print_environment()
 
-    # Auto-calibration is M8 polish; loop counts keep each repeat near 0.2 s.
+    # Hardcoded loop counts keep each repeat near 0.2 s; auto-calibration can come later.
     one: bytes = random.Random(1).randbytes(1)
     discord: bytes = random.Random(187).randbytes(187)
     big: bytes = random.Random(65536).randbytes(65536)

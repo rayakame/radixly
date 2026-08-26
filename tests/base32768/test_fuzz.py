@@ -1,13 +1,4 @@
-"""Fuzz the C decoder against the oracle over hostile input spaces.
-
-Fuzzing here is property-based testing with a differential twist: for garbage
-input there is no expected output, so the property is full parity — C and the
-reference must return the same bytes, or both must reject with a DecodeError
-at the same position. A segfault, hang (Hypothesis's per-example deadline is
-the tripwire — never disable it here), or wrong exception type all fail the
-parity automatically. Found failures shrink to minimal examples and persist
-in .hypothesis/ to be replayed first on every future run.
-"""
+"""Fuzz the C decoder against the oracle over hostile input spaces."""
 
 from __future__ import annotations
 
@@ -43,10 +34,7 @@ def _join_chars(code_points: list[int]) -> str:
     return "".join(chr(code_point) for code_point in code_points)
 
 
-# Shape A: strings built from raw code points, because st.text()'s polite
-# default alphabet never generates the lone surrogates we most want (the
-# inputs that rely on the 2,048 painted sentinel cells). Full-range adds
-# astral characters for the bounds guard.
+# Shape A: raw code points, because st.text() never generates lone surrogates.
 BMP_STRINGS = st.lists(st.integers(min_value=0, max_value=0xFFFF)).map(_join_chars)
 FULL_RANGE_STRINGS = st.lists(st.integers(min_value=0, max_value=0x10FFFF)).map(_join_chars)
 
@@ -61,18 +49,9 @@ def test_fuzz_full_range_strings(string: str) -> None:
     _assert_parity(string)
 
 
-# Shape B: corruption fuzz. Random strings die at index 0 on the first
-# invalid character; strings that are one mutation away from a valid encoding
-# reach the deep rejections instead — misplaced 7-bit, canonicality, padding.
-# The mutation pool is alphabet-biased for exactly that reason: an alphabet
-# character in the wrong place makes plausible-but-wrong input, where decoder
-# bugs actually live. A mutated string may also still be valid; parity covers
-# both outcomes.
+# Shape B: mutate valid encodings to reach the deep rejections random strings never hit.
 _ALPHABET: str = "".join(base32768_reference.LOOKUP_D)
-# one_of, not one flat pool: sampled_from draws uniformly, and 4 hostile
-# characters against ~32,896 alphabet ones would be lottery odds -- chosen
-# once per ~8,000 draws, i.e. effectively never at 500 examples. Branching
-# gives the hostile set real representation, and shrinking works through it.
+# one_of: in a single flat pool the 4 hostiles would be ~1-in-8000 draws.
 _MUTATION_POOL = st.one_of(
     st.sampled_from(_ALPHABET),
     st.sampled_from("A\x00\ud800\U0001f600"),
@@ -106,25 +85,14 @@ def test_fuzz_corrupted_encodings(string: str) -> None:
 
 
 def test_every_single_character_agrees() -> None:
-    """Interrogates every reverse-table cell, forever: all 65,536 one-character
-    strings, C vs oracle. Exactly 256 decode (the 15-bit characters whose low
-    7 bits are all ones — canonical padding); pinning the count is a bonus
-    invariant on the alphabet's structure."""
+    """Every reverse-table cell; exactly 256 single chars decode (all-ones low 7 bits)."""
     accepted = sum(1 for code_point in range(0x10000) if _assert_parity(chr(code_point)) is not None)
     assert accepted == 256
 
 
 def test_multi_megabyte_hostile_tail() -> None:
-    """The charter's last unticked fuzz box: multi-MB hostile input.
-
-    Hypothesis keeps examples small by design and the megabyte differentials
-    are all-valid, so this one is deterministic: a hostile character at the
-    end of a multi-megabyte valid encoding must be rejected at the correct
-    large index on both sides — pinning that pass 1 reports positions
-    correctly deep into big inputs. The payload length is a multiple of 15 so
-    the valid encoding has no 7-bit final character; otherwise the
-    misplaced-7-bit check would fire one index earlier than the hostile char.
-    """
+    """Multi-MB hostile tail: correct position deep into big input. Payload is a
+    multiple of 15 so no 7-bit final char would fail one index earlier."""
     payload = random.Random(3_000_000).randbytes(3_000_000)
     corrupted = base32768_reference.encode(payload) + "\ud800"
     hostile_index = len(corrupted) - 1
