@@ -65,7 +65,7 @@ reportUnusedCallResult = "none" # every nox.session() triggers this
 
 [tool.setuptools]
 ext-modules = [
-  {name = "radixly._core", sources=["src/radixly/_core.c", "src/radixly/base32768/base32768.c", "src/radixly/_common/errors.c"], include-dirs=["src/radixly"], extra-compile-args=["-std=c11", "-Wall", "-Wextra"]}
+  {name = "radixly._core", sources=["src/radixly/_core.c", "src/radixly/base32768/base32768.c", "src/radixly/braille/braille.c", "src/radixly/hexagram/hexagram.c", "src/radixly/_common/block.c", "src/radixly/_common/errors.c"], include-dirs=["src/radixly"], extra-compile-args=["-std=c11", "-Wall", "-Wextra"]}
 ]
 
 # Keep C sources and headers out of binary wheels for every (sub)package;

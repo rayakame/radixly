@@ -99,6 +99,12 @@ alternative if ever needed.
   **No typing Protocol through 1.0**: the one concrete Codec class is the interface;
   revisit only if a structurally different codec type (C-implemented, third-party)
   ever appears.
+- **Block factory is presets-only through 1.0 (user's call, M7):** start/bits_per_char
+  are compile-time constants in our own wrappers — a programmer contract guarded by
+  assert, never runtime validation (users cannot reach it). A public
+  make-your-own-codec factory is post-1.0; its design needs untrusted-parameter
+  validation (maxchar 0x100–0xFFFF, surrogate-range rejection) and a two-tier
+  fast-preset/generic-user path — sketched in the M7 design round.
 - **Stricter than qntm's reference JS** (which accepts this): a final character
   that carries zero payload bits — e.g. a lone all-ones 7-bit char — is rejected,
   so decode is injective (one payload, one accepted spelling). Width-independent
