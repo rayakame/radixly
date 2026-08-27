@@ -10,8 +10,8 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from radixly import _core
-from tests.base32768.test_core import PAYLOAD_FLAVORS
 from tests.block import error_cases
+from tests.payloads import PAYLOAD_FLAVORS
 from tests.reference import errors as errors_reference
 
 if typing.TYPE_CHECKING:

@@ -48,17 +48,18 @@ def test_encoded_len_matches_encode(payload: bytes) -> None:
     assert radixly.uro14.encoded_len(len(payload)) == len(radixly.uro14.encode(payload))
 
 
-@pytest.mark.parametrize("n", range(1, 1000))
+@pytest.mark.parametrize("n", range(1000))
 def test_max_bytes_is_maximal(n: int) -> None:
-    """max_bytes(n) fits in n characters; one more byte would not. n = 0 is the
-    special case below: even b"" needs the prefix character."""
+    """max_bytes(n) fits in n characters; one more byte would not. At n = 0
+    there is no truthful answer -- even b"" needs the prefix -- so the
+    contract is to refuse."""
+    if n == 0:
+        with pytest.raises(ValueError, match="no payload fits in 0 characters"):
+            radixly.uro14.max_bytes(0)
+        assert radixly.uro14.encoded_len(0) == 1  # the prefix always costs one
+        return
     assert radixly.uro14.encoded_len(radixly.uro14.max_bytes(n)) <= n
     assert n < radixly.uro14.encoded_len(radixly.uro14.max_bytes(n) + 1)
-
-
-def test_zero_chars_fit_nothing() -> None:
-    assert radixly.uro14.max_bytes(0) == 0
-    assert radixly.uro14.encoded_len(0) == 1  # the prefix always costs one
 
 
 @pytest.mark.parametrize(("num_bytes", "expected"), [(0, 1), (1, 2), (15, 10), (187, 108)])
@@ -66,7 +67,7 @@ def test_encoded_len_pins(num_bytes: int, expected: int) -> None:
     assert radixly.uro14.encoded_len(num_bytes) == expected
 
 
-@pytest.mark.parametrize(("num_chars", "expected"), [(0, 0), (1, 0), (8, 12), (100, 173)])
+@pytest.mark.parametrize(("num_chars", "expected"), [(1, 0), (8, 12), (100, 173)])
 def test_max_bytes_pins(num_chars: int, expected: int) -> None:
     """The headline: 100 code points carry 173 bytes, truncation-proof."""
     assert radixly.uro14.max_bytes(num_chars) == expected

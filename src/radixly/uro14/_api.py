@@ -26,14 +26,17 @@ def encoded_len(num_bytes: int) -> int:
 def max_bytes(num_chars: int) -> int:
     """Largest payload that encodes into at most ``num_chars`` characters.
 
-    The prefix eats one character, so zero characters fit nothing -- and the
-    branch keeps the arithmetic from going negative.
+    The prefix eats one character, so nothing whatsoever fits in zero -- the
+    contract has no truthful integer answer there and refuses instead of
+    lying (the sibling codecs' max_bytes(0) == 0 genuinely holds; only uro14
+    has a nonempty empty).
     """
     if num_chars < 0:
         msg = f"num_chars must be >= 0, got {num_chars}"
         raise ValueError(msg)
     if num_chars == 0:
-        return 0
+        msg = "no payload fits in 0 characters: the length prefix needs one"
+        raise ValueError(msg)
     return BITS_PER_CHAR * (num_chars - 1) // 8
 
 
