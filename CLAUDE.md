@@ -45,7 +45,13 @@ call frames). 103x the pure-Python reference. Decode (measured M4): 0.196 µs /
 187 B (legacy bar 0.37 beaten 1.9x), 1118 MB/s at 64 KiB (flat to 1 MiB),
 0.017 µs floor at 1 B, 100x the reference — two-pass design's throughput cost
 vs encode is known and accepted; single-pass-resize is the measured-decision
-alternative if ever needed.
+alternative if ever needed. Block codecs (measured M7, bench_block.py, same
+setup; encode/decode at 187 B, then 64 KiB throughput): braille 0.156/0.264 µs,
+1342/769 MB/s; hexagram 0.197/0.313 µs, 1114/644 MB/s; uro14 0.118/0.186 µs,
+1819/979 MB/s — uro14 decode beats base32768's (single-pass, no tables).
+Floors all at the METH_O baseline; 73–115x the references. Braille is slowest
+by design: one char per byte maximizes jar iterations — an offset-copy fast
+path is the measured-decision option if ever wanted.
 
 ## Fixed decisions — do not relitigate
 
@@ -161,9 +167,18 @@ alternative if ever needed.
   and the layering committed: at the 1 B floor the dotted shapes cost ~1 ns over
   the raw C call (module +0.9, codec +1.1; hoisted pre-bound = baseline) — no
   Python frame anywhere; benchmarks/bench_api.py is the receipt. Suite 7,600 tests.
-- **M7 — CURRENT** — contiguous-block factory in C + uro14/braille/hexagram (references in
-  tests/ first; uro14's length prefix must provably catch truncation).
-- **M8** — benchmark suite as product: honest README table, CI regression gates.
+- **M7 — contiguous-block factory + uro14/braille/hexagram: DONE.** References
+  first, and it paid twice: the truncation-sweep tests caught a real design
+  flaw (14-bit width leaves up to 13 padding bits — more than a byte — so the
+  claim gained its second job: picking between the two payload lengths a body
+  admits), and the parity tests caught a C check-order divergence (canonicality
+  is decidable from length alone but must not win the position race against an
+  invalid character). C: shared single-pass core in _common/block.c (the
+  reverse table is two comparisons; presets-only contract by assert), ten-line
+  braille/hexagram wrappers, bespoke claim-driven uro14.c. Faces per the M6
+  pattern; registry holds four codecs. Suite 21,580 tests, sanitizers clean.
+  Measured: see bars above.
+- **M8 — CURRENT** — benchmark suite as product: honest README table, CI regression gates.
 - **M9** — ship 1.0: cibuildwheel matrix, .pyi stubs + py.typed, docs stating the
   truncation caveat honestly (base32768 silently accepts ~50% of truncations).
 
