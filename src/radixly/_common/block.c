@@ -90,13 +90,6 @@ radixly_block_decode(PyObject *arg, Py_UCS4 start, unsigned bits_per_char)
     const Py_ssize_t total_bits = num_chars * bits_per_char;
     Py_ssize_t num_bytes = total_bits / BITS_PER_BYTE;
     unsigned num_pad = (unsigned)(total_bits % BITS_PER_BYTE);
-    /* Canonicality (fixed decision, lockstep with tests/reference/block.py):
-     * the final character must carry at least one payload bit. */
-    if (bits_per_char <= num_pad) {
-        return radixly_raise_decode_error(
-            num_chars - 1, "non-canonical input: %u-bit final character at index %zd carries no payload bits",
-            bits_per_char, num_chars - 1);
-    }
     PyObject *result = PyBytes_FromStringAndSize(NULL, num_bytes);
     if (result == NULL) {
         return NULL;
@@ -126,6 +119,17 @@ radixly_block_decode(PyObject *arg, Py_UCS4 start, unsigned bits_per_char)
         }
     }
     assert(out_i == num_bytes);
+
+    /* Canonicality (fixed decision, lockstep with tests/reference/block.py):
+     * the final character must carry at least one payload bit. Checked after
+     * the character scan although the length alone decides it: an invalid
+     * character must win the position race, matching the reference. */
+    if (bits_per_char <= num_pad) {
+        Py_DECREF(result);
+        return radixly_raise_decode_error(
+            num_chars - 1, "non-canonical input: %u-bit final character at index %zd carries no payload bits",
+            bits_per_char, num_chars - 1);
+    }
 
     /* acc holds exactly num_pad bits; comparing it unmasked makes stray bits fail. */
     if (acc != (1U << num_pad) - 1U) {
