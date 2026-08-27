@@ -50,6 +50,12 @@ def test_braille_every_length_decodes() -> None:
         assert braille.decode("⠀" * num_chars) == bytes(num_chars)
 
 
+def test_rejection_catalogs_are_nonempty() -> None:
+    """Emptied catalogs would collect zero rejection cases and guard nothing."""
+    assert len(error_cases.INVALID_KINDS) > 0
+    assert len(error_cases.HEXAGRAM_REJECTIONS) > 0
+
+
 @pytest.mark.parametrize("kind", error_cases.INVALID_KINDS)
 @pytest.mark.parametrize("preset", error_cases.PRESETS)
 def test_invalid_character_positions(preset: str, kind: str) -> None:
