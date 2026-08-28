@@ -112,9 +112,9 @@ path is the measured-decision option if ever wanted.
   validation (maxchar 0x100–0xFFFF, surrogate-range rejection) and a two-tier
   fast-preset/generic-user path — sketched in the M7 design round.
 - **uro14's guarantee is windowed (user's call, M7 review round):** the 14-bit claim
-  wraps at 16,384 bytes — a truncation of a bigger payload that removes an exact
-  multiple of 16,384 bytes is byte-identical to a valid shorter encoding and decodes
-  as one; no decoder can distinguish two meanings of the same string. Unlimited
+  wraps at 16,384 bytes — a claim-matching truncation of a bigger payload is
+  byte-identical to a valid shorter encoding when its cut point leaves no padding
+  (content-dependent otherwise); no decoder can distinguish two meanings of one string. Unlimited
   payload sizes kept; every doc states the window; below the modulus the guarantee
   is absolute. The rejected alternative (cap payloads at 16,383) and the post-1.0
   option (wider-prefix sibling codec) are on record.

@@ -1,10 +1,12 @@
 """uro14: 14 bits per character from the CJK block at U+4E00.
 
 The first character carries the payload length mod 16384, so every tail
-truncation of a payload under 16,384 bytes fails to decode. Bigger payloads
-wrap the claim: a truncation removing an exact multiple of 16,384 bytes is
-byte-identical to a valid shorter encoding and decodes as one (accepted
-risk -- no decoder can tell two meanings of the same string apart). Front
+truncation of a payload under 16,384 bytes fails to decode. Payloads of
+16,384+ bytes wrap the claim: a claim-matching truncation whose cut point
+leaves no padding is byte-identical to a valid shorter encoding and decodes
+as one; cut points with padding slip only when the payload bits there happen
+to be all ones (accepted risk -- no decoder can tell two meanings of the
+same string apart). Front
 truncation is not protected. The empty string is never valid; b"" encodes
 to the lone length character U+4E00.
 """
