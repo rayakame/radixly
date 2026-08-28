@@ -7,7 +7,6 @@
 #include "_common/internal.h"
 
 enum {
-    BITS_PER_BYTE = 8,
     BITS_PER_CHAR = 15,
     MAX_CHAR = 0xFFFF,
     REV_INVALID = MAX_CHAR,
@@ -16,7 +15,6 @@ enum {
 
 static const uint16_t REV_7BIT_FLAG = 0x8000;
 static const uint32_t REV_VALUE_MASK = 0x7FFF;
-static const uint32_t BYTE_MASK = 0xFF;
 
 static uint16_t REV[MAX_CHAR + 1];
 

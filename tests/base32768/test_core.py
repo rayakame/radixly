@@ -20,23 +20,8 @@ from hypothesis import strategies as st
 
 from radixly import _core
 from tests.base32768 import error_cases
+from tests.payloads import PAYLOAD_FLAVORS
 from tests.reference import base32768 as base32768_reference
-
-
-# Seeded so any failing length reproduces byte-for-byte; zeros/ones hit the table corners.
-def _random_payload(n: int) -> bytes:
-    return random.Random(n).randbytes(n)
-
-
-def _ones_payload(n: int) -> bytes:
-    return b"\xff" * n
-
-
-PAYLOAD_FLAVORS: dict[str, Callable[[int], bytes]] = {
-    "random": _random_payload,
-    "zeros": bytes,
-    "ones": _ones_payload,
-}
 
 
 def test_encode_conformance(base32768_bin_path: pathlib.Path) -> None:

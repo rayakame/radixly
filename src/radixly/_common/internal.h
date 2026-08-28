@@ -1,6 +1,10 @@
 #ifndef RADIXLY_INTERNAL_H
 #define RADIXLY_INTERNAL_H
 
+#define BITS_PER_BYTE 8
+
+static const uint32_t BYTE_MASK = 0xFF;
+
 #ifdef __GNUC__
 #define RADIXLY_SAME_TYPE(a, b) __builtin_types_compatible_p(__typeof__(a), __typeof__(b))
 

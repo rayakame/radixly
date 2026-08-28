@@ -1,11 +1,20 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include "base32768/base32768.h"
+#include "braille/braille.h"
+#include "hexagram/hexagram.h"
+#include "uro14/uro14.h"
 #include "_common/errors.h"
 
 static PyMethodDef radixly_methods[] = {
     {"base32768_encode", radixly_base32768_encode, METH_O, radixly_base32768_encode_doc},
     {"base32768_decode", radixly_base32768_decode, METH_O, radixly_base32768_decode_doc},
+    {"braille_encode", radixly_braille_encode, METH_O, radixly_braille_encode_doc},
+    {"braille_decode", radixly_braille_decode, METH_O, radixly_braille_decode_doc},
+    {"hexagram_encode", radixly_hexagram_encode, METH_O, radixly_hexagram_encode_doc},
+    {"hexagram_decode", radixly_hexagram_decode, METH_O, radixly_hexagram_decode_doc},
+    {"uro14_encode", radixly_uro14_encode, METH_O, radixly_uro14_encode_doc},
+    {"uro14_decode", radixly_uro14_decode, METH_O, radixly_uro14_decode_doc},
     {NULL, NULL, 0, NULL},
 };
 
