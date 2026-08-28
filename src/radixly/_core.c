@@ -18,11 +18,28 @@ static PyMethodDef radixly_methods[] = {
     {NULL, NULL, 0, NULL},
 };
 
+static int
+radixly_meta_exec(PyObject *module)
+{
+/* Self-certification for the benchmark harness: it refuses to measure a
+ * non-optimized build. GCC/Clang define __OPTIMIZE__ at any -O level; MSVC
+ * never defines it, so Windows wheels count as optimized by fiat until a
+ * real signal exists there. Insurance against a stray -O0 debug build or
+ * toolchain drift, nothing more. */
+#if defined(__OPTIMIZE__) || defined(_MSC_VER)
+    PyObject *optimized = Py_True;
+#else
+    PyObject *optimized = Py_False;
+#endif
+    return PyModule_AddObjectRef(module, "OPTIMIZED", optimized);
+}
+
 static PyModuleDef_Slot radixly_execs[] = {
 /* Static globals make this module single-interpreter only; 3.11 cannot refuse (see README). */
 #if PY_VERSION_HEX >= 0x030C0000
     {Py_mod_multiple_interpreters, Py_MOD_MULTIPLE_INTERPRETERS_NOT_SUPPORTED},
 #endif
+    {Py_mod_exec, (void *)radixly_meta_exec},
     {Py_mod_exec, (void *)radixly_errors_exec},
     {Py_mod_exec, (void *)radixly_base32768_exec},
     {0, NULL},

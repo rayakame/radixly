@@ -25,8 +25,19 @@ def sync(
 ) -> None:
     """Install dependency groups (and by default the project) into the session venv."""
     args: list[str]
+    env_extra: dict[str, str] = {}
     if project:
-        args = ["--no-default-groups", "--reinstall-package", "radixly"]
+        # --refresh-package busts uv's built-wheel cache: its key ignores env
+        # vars, so a CFLAGS change alone would keep serving the stale build.
+        args = ["--no-default-groups", "--reinstall-package", "radixly", "--refresh-package", "radixly"]
+        # Sessions build with per-session flags, but setuptools reuses .o files
+        # from the shared in-tree build/ without checking what flags built them
+        # -- an asan session would poison later plain builds and vice versa.
+        # A per-session build_base keeps every flag set in its own directory.
+        session_tmp = pathlib.Path(session.create_tmp())
+        dist_cfg = session_tmp / "dist-extra.cfg"
+        dist_cfg.write_text(f"[build]\nbuild_base = {session_tmp / 'build'}\n", encoding="utf-8")
+        env_extra["DIST_EXTRA_CONFIG"] = str(dist_cfg)
         if not editable:
             args.append("--no-editable")
         for group in groups:
@@ -35,7 +46,11 @@ def sync(
         args = []
         for group in groups:
             args += ["--only-group", group]
-    env = {"UV_PROJECT_ENVIRONMENT": session.virtualenv.location, "CFLAGS": "-Werror"}
+    # Env CFLAGS displace the distro's optimized flags here (only OPT survives
+    # composition) -- proven by _core.OPTIMIZED reading False without the -O3.
+    # -O3 matches the distro base, so it cannot downgrade under either
+    # replace or append semantics.
+    env = {"UV_PROJECT_ENVIRONMENT": session.virtualenv.location, "CFLAGS": "-O3 -Werror"} | env_extra
     if build_env is not None:
         env |= build_env
     session.run_install("uv", "sync", "--locked", *args, env=env)
@@ -129,7 +144,7 @@ def asan(session: nox.Session) -> None:
         "pytest",
         editable=False,
         build_env={
-            "CFLAGS": f"-Werror {_SANITIZE} -g -fno-omit-frame-pointer",
+            "CFLAGS": f"-O3 -Werror {_SANITIZE} -g -fno-omit-frame-pointer",
             "LDFLAGS": _SANITIZE,
         },
     )
