@@ -111,6 +111,13 @@ path is the measured-decision option if ever wanted.
   make-your-own-codec factory is post-1.0; its design needs untrusted-parameter
   validation (maxchar 0x100–0xFFFF, surrogate-range rejection) and a two-tier
   fast-preset/generic-user path — sketched in the M7 design round.
+- **uro14's guarantee is windowed (user's call, M7 review round):** the 14-bit claim
+  wraps at 16,384 bytes — a truncation of a bigger payload that removes an exact
+  multiple of 16,384 bytes is byte-identical to a valid shorter encoding and decodes
+  as one; no decoder can distinguish two meanings of the same string. Unlimited
+  payload sizes kept; every doc states the window; below the modulus the guarantee
+  is absolute. The rejected alternative (cap payloads at 16,383) and the post-1.0
+  option (wider-prefix sibling codec) are on record.
 - **Stricter than qntm's reference JS** (which accepts this): a final character
   that carries zero payload bits — e.g. a lone all-ones 7-bit char — is rejected,
   so decode is injective (one payload, one accepted spelling). Width-independent

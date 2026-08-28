@@ -74,7 +74,8 @@ const char radixly_uro14_decode_doc[] =
               "Decode uro14 text back to bytes.\n"
               "\n"
               "Strict and canonical; DecodeError carries the offending position.\n"
-              "Every tail truncation of a valid encoding is rejected.");
+              "Every tail truncation of a payload under 16,384 bytes is rejected;\n"
+              "bigger payloads wrap the length claim (see the codec docs).");
 PyObject *
 radixly_uro14_decode(PyObject *Py_UNUSED(self), PyObject *arg)
 {
