@@ -94,7 +94,7 @@ def lint(session: nox.Session) -> None:
 @nox.session(reuse_venv=True)
 def pyright(session: nox.Session) -> None:
     """Type-check with basedpyright (recommended mode; warnings fail)."""
-    sync(session, "nox", "pyright", "pytest")
+    sync(session, "nox", "pyright", "pytest", "bench")
     session.run("basedpyright", "--pythonpath", str(pathlib.Path(session.virtualenv.bin) / "python"))
 
 
@@ -142,6 +142,7 @@ def asan(session: nox.Session) -> None:
     sync(
         session,
         "pytest",
+        "bench",
         editable=False,
         build_env={
             "CFLAGS": f"-O3 -Werror {_SANITIZE} -g -fno-omit-frame-pointer",
@@ -168,5 +169,5 @@ def pytest(session: nox.Session) -> None:
 
     Extra args pass through: ``nox -s pytest -- -k import``.
     """
-    sync(session, "pytest")
+    sync(session, "pytest", "bench")
     session.run("pytest", *session.posargs)

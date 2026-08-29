@@ -31,7 +31,21 @@ radixly_meta_exec(PyObject *module)
 #else
     PyObject *optimized = Py_False;
 #endif
-    return PyModule_AddObjectRef(module, "OPTIMIZED", optimized);
+    if (PyModule_AddObjectRef(module, "OPTIMIZED", optimized) < 0) {
+        return -1;
+    }
+/* The compiler that produced this extension, recorded by the artifact
+ * itself; clang's __VERSION__ already names itself, gcc's does not. */
+#ifdef __clang__
+    const char *compiler = __VERSION__;
+#elif defined(__GNUC__)
+    const char *compiler = "gcc " __VERSION__;
+#elif defined(_MSC_VER)
+    const char *compiler = "msvc";
+#else
+    const char *compiler = "unknown";
+#endif
+    return PyModule_AddStringConstant(module, "COMPILER", compiler);
 }
 
 static PyModuleDef_Slot radixly_execs[] = {
