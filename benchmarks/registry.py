@@ -85,7 +85,8 @@ class CompetitorSpec:
     """A rival implementation of a codec, measured for comparison charts.
 
     encode/decode must match radixly's contracts (bytes -> str, str -> bytes);
-    adapters live in benchmarks/competitors.py where their cost is visible.
+    adapters will live in a competitors module, their cost visible, when the
+    first rival arrives with base64.
     """
 
     name: str

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import typing
 
 import pytest
@@ -31,6 +32,15 @@ def test_fragment_carries_markers_and_provenance() -> None:
     assert wrapped.rstrip("\n").endswith(markdown.END)
     assert "Measured on TestCPU (performance governor)" in wrapped
     assert "abc1234" in wrapped
+
+
+def test_dirty_flag_survives_into_print() -> None:
+    """Finding: a dirty record reached the README unnoticed because only the
+    console printed the flag. The provenance line must carry it."""
+    result = _result()
+    dirty = dataclasses.replace(result, environment=dataclasses.replace(result.environment, dirty=True))
+    assert "abc1234 (dirty)," in markdown.fragment(dirty)
+    assert "(dirty)" not in markdown.fragment(result)
 
 
 def test_fragment_cells() -> None:

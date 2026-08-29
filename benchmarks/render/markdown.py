@@ -40,7 +40,8 @@ def table(result: model.RunResult) -> str:
     divider = "|---|---|" + "---|" * len(sizes) + "---|"
     lines = [
         f"*Measured on {env.cpu} ({env.governor} governor), {env.os}, CPython {env.python}, "
-        + f"{env.compiler}, radixly {env.radixly_version} @ {env.commit}, {env.timestamp}.*",
+        + f"{env.compiler}, radixly {env.radixly_version} @ {env.commit}"
+        + f"{' (dirty)' if env.dirty else ''}, {env.timestamp}.*",
         "",
         header,
         divider,

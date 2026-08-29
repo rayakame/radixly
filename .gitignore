@@ -219,3 +219,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Manual benchmark-run leftovers; the committed artifacts live under benchmarks/.
+/charts/
+/results.json
