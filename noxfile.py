@@ -151,16 +151,18 @@ def asan(session: nox.Session) -> None:
     )
     libasan = session.run("cc", "-print-file-name=libasan.so", silent=True, external=True)
     assert isinstance(libasan, str), "cc -print-file-name=libasan.so produced no output"
-    session.run(
-        "pytest",
-        *session.posargs,
-        env={
-            "LD_PRELOAD": libasan.strip(),
-            "PYTHONMALLOC": "malloc",
-            "ASAN_OPTIONS": "detect_leaks=0",
-            "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1",
-        },
-    )
+    asan_env = {
+        "LD_PRELOAD": libasan.strip(),
+        "PYTHONMALLOC": "malloc",
+        "PYTHONUNBUFFERED": "1",
+        "ASAN_OPTIONS": "detect_leaks=0",
+        "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1",
+    }
+    # Canary: the graph tests drag numpy/matplotlib into the sanitized
+    # process at collection time; if that import dies, say so with flushed
+    # output instead of pytest's buffered silence.
+    session.run("python", "-c", "import numpy, matplotlib; print('asan import canary: ok', flush=True)", env=asan_env)
+    session.run("pytest", *session.posargs, env=asan_env)
 
 
 @nox.session(reuse_venv=True)
