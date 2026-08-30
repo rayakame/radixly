@@ -168,8 +168,14 @@ def asan(session: nox.Session) -> None:
         "import radixly; from radixly import _core; print('radixly canary: ok', _core.OPTIMIZED, _core.COMPILER, flush=True)",
         env=asan_env,
     )
-    # Diagnostic split: localize which directory's collection dies in CI.
-    for scope in ("tests/test_import.py", "tests/test_api.py", "tests/base32768", "tests/block", "tests/uro14", "tests/bench"):
+    # Diagnostic split: tests/bench alone dies in CI; find the file.
+    session.run(
+        "python",
+        "-c",
+        "import matplotlib.pyplot; print('pyplot canary: ok', flush=True)",
+        env=asan_env,
+    )
+    for scope in sorted(str(path) for path in pathlib.Path("tests/bench").glob("test_*.py")):
         session.run("pytest", "-q", "--no-header", scope, env=asan_env)
     session.run("pytest", *session.posargs, env=asan_env)
 
