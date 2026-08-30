@@ -162,6 +162,15 @@ def asan(session: nox.Session) -> None:
     # process at collection time; if that import dies, say so with flushed
     # output instead of pytest's buffered silence.
     session.run("python", "-c", "import numpy, matplotlib; print('asan import canary: ok', flush=True)", env=asan_env)
+    session.run(
+        "python",
+        "-c",
+        "import radixly; from radixly import _core; print('radixly canary: ok', _core.OPTIMIZED, _core.COMPILER, flush=True)",
+        env=asan_env,
+    )
+    # Diagnostic split: localize which directory's collection dies in CI.
+    for scope in ("tests/test_import.py", "tests/test_api.py", "tests/base32768", "tests/block", "tests/uro14", "tests/bench"):
+        session.run("pytest", "-q", "--no-header", scope, env=asan_env)
     session.run("pytest", *session.posargs, env=asan_env)
 
 
