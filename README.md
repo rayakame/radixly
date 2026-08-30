@@ -20,7 +20,7 @@ throughput at or above it; “vs reference” is the speedup over the pure-Pytho
 oracle in `tests/reference/`, measured on the same machine in the same run.
 
 <!-- radixly-bench:begin -->
-*Measured on 13th Gen Intel(R) Core(TM) i9-13900K (performance governor), CachyOS, kernel 7.2.0-1-cachyos, CPython 3.13.14, gcc 16.2.1 20260810, radixly 0.1.0.dev0 @ 2181692, 2026-08-29T16:01:16+00:00.*
+*Measured on 13th Gen Intel(R) Core(TM) i9-13900K (performance governor), CachyOS, kernel 7.2.0-1-cachyos, CPython 3.13.14, gcc 16.2.1 20260810, radixly 0.1.0.dev0 @ 2181692 (dirty), 2026-08-29T16:01:16+00:00.*
 
 | codec | direction | 1 B | 200 B | 64 KiB | 1 MiB | vs reference |
 |---|---|---|---|---|---|---|
