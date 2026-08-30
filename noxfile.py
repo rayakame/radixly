@@ -158,26 +158,12 @@ def asan(session: nox.Session) -> None:
         "ASAN_OPTIONS": "detect_leaks=0",
         "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1",
     }
-    # Canary: the graph tests drag numpy/matplotlib into the sanitized
-    # process at collection time; if that import dies, say so with flushed
-    # output instead of pytest's buffered silence.
-    session.run("python", "-c", "import numpy, matplotlib; print('asan import canary: ok', flush=True)", env=asan_env)
-    session.run(
-        "python",
-        "-c",
-        "import radixly; from radixly import _core; print('radixly canary: ok', _core.OPTIMIZED, _core.COMPILER, flush=True)",
-        env=asan_env,
-    )
-    # Diagnostic split: tests/bench alone dies in CI; find the file.
-    session.run(
-        "python",
-        "-c",
-        "import matplotlib.pyplot; print('pyplot canary: ok', flush=True)",
-        env=asan_env,
-    )
-    for scope in sorted(str(path) for path in pathlib.Path("tests/bench").glob("test_*.py")):
-        session.run("pytest", "-q", "--no-header", scope, env=asan_env)
-    session.run("pytest", *session.posargs, env=asan_env)
+    # tests/bench stays out of the sanitized process: importing
+    # matplotlib.pyplot under a preloaded libasan <= 13 dies in ASan's
+    # __cxa_throw interceptor (CHECK failed, asan_interceptors.cpp) when
+    # matplotlib's C++ throws during init. Those tests are pure Python,
+    # audit none of our C, and run in every plain pytest job.
+    session.run("pytest", "--ignore=tests/bench", *session.posargs, env=asan_env)
 
 
 @nox.session(reuse_venv=True)
