@@ -23,11 +23,20 @@ if typing.TYPE_CHECKING:
 
 SIZES: tuple[tuple[str, int], ...] = (("1 B", 1), ("200 B", 200))
 
-_SHAPES: tuple[tuple[str, str, dict[str, object]], ...] = (
-    ("baseline  f(p)", "f(p)", {"f": _core.base32768_encode}),
-    ("module    m.encode(p)", "m.encode(p)", {"m": radixly.base32768}),
-    ("codec     c.encode(p)", "c.encode(p)", {"c": radixly.base32768.BASE32768}),
-    ("hoisted   g(p)", "g(p)", {"g": radixly.base32768.BASE32768.encode}),
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class Shape:
+    label: str
+    statement: str
+    bindings: dict[str, object]
+    is_baseline: bool = False  # the delta anchor; exactly one shape carries it
+
+
+_SHAPES: tuple[Shape, ...] = (
+    Shape("baseline  f(p)", "f(p)", {"f": _core.base32768_encode}, is_baseline=True),
+    Shape("module    m.encode(p)", "m.encode(p)", {"m": radixly.base32768}),
+    Shape("codec     c.encode(p)", "c.encode(p)", {"c": radixly.base32768.BASE32768}),
+    Shape("hoisted   g(p)", "g(p)", {"g": radixly.base32768.BASE32768.encode}),
 )
 
 
@@ -37,6 +46,7 @@ class ShapeRow:
     shape: str
     ns_per_call: float
     delta_ns: float  # vs the baseline shape at the same size
+    is_baseline: bool
 
 
 def _measure_statement(statement: str, bindings: dict[str, object], number: int, repeat: int) -> float:
@@ -53,12 +63,14 @@ def measure(repeat: int = timing.REPEAT, target: float = timing.TARGET_SECONDS) 
         # One calibration per size, shared by every shape: identical loop
         # counts keep the nanosecond deltas comparable.
         number = timing.calibrate(_core.base32768_encode, data, target)
-        baseline_ns = 0.0
-        for shape, statement, bindings in _SHAPES:
-            ns = _measure_statement(statement, bindings | {"p": data}, number, repeat) * 1e9
-            if shape.startswith("baseline"):
-                baseline_ns = ns
-            rows.append(ShapeRow(size_label, shape, ns, ns - baseline_ns))
+        measured = [
+            (shape, _measure_statement(shape.statement, shape.bindings | {"p": data}, number, repeat) * 1e9)
+            for shape in _SHAPES
+        ]
+        baseline_ns = next(ns for shape, ns in measured if shape.is_baseline)
+        rows.extend(
+            ShapeRow(size_label, shape.label, ns, ns - baseline_ns, shape.is_baseline) for shape, ns in measured
+        )
     return rows
 
 
@@ -69,7 +81,7 @@ def render(rows: Sequence[ShapeRow]) -> str:
         if row.size_label != current_size:
             current_size = row.size_label
             lines.append(f"wrapper cost, base32768 encode, {current_size} payload")
-        delta = "" if row.shape.startswith("baseline") else f"   ({row.delta_ns:+.3f} vs baseline)"
+        delta = "" if row.is_baseline else f"   ({row.delta_ns:+.3f} vs baseline)"
         lines.append(f"  {row.shape:24} {row.ns_per_call:8.3f} ns/call{delta}")
     lines.append("")
     return "\n".join(lines)

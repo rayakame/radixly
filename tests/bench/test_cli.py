@@ -135,9 +135,12 @@ def test_inject_target_must_carry_the_markers(tmp_path: pathlib.Path) -> None:
 
 def test_wrapper_shapes_are_distinct_statements() -> None:
     """Four identical statements would measure the same call and prove nothing."""
-    statements = [statement for _, statement, _ in wrapper._SHAPES]  # pyright: ignore[reportPrivateUsage]
+    statements = [shape.statement for shape in wrapper._SHAPES]  # pyright: ignore[reportPrivateUsage]
     assert len(set(statements)) == len(statements)
     assert "m.encode(p)" in statements  # the dotted access lives inside the timed statement
+    # Exactly one anchor: every delta is against the same baseline, by flag,
+    # not by label prefix or tuple position.
+    assert sum(shape.is_baseline for shape in wrapper._SHAPES) == 1  # pyright: ignore[reportPrivateUsage]
 
 
 _TINY = cli.RunConfig(

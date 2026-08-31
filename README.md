@@ -14,7 +14,8 @@ radixly aims to be the fastest Python implementation of these codecs — and
 measures that claim instead of asserting it. Everything below is generated
 from the committed record run
 ([`benchmarks/results/i9-13900K-performance.json`](benchmarks/results/i9-13900K-performance.json))
-via `python -m benchmarks --render-from … --inject README.md`; no number here
+via `python -m benchmarks --render-from benchmarks/results/i9-13900K-performance.json --inject README.md`;
+no number here
 is ever typed by hand. Sizes are per-call latency below 64 KiB and sustained
 throughput at or above it; “vs reference” is the speedup over the pure-Python
 oracle in `tests/reference/`, measured on the same machine in the same run.
