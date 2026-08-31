@@ -35,6 +35,18 @@ def test_unreadable_files_are_skipped(tmp_path: pathlib.Path) -> None:
     assert baseline.find_baseline(factories.make_environment(), tmp_path) is not None
 
 
+def test_missing_key_documents_are_skipped_not_fatal(tmp_path: pathlib.Path) -> None:
+    """The empirical crasher: a committed result missing 'cpu' must be skipped
+    by the scan, never brick every future measured run."""
+    broken = model.to_json(factories.make_result()).replace('"cpu": "TestCPU",', "")
+    assert '"cpu"' not in broken  # the surgery worked; the document is truly missing the key
+    (tmp_path / "aa-broken.json").write_text(broken, encoding="utf-8")
+    assert baseline.find_baseline(factories.make_environment(), tmp_path) is None
+    _write(tmp_path, "zz-good.json", factories.make_result())
+    found = baseline.find_baseline(factories.make_environment(), tmp_path)
+    assert found is not None
+
+
 def test_floor_within_band_is_silent() -> None:
     current = factories.make_result((factories.make_measurement(ns_per_call=24.0),))
     assert baseline.floor_warnings(current, factories.make_result()) == []

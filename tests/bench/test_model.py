@@ -66,6 +66,19 @@ def test_unsupported_schema_version_raises() -> None:
         model.from_json(json.dumps(document))
 
 
+def test_missing_field_raises_the_documented_error() -> None:
+    """Missing keys must be ValueError, not KeyError: the error contract is
+    TypeError/ValueError, and the baseline scan relies on it to skip bad files."""
+    document = json.loads(model.to_json(factories.make_result()))
+    del document["environment"]["cpu"]
+    with pytest.raises(ValueError, match="cpu: missing"):
+        model.from_json(json.dumps(document))
+    document = json.loads(model.to_json(factories.make_result()))
+    del document["measurements"]
+    with pytest.raises(ValueError, match="measurements: missing"):
+        model.from_json(json.dumps(document))
+
+
 def test_wrong_field_type_raises() -> None:
     document = json.loads(model.to_json(factories.make_result()))
     document["measurements"][0]["ns_per_call"] = "fast"

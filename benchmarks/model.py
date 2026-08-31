@@ -76,8 +76,15 @@ def to_json(result: RunResult) -> str:
     return json.dumps(to_dict(result), indent=2, sort_keys=True) + "\n"
 
 
+def _required(mapping: dict[str, object], key: str) -> object:
+    if key not in mapping:
+        msg = f"{key}: missing"
+        raise ValueError(msg)
+    return mapping[key]
+
+
 def _str(mapping: dict[str, object], key: str) -> str:
-    value = mapping[key]
+    value = _required(mapping, key)
     if not isinstance(value, str):
         msg = f"{key}: expected str, got {type(value).__name__}"
         raise TypeError(msg)
@@ -85,7 +92,7 @@ def _str(mapping: dict[str, object], key: str) -> str:
 
 
 def _int(mapping: dict[str, object], key: str) -> int:
-    value = mapping[key]
+    value = _required(mapping, key)
     if not isinstance(value, int) or isinstance(value, bool):
         msg = f"{key}: expected int, got {type(value).__name__}"
         raise TypeError(msg)
@@ -93,7 +100,7 @@ def _int(mapping: dict[str, object], key: str) -> int:
 
 
 def _float(mapping: dict[str, object], key: str) -> float:
-    value = mapping[key]
+    value = _required(mapping, key)
     if not isinstance(value, (int, float)) or isinstance(value, bool):
         msg = f"{key}: expected float, got {type(value).__name__}"
         raise TypeError(msg)
@@ -101,7 +108,7 @@ def _float(mapping: dict[str, object], key: str) -> float:
 
 
 def _bool(mapping: dict[str, object], key: str) -> bool:
-    value = mapping[key]
+    value = _required(mapping, key)
     if not isinstance(value, bool):
         msg = f"{key}: expected bool, got {type(value).__name__}"
         raise TypeError(msg)
@@ -116,14 +123,19 @@ def _mapping(value: object) -> dict[str, object]:
 
 
 def from_json(text: str) -> RunResult:
-    """Parse the canonical JSON; unknown keys are ignored for forward compatibility."""
+    """Parse the canonical JSON; unknown keys are ignored for forward compatibility.
+
+    Raises TypeError or ValueError on malformed documents -- never anything
+    else, so callers scanning many files (the baseline tripwire) can skip
+    bad ones instead of dying on them.
+    """
     parsed: object = json.loads(text)  # pyright: ignore[reportAny]
     document = _mapping(parsed)
     version = _int(document, "schema_version")
     if version != SCHEMA_VERSION:
         msg = f"unsupported schema_version {version}; this reader knows {SCHEMA_VERSION}"
         raise ValueError(msg)
-    env_row = _mapping(document["environment"])
+    env_row = _mapping(_required(document, "environment"))
     environment = Environment(
         python=_str(env_row, "python"),
         cpu=_str(env_row, "cpu"),
@@ -136,7 +148,7 @@ def from_json(text: str) -> RunResult:
         optimized=_bool(env_row, "optimized"),
         timestamp=_str(env_row, "timestamp"),
     )
-    rows = document["measurements"]
+    rows = _required(document, "measurements")
     if not isinstance(rows, list):
         msg = f"measurements: expected list, got {type(rows).__name__}"
         raise TypeError(msg)
