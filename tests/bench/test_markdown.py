@@ -3,15 +3,13 @@
 from __future__ import annotations
 
 import dataclasses
-import typing
 
 import pytest
 
+from benchmarks import model
+from benchmarks.render import console
 from benchmarks.render import markdown
 from tests.bench import factories
-
-if typing.TYPE_CHECKING:
-    from benchmarks import model
 
 
 def _result() -> model.RunResult:
@@ -41,6 +39,18 @@ def test_dirty_flag_survives_into_print() -> None:
     dirty = dataclasses.replace(result, environment=dataclasses.replace(result.environment, dirty=True))
     assert "abc1234 (dirty)," in markdown.fragment(dirty)
     assert "(dirty)" not in markdown.fragment(result)
+
+
+def test_non_record_runs_confess_in_both_renderers() -> None:
+    """A --quick or --force artifact must say so wherever it lands."""
+    tainted = factories.make_result((factories.make_measurement(),), run=model.RunInfo(mode="quick", forced=True))
+    for text in (markdown.fragment(tainted), console.render(tainted)):
+        assert "quick" in text
+        assert "not a record" in text
+        assert "forced" in text
+    clean = markdown.fragment(_result()) + console.render(_result())
+    assert "not a record" not in clean
+    assert "forced" not in clean
 
 
 def test_fragment_cells() -> None:
