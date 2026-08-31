@@ -92,6 +92,13 @@ def test_zero_or_negative_timing_is_rejected(bad: float) -> None:
         model.from_json(json.dumps(document))
 
 
+def test_deep_nesting_stays_inside_the_error_contract() -> None:
+    """json.loads raises RecursionError on this; the baseline scan's skip
+    logic only nets TypeError/ValueError, so from_json must translate."""
+    with pytest.raises(ValueError, match="nesting"):
+        model.from_json("[" * 100_000 + "]" * 100_000)
+
+
 def test_nan_token_is_rejected() -> None:
     """json.loads accepts the bare NaN token; the domain check must not."""
     text = model.to_json(factories.make_result()).replace('"ns_per_call": 18.0', '"ns_per_call": NaN')

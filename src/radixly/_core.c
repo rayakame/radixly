@@ -23,10 +23,11 @@ radixly_meta_exec(PyObject *module)
 {
 /* Self-certification for the benchmark harness: it refuses to measure a
  * non-optimized build. GCC/Clang define __OPTIMIZE__ at any -O level; MSVC
- * never defines it, so Windows wheels count as optimized by fiat until a
- * real signal exists there. Insurance against a stray -O0 debug build or
- * toolchain drift, nothing more. */
-#if defined(__OPTIMIZE__) || defined(_MSC_VER)
+ * has no optimization macro, so NDEBUG stands in -- distutils and
+ * cibuildwheel couple /O2 with /DNDEBUG in release flags and omit it in
+ * debug configs. An MSVC debug build now reads False (--force remains the
+ * escape). Insurance against a stray -O0 build or toolchain drift. */
+#if defined(__OPTIMIZE__) || (defined(_MSC_VER) && defined(NDEBUG))
     PyObject *optimized = Py_True;
 #else
     PyObject *optimized = Py_False;

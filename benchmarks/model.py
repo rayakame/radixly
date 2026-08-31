@@ -199,7 +199,13 @@ def from_json(text: str) -> RunResult:
     else, so callers scanning many files (the baseline tripwire) can skip
     bad ones instead of dying on them.
     """
-    parsed: object = json.loads(text)  # pyright: ignore[reportAny]
+    try:
+        parsed: object = json.loads(text)  # pyright: ignore[reportAny]
+    except RecursionError as error:
+        # A deeply nested document must not break the TypeError/ValueError
+        # contract the baseline scan's skip logic hangs on.
+        msg = "document nesting exceeds the parser's limit"
+        raise ValueError(msg) from error
     document = _mapping(parsed)
     version = _int(document, "schema_version")
     if version != SCHEMA_VERSION:

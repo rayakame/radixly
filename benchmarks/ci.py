@@ -10,6 +10,7 @@ a broken fast path), never five-percent wobble.
 from __future__ import annotations
 
 import json
+import math
 import pathlib
 import typing
 
@@ -42,6 +43,11 @@ def load_gates(path: pathlib.Path = GATES_PATH) -> dict[str, dict[str, float]]:
             if not isinstance(floor, (int, float)) or isinstance(floor, bool):
                 msg = f"ratio_floors[{codec!r}][{direction!r}] must be a number"
                 raise TypeError(msg)
+            if not math.isfinite(floor):
+                # json.loads accepts NaN/Infinity tokens; a NaN floor would
+                # compare False forever and pass the gate silently.
+                msg = f"ratio_floors[{codec!r}][{direction!r}] must be finite"
+                raise ValueError(msg)
             gates[codec][direction] = float(floor)
     return gates
 

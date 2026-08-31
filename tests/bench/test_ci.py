@@ -80,3 +80,12 @@ def test_malformed_gates_file_raises(tmp_path: pathlib.Path) -> None:
     path.write_text(json.dumps({"ratio_floors": {"base32768": {"encode": "fast"}}}), encoding="utf-8")
     with pytest.raises(TypeError, match="must be a number"):
         ci.load_gates(path)
+
+
+@pytest.mark.parametrize("token", ["NaN", "Infinity"])
+def test_non_finite_floors_are_rejected(token: str, tmp_path: pathlib.Path) -> None:
+    """json.loads parses these tokens; a NaN floor would pass every gate silently."""
+    path = tmp_path / "gates.json"
+    path.write_text(f'{{"ratio_floors": {{"base32768": {{"encode": {token}}}}}}}', encoding="utf-8")
+    with pytest.raises(ValueError, match="must be finite"):
+        ci.load_gates(path)
