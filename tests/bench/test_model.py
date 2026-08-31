@@ -93,9 +93,10 @@ def test_zero_or_negative_timing_is_rejected(bad: float) -> None:
 
 
 def test_deep_nesting_stays_inside_the_error_contract() -> None:
-    """json.loads raises RecursionError on this; the baseline scan's skip
-    logic only nets TypeError/ValueError, so from_json must translate."""
-    with pytest.raises(ValueError, match="nesting"):
+    """3.13's parser raises RecursionError here (from_json translates it);
+    3.14's deeper C stack parses the list and _mapping rejects it. Either
+    way the baseline scan's TypeError/ValueError net must hold."""
+    with pytest.raises((TypeError, ValueError)):
         model.from_json("[" * 100_000 + "]" * 100_000)
 
 
