@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import typing
 
@@ -24,7 +25,10 @@ def test_committed_gates_file_parses() -> None:
 
 def test_gates_cover_every_registered_codec() -> None:
     """A new codec must bring a gate: registration and ci-gates.json in lockstep."""
-    assert set(ci.load_gates()) == set(radixly.CODECS)
+    gates = ci.load_gates()
+    assert set(gates) == set(radixly.CODECS)
+    for codec, directions in gates.items():
+        assert set(directions) == {"encode", "decode"}, f"{codec}: both directions must be gated"
 
 
 def test_passing_gates_are_silent() -> None:
@@ -54,6 +58,19 @@ def test_missing_ratio_row_is_a_failure_not_a_pass() -> None:
     """A gate that cannot be checked must fail loudly, never skip silently."""
     result = factories.make_result((factories.make_measurement(),))  # 1 B row only
     failures = ci.check_gates(result, {"base32768": {"encode": 55.0}})
+    assert len(failures) == 1
+    assert "none measured" in failures[0]
+
+
+def test_competitor_ratio_cannot_satisfy_a_gate() -> None:
+    """A rival row carrying a ratio must not stand in for the radixly one."""
+    rival = dataclasses.replace(
+        factories.make_measurement(
+            size_label="200 B", size_bytes=200, ns_per_call=110.0, reference_ns_per_call=11_000.0
+        ),
+        implementation="stdlib",
+    )
+    failures = ci.check_gates(factories.make_result((rival,)), {"base32768": {"encode": 55.0}})
     assert len(failures) == 1
     assert "none measured" in failures[0]
 

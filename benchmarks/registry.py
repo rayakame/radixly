@@ -66,6 +66,15 @@ class CodecSpec:
     reference_decode: Callable[[str], bytes] | None
 
 
+def unknown_codecs(names: Sequence[str]) -> list[str]:
+    """Names not in the registry; the CLI turns these into a parser error."""
+    return [name for name in names if name not in radixly.CODECS]
+
+
+def specs_names() -> list[str]:
+    return list(radixly.CODECS)
+
+
 def reference_module(name: str) -> ReferenceCodec | None:
     # `python -m benchmarks` from the repo root already has the root on
     # sys.path; the insert covers other invocation styles (`tests.` must resolve).

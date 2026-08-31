@@ -41,7 +41,10 @@ def table(result: model.RunResult) -> str:
     lines = [
         f"*Measured on {env.cpu} ({env.governor} governor), {env.os}, CPython {env.python}, "
         + f"{env.compiler}, radixly {env.radixly_version} @ {env.commit}"
-        + f"{' (dirty)' if env.dirty else ''}, {env.timestamp}.*",
+        + f"{' (dirty)' if env.dirty else ''}"
+        + ("" if result.run.mode == "full" else f", {result.run.mode} run -- not a record")
+        + (", forced despite non-optimized build" if result.run.forced else "")
+        + f", {env.timestamp}.*",
         "",
         header,
         divider,

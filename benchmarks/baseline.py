@@ -27,6 +27,8 @@ def find_baseline(environment: model.Environment, directory: pathlib.Path = RESU
             candidate = model.from_json(path.read_text(encoding="utf-8"))
         except (OSError, TypeError, ValueError):
             continue
+        if candidate.run.mode != "full":
+            continue  # a quick or ci artifact is never a baseline
         if candidate.environment.cpu == environment.cpu and candidate.environment.governor == environment.governor:
             return candidate
     return None
@@ -34,12 +36,14 @@ def find_baseline(environment: model.Environment, directory: pathlib.Path = RESU
 
 def floor_warnings(current: model.RunResult, baseline: model.RunResult) -> list[str]:
     """One warning per floor row outside the band, in either direction."""
-    baseline_floors = {(m.codec, m.direction): m for m in baseline.measurements if m.size_label == FLOOR_SIZE_LABEL}
+    baseline_floors = {
+        (m.codec, m.implementation, m.direction): m for m in baseline.measurements if m.size_label == FLOOR_SIZE_LABEL
+    }
     warnings: list[str] = []
     for measurement in current.measurements:
         if measurement.size_label != FLOOR_SIZE_LABEL:
             continue
-        reference = baseline_floors.get((measurement.codec, measurement.direction))
+        reference = baseline_floors.get((measurement.codec, measurement.implementation, measurement.direction))
         if reference is None:
             continue
         factor = measurement.ns_per_call / reference.ns_per_call

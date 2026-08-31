@@ -52,7 +52,9 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--codecs", default=None, help="comma-separated codec names (default: every registered codec)")
     parser.add_argument("--sizes", default=None, help="comma-separated payload sizes, e.g. 1B,200B,64KiB,1MiB")
     parser.add_argument("--directions", default=None, help="comma-separated subset of encode,decode")
-    parser.add_argument("--suite", choices=("codecs", "wrapper", "all"), default="all", help="what to run")
+    parser.add_argument(
+        "--suite", choices=("codecs", "wrapper", "all"), default=None, help="what to run (default: all)"
+    )
     parser.add_argument("--quick", action="store_true", help="3 repeats, short targets: a smoke, never a record")
     parser.add_argument("--json", type=pathlib.Path, default=None, help="also write the canonical result JSON here")
     parser.add_argument("--force", action="store_true", help="measure even a non-optimized build")
@@ -94,18 +96,38 @@ def _directions_from(parser: argparse.ArgumentParser, raw: str | None) -> tuple[
     return tuple(d for d in DIRECTIONS if d in chosen)
 
 
-def _validate(parser: argparse.ArgumentParser, options: Options, *, scoped: bool) -> None:
+def _validate(parser: argparse.ArgumentParser, options: Options, *, scoped: bool, suite_given: bool) -> None:
     if options.json_path is not None and options.suite == "wrapper":
         parser.error("--json captures the codecs suite; --suite wrapper produces no JSON document")
-    if options.render_from is not None and (scoped or options.quick or options.force or options.json_path is not None):
-        parser.error("--render-from renders an existing document; measurement flags do not apply")
+    measurement_flags = scoped or suite_given or options.quick or options.force or options.json_path is not None
+    if options.render_from is not None and measurement_flags:
+        parser.error("--render-from renders an existing document; measurement and scope flags do not apply")
     wants_codec_output = (
         options.markdown_path is not None or options.graphs_dir is not None or options.inject_path is not None
     )
     if wants_codec_output and options.render_from is None and options.suite == "wrapper":
         parser.error("--markdown/--graphs/--inject need codec results; --suite wrapper has none")
+    if options.suite == "wrapper" and scoped:
+        parser.error("--suite wrapper is a fixed-shape probe; scope flags do not apply")
     if options.ci_mode and options.render_from is not None:
         parser.error("--ci measures; it cannot gate a --render-from document")
+    if options.ci_mode and (scoped or suite_given):
+        parser.error("--ci gates the full codec suite; scope and suite flags do not apply")
+
+
+def _validate_outputs(parser: argparse.ArgumentParser, options: Options) -> None:
+    """Refuse broken output destinations up front, not after minutes of measuring."""
+    for label, path in (("--json", options.json_path), ("--markdown", options.markdown_path)):
+        if path is not None and not path.parent.is_dir():
+            parser.error(f"{label} {path}: parent directory does not exist")
+    if options.graphs_dir is not None and not options.graphs_dir.parent.is_dir():
+        parser.error(f"--graphs {options.graphs_dir}: parent directory does not exist")
+    if options.inject_path is not None:
+        if not options.inject_path.is_file():
+            parser.error(f"--inject {options.inject_path}: no such file")
+        text = options.inject_path.read_text(encoding="utf-8")
+        if markdown.BEGIN not in text or markdown.END not in text:
+            parser.error(f"--inject {options.inject_path}: missing the radixly-bench markers")
 
 
 def parse_options(argv: Sequence[str] | None = None) -> Options:
@@ -114,11 +136,18 @@ def parse_options(argv: Sequence[str] | None = None) -> Options:
     codecs_raw = typing.cast("str | None", args.codecs)
     sizes_raw = typing.cast("str | None", args.sizes)
     directions_raw = typing.cast("str | None", args.directions)
+    suite_raw = typing.cast("str | None", args.suite)
+    codecs = tuple(name.strip() for name in codecs_raw.split(",")) if codecs_raw is not None else None
+    if codecs is not None:
+        unknown = registry.unknown_codecs(codecs)
+        if unknown:
+            registered = ", ".join(sorted(name for name in registry.specs_names()))
+            parser.error(f"unknown codecs: {', '.join(unknown)}; registered: {registered}")
     options = Options(
-        codecs=tuple(name.strip() for name in codecs_raw.split(",")) if codecs_raw is not None else None,
+        codecs=codecs,
         sizes=_sizes_from(parser, sizes_raw),
         directions=_directions_from(parser, directions_raw),
-        suite=typing.cast("str", args.suite),
+        suite=suite_raw if suite_raw is not None else "all",
         quick=typing.cast("bool", args.quick),
         json_path=typing.cast("pathlib.Path | None", args.json),
         force=typing.cast("bool", args.force),
@@ -129,12 +158,14 @@ def parse_options(argv: Sequence[str] | None = None) -> Options:
         inject_path=typing.cast("pathlib.Path | None", args.inject),
     )
     scoped = codecs_raw is not None or sizes_raw is not None or directions_raw is not None
-    _validate(parser, options, scoped=scoped)
+    _validate(parser, options, scoped=scoped, suite_given=suite_raw is not None)
+    _validate_outputs(parser, options)
     return options
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class RunConfig:
+    mode: str = "full"  # "full" | "quick" | "ci"; recorded in the document
     codecs: tuple[str, ...] | None = None
     sizes: tuple[tuple[str, int], ...] | None = None
     directions: tuple[str, ...] = DIRECTIONS
@@ -176,26 +207,34 @@ def _one_row(
     return model.Measurement(impl.codec, direction, label, size, ns, number, config.repeat, reference_ns, impl.name)
 
 
-def run(config: RunConfig | None = None) -> model.RunResult:
-    config = RunConfig() if config is None else config
-    env = environment.capture()
-    if not env.optimized and not config.force:
+def ensure_measurable(env: model.Environment, *, force: bool) -> None:
+    """The founding guard: a non-optimized build is measured only on --force."""
+    if not env.optimized and not force:
         msg = (
             "refusing to benchmark a non-optimized build (radixly._core.OPTIMIZED is False); "
             "rebuild with `uv sync --reinstall-package radixly`, or pass --force to measure anyway"
         )
         raise SystemExit(msg)
+
+
+def run(config: RunConfig | None = None) -> model.RunResult:
+    config = RunConfig() if config is None else config
+    env = environment.capture()
+    ensure_measurable(env, force=config.force)
     chosen_sizes = registry.SIZES if config.sizes is None else config.sizes
 
     measurements: list[model.Measurement] = []
     for impl in registry.implementations(config.codecs):
         measurements.extend(_rows(impl, chosen_sizes, config))
-    return model.RunResult(model.SCHEMA_VERSION, env, tuple(measurements))
+    info = model.RunInfo(config.mode, config.reference_number, forced=config.force and not env.optimized)
+    return model.RunResult(model.SCHEMA_VERSION, env, tuple(measurements), info)
 
 
 def _measured_result(options: Options, repeat: int, target: float, reference_number: int) -> model.RunResult:
+    mode = "ci" if options.ci_mode else ("quick" if options.quick else "full")
     result = run(
         RunConfig(
+            mode=mode,
             codecs=options.codecs,
             sizes=options.sizes,
             directions=options.directions,
@@ -228,7 +267,7 @@ def _write_outputs(options: Options, result: model.RunResult) -> None:
 def _ci_gate(result: model.RunResult) -> int:
     """Gate the run, write the step summary; the exit code is the verdict."""
     summary = markdown.table(result)
-    failures = ci.check_gates(result, ci.load_gates())
+    failures = ci.check_gates(result, ci.load_gates(ci.GATES_PATH))
     if failures:
         summary += "\n**Gate failures:**\n\n" + "\n".join(f"- {failure}" for failure in failures) + "\n"
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
@@ -263,5 +302,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if result is not None:
         _write_outputs(options, result)
     if options.render_from is None and not options.ci_mode and options.suite in {"wrapper", "all"}:
+        # The founding guard has no side door: the wrapper probe measures too.
+        ensure_measurable(environment.capture(), force=options.force)
         print(wrapper.render(wrapper.measure(repeat, target)))
     return exit_code

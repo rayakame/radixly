@@ -37,7 +37,8 @@ def _os_description() -> str:
     return f"{pretty}, kernel {platform.release()}"
 
 
-def _git(*args: str) -> str:
+def _git(*args: str) -> str | None:
+    """None on failure -- distinct from "" so a dead git cannot look clean."""
     try:
         completed = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] -- fixed argv
             ["git", *args],  # ruff: ignore[start-process-with-partial-path] -- PATH-resolved on purpose
@@ -47,13 +48,17 @@ def _git(*args: str) -> str:
             cwd=pathlib.Path(__file__).resolve().parent.parent,
         )
     except (OSError, subprocess.CalledProcessError):
-        return ""
+        return None
     return completed.stdout.strip()
 
 
 def capture() -> model.Environment:
     commit = _git("rev-parse", "--short", "HEAD") or "unknown"
-    dirty = bool(_git("status", "--porcelain"))
+    status = _git("status", "--porcelain")
+    # A failed probe reports dirty, not clean: the pessimistic direction is
+    # the honest one. Note commit/dirty describe the checkout, not the tree
+    # the installed .so was built from -- rebuild before believing either.
+    dirty = True if status is None else bool(status)
     return model.Environment(
         python=platform.python_version(),
         cpu=_cpu_model(),

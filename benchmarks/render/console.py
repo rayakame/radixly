@@ -19,8 +19,12 @@ def render(result: model.RunResult) -> str:
         f"os       {env.os}",
         f"compiler {env.compiler}",
         f"radixly  {env.radixly_version} @ {env.commit}{' (dirty)' if env.dirty else ''}",
-        "",
     ]
+    if result.run.mode != "full":
+        lines.append(f"mode     {result.run.mode} (not a record)")
+    if result.run.forced:
+        lines.append("build    forced despite non-optimized")
+    lines.append("")
     groups: dict[tuple[str, str, str], list[model.Measurement]] = {}
     for measurement in result.measurements:
         key = (measurement.codec, measurement.implementation, measurement.direction)

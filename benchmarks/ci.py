@@ -50,6 +50,8 @@ def check_gates(result: model.RunResult, gates: dict[str, dict[str, float]]) -> 
     """One failure string per breached or uncheckable gate; empty means pass."""
     ratios: dict[tuple[str, str], float] = {}
     for m in result.measurements:
+        if m.implementation != "radixly":
+            continue  # rivals have no oracle; explicit, not safe-by-accident
         if m.size_label == registry.RATIO_SIZE_LABEL and m.ratio is not None:
             ratios[m.codec, m.direction] = m.ratio
     failures: list[str] = []

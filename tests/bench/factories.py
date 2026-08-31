@@ -5,7 +5,13 @@ from __future__ import annotations
 from benchmarks import model
 
 
-def make_environment(cpu: str = "TestCPU", governor: str = "performance") -> model.Environment:
+def make_environment(
+    cpu: str = "TestCPU",
+    governor: str = "performance",
+    *,
+    dirty: bool = False,
+    optimized: bool = True,
+) -> model.Environment:
     return model.Environment(
         python="3.13.0",
         cpu=cpu,
@@ -14,8 +20,8 @@ def make_environment(cpu: str = "TestCPU", governor: str = "performance") -> mod
         compiler="testcc 1.0",
         radixly_version="0.0.0.test",
         commit="abc1234",
-        dirty=False,
-        optimized=True,
+        dirty=dirty,
+        optimized=optimized,
         timestamp="2026-08-28T00:00:00+00:00",
     )
 
@@ -44,7 +50,8 @@ def make_result(
     measurements: tuple[model.Measurement, ...] | None = None,
     cpu: str = "TestCPU",
     governor: str = "performance",
+    run: model.RunInfo | None = None,
 ) -> model.RunResult:
     if measurements is None:
         measurements = (make_measurement(),)
-    return model.RunResult(model.SCHEMA_VERSION, make_environment(cpu, governor), measurements)
+    return model.RunResult(model.SCHEMA_VERSION, make_environment(cpu, governor), measurements, run or model.RunInfo())

@@ -68,7 +68,7 @@ def test_rendering_is_deterministic(tmp_path: pathlib.Path) -> None:
     first = (tmp_path / "a", tmp_path / "b")
     graphs.write_charts(_result(), first[0])
     graphs.write_charts(_result(), first[1])
-    for name in ("throughput.svg", "latency.dark.svg"):
+    for name in ("throughput.svg", "latency.dark.svg", "base32768/throughput.svg", "uro14/latency.dark.svg"):
         assert (first[0] / name).read_bytes() == (first[1] / name).read_bytes()
 
 

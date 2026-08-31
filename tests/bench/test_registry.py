@@ -45,6 +45,14 @@ def test_reference_resolved_by_convention() -> None:
     assert spec.reference_decode is base32768_reference.decode
 
 
+def test_every_registered_codec_resolves_its_reference() -> None:
+    """No oracle, no ratio, no CI gate: a codec whose tests/reference twin
+    fails to resolve would silently lose its gate coverage."""
+    for spec in registry.specs():
+        assert spec.reference_encode is not None, f"{spec.name}: reference encode did not resolve"
+        assert spec.reference_decode is not None, f"{spec.name}: reference decode did not resolve"
+
+
 def test_ratio_size_is_a_configured_size() -> None:
     """The ratio rows must reference a size that actually runs."""
     assert registry.RATIO_SIZE_LABEL in {label for label, _ in registry.SIZES}

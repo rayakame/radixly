@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import pathlib
 import sysconfig
@@ -24,8 +25,14 @@ def sync(
     build_env: dict[str, str] | None = None,
 ) -> None:
     """Install dependency groups (and by default the project) into the session venv."""
+    # Env CFLAGS displace the distro's optimized flags here (only OPT survives
+    # composition) -- proven by _core.OPTIMIZED reading False without the -O3.
+    # -O3 matches the distro base, so it cannot downgrade under either
+    # replace or append semantics.
+    env = {"UV_PROJECT_ENVIRONMENT": session.virtualenv.location, "CFLAGS": "-O3 -Werror"}
+    if build_env is not None:
+        env |= build_env
     args: list[str]
-    env_extra: dict[str, str] = {}
     if project:
         # --refresh-package busts uv's built-wheel cache: its key ignores env
         # vars, so a CFLAGS change alone would keep serving the stale build.
@@ -33,11 +40,14 @@ def sync(
         # Sessions build with per-session flags, but setuptools reuses .o files
         # from the shared in-tree build/ without checking what flags built them
         # -- an asan session would poison later plain builds and vice versa.
-        # A per-session build_base keeps every flag set in its own directory.
+        # The build_base carries a digest of the flags, not just the session
+        # name: create_tmp persists across runs, so a flag edit within one
+        # session name would otherwise reuse the stale objects too.
+        digest = hashlib.sha256(env["CFLAGS"].encode()).hexdigest()[:12]
         session_tmp = pathlib.Path(session.create_tmp())
         dist_cfg = session_tmp / "dist-extra.cfg"
-        dist_cfg.write_text(f"[build]\nbuild_base = {session_tmp / 'build'}\n", encoding="utf-8")
-        env_extra["DIST_EXTRA_CONFIG"] = str(dist_cfg)
+        dist_cfg.write_text(f"[build]\nbuild_base = {session_tmp / f'build-{digest}'}\n", encoding="utf-8")
+        env["DIST_EXTRA_CONFIG"] = str(dist_cfg)
         if not editable:
             args.append("--no-editable")
         for group in groups:
@@ -46,13 +56,6 @@ def sync(
         args = []
         for group in groups:
             args += ["--only-group", group]
-    # Env CFLAGS displace the distro's optimized flags here (only OPT survives
-    # composition) -- proven by _core.OPTIMIZED reading False without the -O3.
-    # -O3 matches the distro base, so it cannot downgrade under either
-    # replace or append semantics.
-    env = {"UV_PROJECT_ENVIRONMENT": session.virtualenv.location, "CFLAGS": "-O3 -Werror"} | env_extra
-    if build_env is not None:
-        env |= build_env
     session.run_install("uv", "sync", "--locked", *args, env=env)
 
 

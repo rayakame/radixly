@@ -5,6 +5,9 @@ on:
     paths:
       - "src/**"
       - "benchmarks/**"
+      - "tests/reference/**" # the ratio's denominator
+      - "README.md" # readme-sync gates it
+      - ".github/workflows/bench.yml"
       - "pyproject.toml"
       - "uv.lock"
   workflow_dispatch:
