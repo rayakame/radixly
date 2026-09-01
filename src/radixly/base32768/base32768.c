@@ -139,31 +139,79 @@ radixly_base32768_decode(PyObject *Py_UNUSED(self), PyObject *arg)
     int kind = PyUnicode_KIND(arg);
     const void *data = PyUnicode_DATA(arg);
 
-    Py_ssize_t total_bits = 0;
-    unsigned final_width = 0;
-    for (Py_ssize_t i = 0; i < num_chars; i++) {
-        Py_UCS4 code_point = PyUnicode_READ(kind, data, i);
+    /* Single pass, validate-while-filling. Every character but the last
+     * carries 15 bits and the last carries 7 or 15, so floor(15n/8)
+     * overshoots the true output length by at most one byte -- allocate
+     * the bound up front and shrink at the end instead of scanning twice.
+     * Error precedence is unchanged: characters raise left to right the
+     * moment they are read; canonicality and padding still lose the
+     * position race to any invalid character because they are only
+     * checked once every character has been. */
+    const Py_ssize_t max_bytes = (BITS_PER_CHAR * num_chars) / BITS_PER_BYTE;
+    PyObject *result = PyBytes_FromStringAndSize(NULL, max_bytes);
+    if (result == NULL) {
+        return NULL;
+    }
+    char *out = PyBytes_AS_STRING(result);
+
+    uint32_t acc = 0;
+    unsigned bits = 0;
+    Py_ssize_t out_i = 0;
+
+    /* Everything before the final character must be 15-bit, so the hot
+     * loop shifts by a constant and carries no width or last-index branch. */
+    for (Py_ssize_t i = 0; i < num_chars - 1; i++) {
+        const Py_UCS4 code_point = PyUnicode_READ(kind, data, i);
         if (code_point > MAX_CHAR) {
+            Py_DECREF(result);
             return radixly_raise_decode_error(i, "invalid base32768 character U+%x at index %zd",
                                               (unsigned)code_point, i);
         }
         const uint16_t rev_entry = REV[code_point];
         if (rev_entry == REV_INVALID) {
+            Py_DECREF(result);
             return radixly_raise_decode_error(i, "invalid base32768 character U+%x at index %zd",
                                               (unsigned)code_point, i);
         }
-        const unsigned width = (rev_entry & REV_7BIT_FLAG) ? 7 : 15;
-        if (width != BITS_PER_CHAR && i != num_chars - 1) {
+        if (rev_entry & REV_7BIT_FLAG) {
+            Py_DECREF(result);
             return radixly_raise_decode_error(i, "7-bit character U+%x at index %zd, only valid at index %zd",
                                               (unsigned)code_point, i, num_chars - 1);
         }
-        total_bits += width;
-        final_width = width;
+        acc = (acc << (unsigned)BITS_PER_CHAR) | rev_entry;
+        bits += BITS_PER_CHAR;
+        while (bits >= BITS_PER_BYTE) {
+            bits -= BITS_PER_BYTE;
+            out[out_i] = (char)((acc >> bits) & BYTE_MASK);
+            out_i++;
+            acc &= (1U << bits) - 1U;
+        }
     }
 
-    Py_ssize_t num_bytes = total_bits / BITS_PER_BYTE;
-    const unsigned num_pad = (unsigned)(total_bits % BITS_PER_BYTE);
+    const Py_ssize_t last = num_chars - 1;
+    const Py_UCS4 code_point = PyUnicode_READ(kind, data, last);
+    if (code_point > MAX_CHAR) {
+        Py_DECREF(result);
+        return radixly_raise_decode_error(last, "invalid base32768 character U+%x at index %zd",
+                                          (unsigned)code_point, last);
+    }
+    const uint16_t rev_entry = REV[code_point];
+    if (rev_entry == REV_INVALID) {
+        Py_DECREF(result);
+        return radixly_raise_decode_error(last, "invalid base32768 character U+%x at index %zd",
+                                          (unsigned)code_point, last);
+    }
+    const unsigned final_width = (rev_entry & REV_7BIT_FLAG) ? 7 : 15;
+    acc = (acc << final_width) | (rev_entry & REV_VALUE_MASK);
+    bits += final_width;
+    while (bits >= BITS_PER_BYTE) {
+        bits -= BITS_PER_BYTE;
+        out[out_i] = (char)((acc >> bits) & BYTE_MASK);
+        out_i++;
+        acc &= (1U << bits) - 1U;
+    }
 
+    const unsigned num_pad = bits;
     /* Canonicality: the final character must carry at least one payload bit.
      * A 7-bit final character with 7 padding bits is pure filler, which the
      * encoder never emits (it stops instead of emitting an empty character).
@@ -175,43 +223,25 @@ radixly_base32768_decode(PyObject *Py_UNUSED(self), PyObject *arg)
      * payload, exactly one accepted spelling. Mirrors the same check in
      * tests/reference/base32768.py — keep the two in lockstep. */
     if (final_width <= num_pad) {
+        Py_DECREF(result);
         return radixly_raise_decode_error(
-            num_chars - 1, "non-canonical input: %u-bit final character at index %zd carries no payload bits",
-            final_width, num_chars - 1);
+            last, "non-canonical input: %u-bit final character at index %zd carries no payload bits",
+            final_width, last);
     }
-    PyObject *result = PyBytes_FromStringAndSize(NULL, num_bytes);
-    if (result == NULL) {
-        return NULL;
-    }
-    char *out = PyBytes_AS_STRING(result);
-
-    uint32_t acc = 0;
-    unsigned bits = 0;
-    Py_ssize_t out_i = 0;
-
-    for (Py_ssize_t i = 0; i < num_chars; i++) {
-        Py_UCS4 code_point = PyUnicode_READ(kind, data, i);
-        const uint16_t rev_entry = REV[code_point];
-        const unsigned width = (rev_entry & REV_7BIT_FLAG) ? 7 : 15;
-        acc = (acc << width) | (rev_entry & REV_VALUE_MASK);
-        bits += width;
-        while (bits >= BITS_PER_BYTE) {
-            bits -= BITS_PER_BYTE;
-            out[out_i] = (char)((acc >> bits) & BYTE_MASK);
-            out_i++;
-            acc &= (1U << bits) - 1U;
-        }
-    }
-    assert(out_i == num_bytes);
     /* The drain loop masks acc after every byte, so acc holds exactly num_pad
      * bits here. Comparing all of acc — no mask — makes stray high bits
      * (payload that never reached the output) fail this check instead of
      * being silently stripped. */
     if (acc != (1U << num_pad) - 1U) {
         Py_DECREF(result);
-        return radixly_raise_decode_error(num_chars - 1,
-                                          "expected %u padding bits set to 1 in final character at index %zd",
-                                          num_pad, num_chars - 1);
+        return radixly_raise_decode_error(
+            last, "expected %u padding bits set to 1 in final character at index %zd", num_pad, last);
+    }
+    if (out_i != max_bytes) {
+        assert(max_bytes - out_i == 1);
+        if (_PyBytes_Resize(&result, out_i) < 0) {
+            return NULL; /* result already cleared and the exception set */
+        }
     }
     return result;
 }
