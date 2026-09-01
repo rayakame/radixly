@@ -1,5 +1,10 @@
+from typing import Final
+
 from _typeshed import ReadableBuffer
 from typing_extensions import override
+
+COMPILER: Final[str]
+OPTIMIZED: Final[bool]
 
 class DecodeError(ValueError):
     def __init__(self, position: int, *, message: str | None = None) -> None: ...

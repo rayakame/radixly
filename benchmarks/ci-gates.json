@@ -1,0 +1,9 @@
+{
+  "note": "Ratio floors for CI, derived from the 2026-08-29 record run (roughly half the measured ratios): slack on purpose, to catch structural regressions, never wobble.",
+  "ratio_floors": {
+    "base32768": { "encode": 55, "decode": 50 },
+    "braille": { "encode": 45, "decode": 35 },
+    "hexagram": { "encode": 50, "decode": 40 },
+    "uro14": { "encode": 55, "decode": 55 }
+  }
+}

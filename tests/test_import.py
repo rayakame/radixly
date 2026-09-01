@@ -16,3 +16,8 @@ def test_import() -> None:
 def test_extension_import() -> None:
 
     assert radixly._core.__file__.endswith(tuple(importlib.machinery.EXTENSION_SUFFIXES))
+
+
+def test_extension_build_is_optimized() -> None:
+    """The benchmark harness refuses non-optimized builds; keep the signal true."""
+    assert radixly._core.OPTIMIZED is True

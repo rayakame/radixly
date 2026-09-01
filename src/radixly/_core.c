@@ -18,11 +18,43 @@ static PyMethodDef radixly_methods[] = {
     {NULL, NULL, 0, NULL},
 };
 
+static int
+radixly_meta_exec(PyObject *module)
+{
+/* Self-certification for the benchmark harness: it refuses to measure a
+ * non-optimized build. GCC/Clang define __OPTIMIZE__ at any -O level; MSVC
+ * has no optimization macro, so NDEBUG stands in -- distutils and
+ * cibuildwheel couple /O2 with /DNDEBUG in release flags and omit it in
+ * debug configs. An MSVC debug build now reads False (--force remains the
+ * escape). Insurance against a stray -O0 build or toolchain drift. */
+#if defined(__OPTIMIZE__) || (defined(_MSC_VER) && defined(NDEBUG))
+    PyObject *optimized = Py_True;
+#else
+    PyObject *optimized = Py_False;
+#endif
+    if (PyModule_AddObjectRef(module, "OPTIMIZED", optimized) < 0) {
+        return -1;
+    }
+/* The compiler that produced this extension, recorded by the artifact
+ * itself; clang's __VERSION__ already names itself, gcc's does not. */
+#ifdef __clang__
+    const char *compiler = __VERSION__;
+#elif defined(__GNUC__)
+    const char *compiler = "gcc " __VERSION__;
+#elif defined(_MSC_VER)
+    const char *compiler = "msvc";
+#else
+    const char *compiler = "unknown";
+#endif
+    return PyModule_AddStringConstant(module, "COMPILER", compiler);
+}
+
 static PyModuleDef_Slot radixly_execs[] = {
 /* Static globals make this module single-interpreter only; 3.11 cannot refuse (see README). */
 #if PY_VERSION_HEX >= 0x030C0000
     {Py_mod_multiple_interpreters, Py_MOD_MULTIPLE_INTERPRETERS_NOT_SUPPORTED},
 #endif
+    {Py_mod_exec, (void *)radixly_meta_exec},
     {Py_mod_exec, (void *)radixly_errors_exec},
     {Py_mod_exec, (void *)radixly_base32768_exec},
     {0, NULL},
