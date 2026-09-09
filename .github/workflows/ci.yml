@@ -49,7 +49,7 @@ jobs:
         with:
           enable-cache: true
       - name: Run basedpyright (recommended mode, warnings fail)
-        run: uv run --only-group nox nox -s pyright
+        run: uv run --only-group nox nox -s pyright verifytypes
 
   tidy:
     runs-on: ubuntu-latest
