@@ -7,7 +7,8 @@ graft tests
 # Headers are not auto-collected the way ext-modules .c sources are; without
 # this line an sdist cannot compile.
 recursive-include src/radixly *.h
-# Stubs are source too: keep the sdist a faithful tree snapshot (the
-# wheel-shipping decision with py.typed is M9's).
+# Stubs are source too; py.typed is the PEP 561 marker (both also ship in
+# wheels via package-data — decided M9).
 recursive-include src/radixly *.pyi
+include src/radixly/py.typed
 global-exclude __pycache__ *.py[cod]

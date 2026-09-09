@@ -55,8 +55,8 @@ pyright = [
 [tool.basedpyright]
 typeCheckingMode = "recommended"
 include = ["noxfile.py", "src", "tests", "scripts", "benchmarks"]
-# Resolve radixly from src/ as first-party typed code, not as an untyped
-# site-packages library (py.typed ships at M9; the checker needn't wait).
+# Resolve radixly from src/ so the checker sees the working tree, not the
+# installed copy; consumers get types via py.typed + the verifytypes gate.
 extraPaths = ["src"]
 executionEnvironments = [
     { root = "tests", extraPaths = [".", "src"], pythonVersion = "3.11" },
@@ -76,6 +76,11 @@ ext-modules = [
 # sdists still ship them (ext-modules sources + MANIFEST.in headers).
 [tool.setuptools.exclude-package-data]
 "*" = ["*.c", "*.h"]
+
+# PEP 561: the marker and the _core stub must ride the wheel, or installed
+# consumers see an untyped package no matter how typed the source is.
+[tool.setuptools.package-data]
+radixly = ["py.typed", "*.pyi"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

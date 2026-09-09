@@ -99,6 +99,16 @@ def pyright(session: nox.Session) -> None:
     """Type-check with basedpyright (recommended mode; warnings fail)."""
     sync(session, "nox", "pyright", "pytest", "bench")
     session.run("basedpyright", "--pythonpath", str(pathlib.Path(session.virtualenv.bin) / "python"))
+    # PEP 561 completeness gate: every public symbol of the installed package
+    # must be fully typed from a consumer's point of view.
+    session.run(
+        "basedpyright",
+        "--pythonpath",
+        str(pathlib.Path(session.virtualenv.bin) / "python"),
+        "--verifytypes",
+        "radixly",
+        "--ignoreexternal",
+    )
 
 
 def _write_compiledb() -> None:
