@@ -16,9 +16,26 @@ typedef struct {
 static const char radixly_decode_error_doc[] =
     PyDoc_STR("Malformed or non-canonical input was rejected during decoding.\n"
               "\n"
-              "Subclasses ValueError, so existing `except ValueError` handlers keep\n"
-              "working. The `position` attribute carries the index of the offending\n"
-              "character in the input string.");
+              "A ``ValueError`` subclass, so existing ``except ValueError`` handlers\n"
+              "keep working. Every decoder raises it with the index of the offending\n"
+              "character; the message is generated unless one is given.\n"
+              "\n"
+              "Parameters\n"
+              "----------\n"
+              "position\n"
+              "    Index of the offending character in the input string.\n"
+              "message\n"
+              "    Human-readable description. ``None`` (the default) generates one\n"
+              "    from the position; an explicit string, even an empty one, is kept.\n"
+              "\n"
+              "Examples\n"
+              "--------\n"
+              ">>> import radixly\n"
+              ">>> error = radixly.DecodeError(3)\n"
+              ">>> error.position\n"
+              "3\n"
+              ">>> str(error)\n"
+              "'Decode Error at position 3'");
 
 static int
 decode_error_init(PyObject *self, PyObject *args, PyObject *kwargs)

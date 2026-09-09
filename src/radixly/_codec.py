@@ -20,6 +20,21 @@ class Codec:
 
     The fields hold the raw extension functions -- calling ``codec.encode(data)``
     is one attribute load and the C call, never a Python frame.
+
+    Attributes
+    ----------
+    name
+        The registry key, e.g. ``"base32768"``.
+    bits_per_char
+        Payload bits carried by one output character.
+    encode
+        The codec's ``encode`` function.
+    decode
+        The codec's ``decode`` function.
+    encoded_len
+        Output length in characters for a payload size in bytes.
+    max_bytes
+        Largest payload that fits a character budget.
     """
 
     name: str
@@ -35,7 +50,18 @@ CODECS = types.MappingProxyType(_registry)
 
 
 def register(codec: Codec) -> None:
-    """Add ``codec`` to the registry under its name; a taken name is refused, never overwritten."""
+    """Add ``codec`` to the registry under its name; a taken name is refused, never overwritten.
+
+    Parameters
+    ----------
+    codec
+        The codec to register.
+
+    Raises
+    ------
+    ValueError
+        If ``codec.name`` is already registered.
+    """
     if codec.name in _registry:
         msg = f"codec {codec.name!r} is already registered"
         raise ValueError(msg)
@@ -44,7 +70,29 @@ def register(codec: Codec) -> None:
 
 
 def get_codec(name: str) -> Codec:
-    """Look up a registered codec by name; ``CODECS`` is the mapping view of the same registry."""
+    """Look up a registered codec by name; ``CODECS`` is the mapping view of the same registry.
+
+    Parameters
+    ----------
+    name
+        The registry key.
+
+    Returns
+    -------
+    Codec
+        The registered codec.
+
+    Raises
+    ------
+    KeyError
+        If no codec is registered under ``name``; the message lists the registered names.
+
+    Examples
+    --------
+    >>> import radixly
+    >>> radixly.get_codec("uro14").bits_per_char
+    14
+    """
     codec = _registry.get(name)
     if codec is None:
         msg = f"unknown codec {name!r}; registered: {', '.join(sorted(_registry))}"

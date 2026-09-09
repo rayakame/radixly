@@ -16,7 +16,29 @@ BITS_PER_CHAR = 15
 
 
 def encoded_len(num_bytes: int) -> int:
-    """Exact length of ``encode(data)`` for a ``num_bytes``-byte payload, without encoding anything."""
+    """Exact length of ``encode(data)`` for a ``num_bytes``-byte payload, without encoding anything.
+
+    Parameters
+    ----------
+    num_bytes
+        Payload size in bytes.
+
+    Returns
+    -------
+    int
+        ``ceil(8 * num_bytes / 15)``.
+
+    Raises
+    ------
+    ValueError
+        If ``num_bytes`` is negative.
+
+    Examples
+    --------
+    >>> from radixly import base32768
+    >>> base32768.encoded_len(10)
+    6
+    """
     if num_bytes < 0:
         msg = f"num_bytes must be >= 0, got {num_bytes}"
         raise ValueError(msg)
@@ -24,7 +46,29 @@ def encoded_len(num_bytes: int) -> int:
 
 
 def max_bytes(num_chars: int) -> int:
-    """Largest payload that encodes into at most ``num_chars`` characters."""
+    """Largest payload that encodes into at most ``num_chars`` characters.
+
+    Parameters
+    ----------
+    num_chars
+        The channel's limit, counted in code points.
+
+    Returns
+    -------
+    int
+        ``floor(15 * num_chars / 8)``.
+
+    Raises
+    ------
+    ValueError
+        If ``num_chars`` is negative.
+
+    Examples
+    --------
+    >>> from radixly import base32768
+    >>> base32768.max_bytes(100)  # a Discord custom_id
+    187
+    """
     if num_chars < 0:
         msg = f"num_chars must be >= 0, got {num_chars}"
         raise ValueError(msg)

@@ -16,7 +16,29 @@ BITS_PER_CHAR = 14
 
 
 def encoded_len(num_bytes: int) -> int:
-    """Exact length of ``encode(data)``: the length prefix plus the body."""
+    """Exact length of ``encode(data)``: the length prefix plus the body.
+
+    Parameters
+    ----------
+    num_bytes
+        Payload size in bytes.
+
+    Returns
+    -------
+    int
+        ``1 + ceil(8 * num_bytes / 14)``.
+
+    Raises
+    ------
+    ValueError
+        If ``num_bytes`` is negative.
+
+    Examples
+    --------
+    >>> from radixly import uro14
+    >>> uro14.encoded_len(10)
+    7
+    """
     if num_bytes < 0:
         msg = f"num_bytes must be >= 0, got {num_bytes}"
         raise ValueError(msg)
@@ -30,6 +52,27 @@ def max_bytes(num_chars: int) -> int:
     contract has no truthful integer answer there and refuses instead of
     lying (the sibling codecs' max_bytes(0) == 0 genuinely holds; only uro14
     has a nonempty empty).
+
+    Parameters
+    ----------
+    num_chars
+        The channel's limit, counted in code points, prefix included.
+
+    Returns
+    -------
+    int
+        ``floor(14 * (num_chars - 1) / 8)``.
+
+    Raises
+    ------
+    ValueError
+        If ``num_chars`` is negative or zero.
+
+    Examples
+    --------
+    >>> from radixly import uro14
+    >>> uro14.max_bytes(100)
+    173
     """
     if num_chars < 0:
         msg = f"num_chars must be >= 0, got {num_chars}"
