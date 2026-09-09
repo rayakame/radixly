@@ -5,12 +5,14 @@ from __future__ import annotations
 import hashlib
 import json
 import pathlib
+import shutil
 import sysconfig
+import tempfile
 
 import nox
 
 nox.options.default_venv_backend = "uv"
-nox.options.sessions = ["reformat", "pytest", "pyright", "tidy", "lint"]
+nox.options.sessions = ["reformat", "pytest", "pyright", "verifytypes", "tidy", "lint"]
 
 PATHS = ["noxfile.py", "benchmarks", "scripts", "src", "tests"]
 C_PATHS = sorted(str(p) for p in pathlib.Path("src").rglob("*.[ch]"))
@@ -99,6 +101,26 @@ def pyright(session: nox.Session) -> None:
     """Type-check with basedpyright (recommended mode; warnings fail)."""
     sync(session, "nox", "pyright", "pytest", "bench")
     session.run("basedpyright", "--pythonpath", str(pathlib.Path(session.virtualenv.bin) / "python"))
+
+
+@nox.session(reuse_venv=True)
+def verifytypes(session: nox.Session) -> None:
+    """PEP 561 gate from the consumer's seat.
+
+    Non-editable install, run from outside the repo: the gate must see the
+    packaged py.typed and stubs, not the source tree -- pyproject's
+    extraPaths=["src"] would otherwise resolve the working copy and pass
+    even with the wheel wiring broken.
+    """
+    # Fresh build, always: setuptools' persistent build/lib keeps copies of
+    # package-data files, so a deleted py.typed would still ship from the
+    # stale tree and this gate would certify a broken wheel.
+    for stale in pathlib.Path(session.create_tmp()).glob("build-*"):
+        shutil.rmtree(stale)
+    sync(session, "pyright", editable=False)
+    python = str(pathlib.Path(session.virtualenv.bin) / "python")
+    session.chdir(tempfile.mkdtemp(prefix="radixly-verifytypes-"))
+    session.run("basedpyright", "--pythonpath", python, "--verifytypes", "radixly", "--ignoreexternal")
 
 
 def _write_compiledb() -> None:
