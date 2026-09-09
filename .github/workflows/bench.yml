@@ -58,5 +58,5 @@ jobs:
           enable-cache: true
       - name: Re-render the README table from the committed record
         run: |
-          uv run python -m benchmarks --render-from benchmarks/results/i9-13900K-performance.json --inject README.md
+          uv run python -m benchmarks --render-from benchmarks/results/i9-14900KF-performance.json --inject README.md
           git diff --exit-code README.md

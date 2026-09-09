@@ -37,21 +37,22 @@ CJK block from U+4E00, 14 bits/char, length-prefix char), braille (8 bits) and
 hexagram (6 bits) as presets of a contiguous-block factory. Post-1.0: base65536,
 base2048, base91, Z85.
 
-Performance bars (measured by benchmarks/bench_base32768.py, i9-13900K,
+Performance bars (measured by the benchmarks/ suite — `python -m benchmarks` —
+committed record: benchmarks/results/i9-14900KF-performance.json, i9-14900KF,
 performance governor, CPython 3.13 — protect these; regressions need a reason):
-encode 0.112 µs / 187 B, 1880 MB/s at 64 KiB (flat to 1 MiB), 0.020 µs per-call
-floor at 1 B (METH_O, no arg parsing — why the object layer must not add Python
-call frames). 103x the pure-Python reference. Decode (measured M4): 0.196 µs /
-187 B (legacy bar 0.37 beaten 1.9x), 1118 MB/s at 64 KiB (flat to 1 MiB),
-0.017 µs floor at 1 B, 100x the reference — two-pass design's throughput cost
-vs encode is known and accepted; single-pass-resize is the measured-decision
-alternative if ever needed. Block codecs (measured M7, bench_block.py, same
-setup; encode/decode at 187 B, then 64 KiB throughput): braille 0.156/0.264 µs,
-1342/769 MB/s; hexagram 0.197/0.313 µs, 1114/644 MB/s; uro14 0.118/0.186 µs,
-1819/979 MB/s — uro14 decode beats base32768's (single-pass, no tables).
-Floors all at the METH_O baseline; 73–115x the references. Braille is slowest
-by design: one char per byte maximizes jar iterations — an offset-copy fast
-path is the measured-decision option if ever wanted.
+base32768 encode 0.114 µs / 200 B, 1963 MB/s at 64 KiB (flat to 1 MiB),
+0.019 µs per-call floor at 1 B (METH_O, no arg parsing — why the object layer
+must not add Python call frames), 117x the pure-Python reference. Decode
+0.173 µs / 200 B, 1275 MB/s, 0.014 µs floor, 127x — single-pass since PR #14:
+the two-pass design was retired as a measured decision (validate while filling
+into the floor(15n/8) upper bound, which overshoots by at most one byte).
+Block codecs (encode/decode at 200 B, then 64 KiB throughput): braille
+0.168/0.269 µs, 1397/800 MB/s; hexagram 0.201/0.328 µs, 1137/616 MB/s; uro14
+0.118/0.242 µs, 2020/899 MB/s. Floors all at the METH_O baseline; 77–127x the
+references. Braille is slowest by design: one char per byte maximizes jar
+iterations — an offset-copy fast path is the measured-decision option if ever
+wanted. The 13900K-era record retired with the chip (RMA'd for favored-core
+Vmin degradation); it lives in git history at cefe701.
 
 ## Fixed decisions — do not relitigate
 
@@ -185,8 +186,14 @@ path is the measured-decision option if ever wanted.
   braille/hexagram wrappers, bespoke claim-driven uro14.c. Faces per the M6
   pattern; registry holds four codecs. Suite 21,580 tests, sanitizers clean.
   Measured: see bars above.
-- **M8 — CURRENT** — benchmark suite as product: honest README table, CI regression gates.
-- **M9** — ship 1.0: cibuildwheel matrix, .pyi stubs + py.typed, docs stating the
+- **M8 — benchmark suite as product: DONE.** Registry-driven (a registered
+  codec is a benchmarked codec), one RunResult JSON document behind
+  console/markdown/SVG renderers, README table spliced between markers and
+  gated by readme-sync, ratio-based CI gates in ci-gates.json (runner noise
+  divides out), refusal of non-optimized builds via _core.OPTIMIZED
+  self-certification, provenance (mode/forced/dirty) on every document.
+  Suite 21,684 tests.
+- **M9 — CURRENT** — ship 1.0: cibuildwheel matrix, .pyi stubs + py.typed, docs stating the
   truncation caveat honestly (base32768 silently accepts ~50% of truncations).
 
 ## Commands
@@ -194,6 +201,10 @@ path is the measured-decision option if ever wanted.
 - Inner loop: `uv run pytest`; after editing C: `uv sync --reinstall-package radixly`
 - Full check: `uv run nox` (reformat + pytest + pyright + tidy); CI gates:
   `nox -s format-check` and `nox -s lint`
+- Benchmarks: `uv run python -m benchmarks` (full run), `--quick` for a smoke;
+  record refresh (clean tree!): add `--json
+  benchmarks/results/i9-14900KF-performance.json --graphs benchmarks/charts
+  --inject README.md`
 - Build artifacts: `uv build` (wheel must contain `_core.*.so`, never the .c)
 - Diagnostic when imports act weird: `python -c "import radixly._core; print(radixly._core.__file__)"`
   (src/ path is normal under the editable install; site-packages in nox/CI venvs)
