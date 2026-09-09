@@ -87,10 +87,11 @@ radixly = ["py.typed", "*.pyi"]
 # Linux CI matrix already enforces them. 64-bit only; no win32.
 [tool.cibuildwheel]
 build = "cp311-* cp312-* cp313-* cp314-*"
-skip = "pp* *t-* *-win32 *_i686"
+skip = "*t-* *-win32 *_i686"
 build-verbosity = 1
 test-requires = ["pytest>=9.1.1", "hypothesis>=6.100"]
-test-command = "cd {project} && python -m pytest tests --ignore=tests/bench -q"
+# No `cd`: Windows cmd does not switch drives without /d.
+test-command = "python -m pytest {project}/tests --ignore={project}/tests/bench -q"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
