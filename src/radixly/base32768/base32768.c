@@ -26,11 +26,11 @@ radixly_base32768_exec(PyObject *Py_UNUSED(module))
     }
 
     for (size_t i = 0; i < RADIXLY_ARRAY_SIZE(RADIXLY_B32768_FWD15); i++) {
-        REV[RADIXLY_B32768_FWD15[i]] = i;
+        REV[RADIXLY_B32768_FWD15[i]] = (uint16_t)i;
     }
 
     for (size_t i = 0; i < RADIXLY_ARRAY_SIZE(RADIXLY_B32768_FWD7); i++) {
-        REV[RADIXLY_B32768_FWD7[i]] = REV_7BIT_FLAG | i;
+        REV[RADIXLY_B32768_FWD7[i]] = (uint16_t)(REV_7BIT_FLAG | i);
     }
     return 0;
 }
