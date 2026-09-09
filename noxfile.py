@@ -111,6 +111,7 @@ def docs(session: nox.Session) -> None:
         "sphinx-build",
         "-W",
         "-n",
+        "-E",  # no doctree cache: a stale one can hide an autodoc drop behind a green build
         "--keep-going",
         "-b",
         "html",

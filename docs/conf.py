@@ -28,14 +28,24 @@ extensions = [
 autodoc_member_order = "bysource"
 always_document_param_types = True
 typehints_document_rtype = True
-typehints_use_signature = False
+typehints_use_signature = True
+typehints_use_signature_return = True
 
 
-def typehints_formatter(annotation: object, _config: object) -> str | None:
-    """``ReadableBuffer`` exists only in typeshed; readers know it as the glossary term."""
+def typehints_formatter(annotation: object, _config: object = None) -> str | None:
+    """``ReadableBuffer`` exists only in typeshed; its public name is the Buffer protocol.
+
+    Called with one argument from the signature hook and two from the
+    docstring hook; a required second parameter makes autodoc drop the
+    function silently.
+    """
     if getattr(annotation, "__forward_arg__", None) == "ReadableBuffer" or annotation == "ReadableBuffer":
-        return ":term:`bytes-like object`"
+        return ":class:`~collections.abc.Buffer`"
     return None
+
+
+# Signatures show ``Buffer``, not ``collections.abc.Buffer``, while still linking.
+python_use_unqualified_type_names = True
 
 
 # The TYPE_CHECKING import of _typeshed cannot resolve at runtime by design.

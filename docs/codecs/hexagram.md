@@ -18,8 +18,8 @@ channel tolerates only a small, contiguous range.
 ```{eval-rst}
 .. currentmodule:: radixly.hexagram
 
-.. autofunction:: encode
-.. autofunction:: decode
+.. autofunction:: encode(data: collections.abc.Buffer, /) -> str
+.. autofunction:: decode(data: str, /) -> bytes
 .. autofunction:: encoded_len
 .. autofunction:: max_bytes
 .. autodata:: BITS_PER_CHAR

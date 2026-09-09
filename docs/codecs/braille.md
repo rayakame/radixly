@@ -18,8 +18,8 @@ single-block alphabet that survives channels which mangle wider ranges.
 ```{eval-rst}
 .. currentmodule:: radixly.braille
 
-.. autofunction:: encode
-.. autofunction:: decode
+.. autofunction:: encode(data: collections.abc.Buffer, /) -> str
+.. autofunction:: decode(data: str, /) -> bytes
 .. autofunction:: encoded_len
 .. autofunction:: max_bytes
 .. autodata:: BITS_PER_CHAR
