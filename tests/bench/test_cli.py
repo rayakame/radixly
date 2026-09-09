@@ -59,6 +59,7 @@ def test_default_options_are_the_complete_run() -> None:
         graphs_dir=None,
         render_from=None,
         inject_path=None,
+        docs_dir=None,
     )
 
 
@@ -86,6 +87,7 @@ def test_directions_keep_canonical_order() -> None:
         ["--render-from", "r.json", "--json", "out.json"],
         ["--suite", "wrapper", "--markdown", "frag.md"],
         ["--suite", "wrapper", "--graphs", "out"],
+        ["--suite", "wrapper", "--docs", "docs"],
         ["--ci", "--render-from", "r.json"],
         ["--render-from", "r.json", "--suite", "codecs"],
         ["--render-from", "r.json", "--force"],
@@ -117,6 +119,7 @@ def test_output_paths_are_checked_before_measuring(tmp_path: pathlib.Path) -> No
         ["--json", str(missing)],
         ["--markdown", str(missing)],
         ["--graphs", str(tmp_path / "absent" / "charts")],
+        ["--docs", str(tmp_path / "absent" / "docs")],
         ["--inject", str(tmp_path / "no-such.md")],
     ):
         with pytest.raises(SystemExit):
@@ -131,6 +134,20 @@ def test_inject_target_must_carry_the_markers(tmp_path: pathlib.Path) -> None:
     marked = tmp_path / "marked.md"
     marked.write_text(f"{markdown.BEGIN}\nold\n{markdown.END}\n", encoding="utf-8")
     assert cli.parse_options(["--inject", str(marked)]).inject_path == marked
+
+
+def test_docs_pages_land_per_codec_with_relative_charts(tmp_path: pathlib.Path) -> None:
+    result = factories.make_result(
+        (factories.make_measurement(), factories.make_measurement(codec="uro14", reference_ns_per_call=None))
+    )
+    docs = tmp_path / "docs" / "benchmarks"
+    docs.parent.mkdir()
+    written = cli.write_docs(result, docs, tmp_path / "benchmarks" / "charts")
+    assert sorted(path.name for path in written) == ["base32768.md", "uro14.md"]
+    page = (docs / "uro14.md").read_text(encoding="utf-8")
+    assert "| uro14 |" in page
+    assert "| base32768 |" not in page  # one codec per page
+    assert "../../benchmarks/charts/uro14/throughput.dark.svg" in page
 
 
 def test_wrapper_shapes_are_distinct_statements() -> None:

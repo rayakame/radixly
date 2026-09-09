@@ -26,6 +26,7 @@ build-backend = "setuptools.build_meta"
 dev = [
     { include-group = "bench" },
     { include-group = "clang" },
+    { include-group = "docs" },
     { include-group = "nox" },
     { include-group = "pyright" },
     { include-group = "pytest" },
@@ -37,6 +38,13 @@ bench = [
 clang = [
     "clang-format>=19",
     "clang-tidy>=19",
+]
+docs = [
+    "sphinx>=9.0",
+    "furo>=2025.12",
+    "myst-parser>=5.0",
+    "sphinx-design>=0.7",
+    "sphinx-copybutton>=0.5",
 ]
 nox = [
     "nox>=2026.8.17",

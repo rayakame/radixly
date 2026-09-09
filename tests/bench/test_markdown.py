@@ -53,6 +53,17 @@ def test_non_record_runs_confess_in_both_renderers() -> None:
     assert "forced" not in clean
 
 
+def test_codec_page_pairs_light_and_dark_charts() -> None:
+    """The docs page must carry Furo's toggle-following classes, never a
+    <picture> that follows the OS instead of the site's theme."""
+    page = markdown.codec_page(_result(), "base32768", "../charts")
+    assert "| base32768 | encode |" in page
+    assert page.count(":class: only-light") == 2
+    assert page.count(":class: only-dark") == 2
+    assert "```{image} ../charts/base32768/latency.dark.svg" in page
+    assert "<picture" not in page
+
+
 def test_fragment_cells() -> None:
     wrapped = markdown.fragment(_result())
     assert "| base32768 | encode | 0.018 μs | 1,942 MB/s | 100x at 1 B |" in wrapped

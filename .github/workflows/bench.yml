@@ -7,6 +7,7 @@ on:
       - "benchmarks/**"
       - "tests/reference/**" # the ratio's denominator
       - "README.md" # readme-sync gates it
+      - "docs/benchmarks/**" # so does the docs-pages half of it
       - ".github/workflows/bench.yml"
       - "pyproject.toml"
       - "uv.lock"
@@ -56,7 +57,7 @@ jobs:
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: true
-      - name: Re-render the README table from the committed record
+      - name: Re-render the README table and the docs pages from the committed record
         run: |
-          uv run python -m benchmarks --render-from benchmarks/results/i9-14900KF-performance.json --inject README.md
-          git diff --exit-code README.md
+          uv run python -m benchmarks --render-from benchmarks/results/i9-14900KF-performance.json --inject README.md --docs docs/benchmarks
+          git diff --exit-code README.md docs/benchmarks
