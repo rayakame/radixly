@@ -69,7 +69,7 @@ reportUnusedCallResult = "none" # every nox.session() triggers this
 
 [tool.setuptools]
 ext-modules = [
-  {name = "radixly._core", sources=["src/radixly/_core.c", "src/radixly/base32768/base32768.c", "src/radixly/braille/braille.c", "src/radixly/hexagram/hexagram.c", "src/radixly/uro14/uro14.c", "src/radixly/_common/block.c", "src/radixly/_common/errors.c"], include-dirs=["src/radixly"], extra-compile-args=["-std=c11", "-Wall", "-Wextra"]}
+  {name = "radixly._core", sources=["src/radixly/_core.c", "src/radixly/base32768/base32768.c", "src/radixly/braille/braille.c", "src/radixly/hexagram/hexagram.c", "src/radixly/uro14/uro14.c", "src/radixly/_common/block.c", "src/radixly/_common/errors.c"], include-dirs=["src/radixly"], extra-compile-args=["-std=c11"]}
 ]
 
 # Keep C sources and headers out of binary wheels for every (sub)package;
@@ -81,6 +81,17 @@ ext-modules = [
 # consumers see an untyped package no matter how typed the source is.
 [tool.setuptools.package-data]
 radixly = ["py.typed", "*.pyi"]
+
+# CPython-only (C-API internals), no free-threading (static globals).
+# Warning flags (-Wall/-Wextra) are dev-only: MSVC rejects them, and the
+# Linux CI matrix already enforces them. 64-bit only; no win32.
+[tool.cibuildwheel]
+build = "cp311-* cp312-* cp313-* cp314-*"
+skip = "*t-* *-win32 *_i686"
+build-verbosity = 1
+test-requires = ["pytest>=9.1.1", "hypothesis>=6.100"]
+# No `cd`: Windows cmd does not switch drives without /d.
+test-command = "python -m pytest {project}/tests --ignore={project}/tests/bench -q"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
