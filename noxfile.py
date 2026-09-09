@@ -31,7 +31,7 @@ def sync(
     # composition) -- proven by _core.OPTIMIZED reading False without the -O3.
     # -O3 matches the distro base, so it cannot downgrade under either
     # replace or append semantics.
-    env = {"UV_PROJECT_ENVIRONMENT": session.virtualenv.location, "CFLAGS": "-O3 -Werror"}
+    env = {"UV_PROJECT_ENVIRONMENT": session.virtualenv.location, "CFLAGS": "-O3 -Wall -Wextra -Werror"}
     if build_env is not None:
         env |= build_env
     args: list[str]
@@ -170,7 +170,7 @@ def asan(session: nox.Session) -> None:
         "bench",
         editable=False,
         build_env={
-            "CFLAGS": f"-O3 -Werror {_SANITIZE} -g -fno-omit-frame-pointer",
+            "CFLAGS": f"-O3 -Wall -Wextra -Werror {_SANITIZE} -g -fno-omit-frame-pointer",
             "LDFLAGS": _SANITIZE,
         },
     )

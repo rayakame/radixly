@@ -69,7 +69,7 @@ reportUnusedCallResult = "none" # every nox.session() triggers this
 
 [tool.setuptools]
 ext-modules = [
-  {name = "radixly._core", sources=["src/radixly/_core.c", "src/radixly/base32768/base32768.c", "src/radixly/braille/braille.c", "src/radixly/hexagram/hexagram.c", "src/radixly/uro14/uro14.c", "src/radixly/_common/block.c", "src/radixly/_common/errors.c"], include-dirs=["src/radixly"], extra-compile-args=["-std=c11", "-Wall", "-Wextra"]}
+  {name = "radixly._core", sources=["src/radixly/_core.c", "src/radixly/base32768/base32768.c", "src/radixly/braille/braille.c", "src/radixly/hexagram/hexagram.c", "src/radixly/uro14/uro14.c", "src/radixly/_common/block.c", "src/radixly/_common/errors.c"], include-dirs=["src/radixly"], extra-compile-args=["-std=c11"]}
 ]
 
 # Keep C sources and headers out of binary wheels for every (sub)package;
@@ -82,15 +82,12 @@ ext-modules = [
 [tool.setuptools.package-data]
 radixly = ["py.typed", "*.pyi"]
 
-# One wheel per CPython version (no abi3 -- fixed decision), CPython only:
-# the extension leans on internals (PyUnicode_2BYTE_DATA, METH_O fast paths)
-# PyPy's emulation layer does not honor, and the static globals rule out
-# free-threaded builds. Every wheel runs the full differential suite against
-# its installed self before it counts (tests/bench needs the benchmarks/
-# tree and matplotlib -- dev tooling, not wheel validation).
+# CPython-only (C-API internals), no free-threading (static globals).
+# Warning flags (-Wall/-Wextra) are dev-only: MSVC rejects them, and the
+# Linux CI matrix already enforces them. 64-bit only; no win32.
 [tool.cibuildwheel]
 build = "cp311-* cp312-* cp313-* cp314-*"
-skip = "pp* *t-*"
+skip = "pp* *t-* *-win32 *_i686"
 build-verbosity = 1
 test-requires = ["pytest>=9.1.1", "hypothesis>=6.100"]
 test-command = "cd {project} && python -m pytest tests --ignore=tests/bench -q"
