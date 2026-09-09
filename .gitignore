@@ -223,3 +223,4 @@ __marimo__/
 # Manual benchmark-run leftovers; the committed artifacts live under benchmarks/.
 /charts/
 /results.json
+wheelhouse/

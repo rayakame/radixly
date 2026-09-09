@@ -82,5 +82,18 @@ ext-modules = [
 [tool.setuptools.package-data]
 radixly = ["py.typed", "*.pyi"]
 
+# One wheel per CPython version (no abi3 -- fixed decision), CPython only:
+# the extension leans on internals (PyUnicode_2BYTE_DATA, METH_O fast paths)
+# PyPy's emulation layer does not honor, and the static globals rule out
+# free-threaded builds. Every wheel runs the full differential suite against
+# its installed self before it counts (tests/bench needs the benchmarks/
+# tree and matplotlib -- dev tooling, not wheel validation).
+[tool.cibuildwheel]
+build = "cp311-* cp312-* cp313-* cp314-*"
+skip = "pp* *t-*"
+build-verbosity = 1
+test-requires = ["pytest>=9.1.1", "hypothesis>=6.100"]
+test-command = "cd {project} && python -m pytest tests --ignore=tests/bench -q"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

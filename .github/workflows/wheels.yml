@@ -1,0 +1,71 @@
+name: wheels
+
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "pyproject.toml"
+      - "MANIFEST.in"
+      - ".github/workflows/wheels.yml"
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+concurrency:
+  group: wheels-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  wheels:
+    # Each wheel is tested against its installed self: full differential
+    # suite (oracle parity, error contract, fuzz) minus tests/bench.
+    # Windows doubles as the first live exercise of the MSVC OPTIMIZED path.
+    name: wheels (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest # manylinux + musllinux x86_64
+          - ubuntu-24.04-arm # manylinux + musllinux aarch64
+          - windows-latest # win AMD64
+          - macos-13 # macOS x86_64
+          - macos-latest # macOS arm64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pypa/cibuildwheel@e090b81e30c4d855ea63bf4b6e59204c09a101ae # v4.2.1
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wheels-${{ matrix.os }}
+          path: wheelhouse/*.whl
+
+  sdist:
+    # The sdist must remain buildable and testable on its own: a distro
+    # packager gets no wheel, only this tree.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+      - name: Build the sdist and prove it stands alone
+        run: |
+          uv build --sdist
+          python -m venv /tmp/sdist-venv
+          /tmp/sdist-venv/bin/pip install dist/*.tar.gz pytest hypothesis
+          mkdir /tmp/sdist-test && tar xzf dist/*.tar.gz -C /tmp/sdist-test --strip-components=1
+          cd /tmp/sdist-test && /tmp/sdist-venv/bin/python -m pytest tests --ignore=tests/bench -q
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sdist
+          path: dist/*.tar.gz
