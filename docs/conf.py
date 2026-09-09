@@ -14,6 +14,7 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.napoleon",
     "sphinx.ext.intersphinx",
+    "sphinx_autodoc_typehints",
     "myst_parser",
     "sphinx_design",
     "sphinx_copybutton",
@@ -21,10 +22,27 @@ extensions = [
 
 # The public functions are C builtins: autodoc gets their signature from
 # __text_signature__ and their text from the docstring, but no annotations.
-# Types live in the NumPy docstring sections, like msgspec; the .pyi stub is
-# for type checkers, not for the docs.
-autodoc_typehints = "none"
+# sphinx-autodoc-typehints lifts the types from _core.pyi (and from the
+# annotations of the Python-level functions) into each parameter list, so
+# the stub stays the single source of truth for types.
 autodoc_member_order = "bysource"
+always_document_param_types = True
+typehints_document_rtype = True
+typehints_use_signature = False
+
+
+def typehints_formatter(annotation: object, _config: object) -> str | None:
+    """``ReadableBuffer`` exists only in typeshed; readers know it as the glossary term."""
+    if getattr(annotation, "__forward_arg__", None) == "ReadableBuffer" or annotation == "ReadableBuffer":
+        return ":term:`bytes-like object`"
+    return None
+
+
+# The TYPE_CHECKING import of _typeshed cannot resolve at runtime by design.
+suppress_warnings = [
+    "sphinx_autodoc_typehints.guarded_import",
+    "sphinx_autodoc_typehints.forward_reference",
+]
 napoleon_numpy_docstring = True
 napoleon_google_docstring = False
 

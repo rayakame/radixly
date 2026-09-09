@@ -124,6 +124,20 @@ def docs(session: nox.Session) -> None:
     )
 
 
+@nox.session(name="docs-serve", reuse_venv=True)
+def docs_serve(session: nox.Session) -> None:
+    """Live-reloading docs at http://127.0.0.1:8000; rebuild the extension for C docstring changes."""
+    sync(session, "docs")
+    session.run(
+        "sphinx-autobuild",
+        "docs",
+        "docs/_build/html",
+        "--open-browser",
+        *session.posargs,
+        env={"SPHINX_AUTODOC_IGNORE_NATIVE_MODULE_TYPE_STUBS": "1"},
+    )
+
+
 @nox.session(reuse_venv=True)
 def verifytypes(session: nox.Session) -> None:
     """PEP 561 gate from the consumer's seat.
