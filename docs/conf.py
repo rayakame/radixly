@@ -72,10 +72,11 @@ exclude_patterns = ["_build"]
 html_theme = "furo"
 html_title = "radixly"
 html_static_path = ["_static"]
-html_logo = "_static/logo.svg"
+html_logo = "_static/logo-wordmark.svg"
 html_favicon = "_static/logo.svg"
 html_css_files = ["custom.css"]
 html_theme_options = {
+    "sidebar_hide_name": True,  # the wordmark carries the name
     "light_css_variables": {"color-brand-primary": "#1F6F8B", "color-brand-content": "#1F6F8B"},
     "dark_css_variables": {"color-brand-primary": "#5FB3CF", "color-brand-content": "#5FB3CF"},
     "source_repository": radixly.__url__,

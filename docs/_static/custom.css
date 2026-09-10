@@ -1,2 +1,2 @@
-/* A square mark at full sidebar width dwarfs the name beneath it. */
-.sidebar-logo { max-width: 42%; }
+/* The wordmark lockup is wide; let it use the sidebar's width. */
+.sidebar-logo { max-width: 88%; }
