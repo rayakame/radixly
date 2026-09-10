@@ -2,7 +2,7 @@
 
 ## Install
 
-```
+```bash
 pip install radixly
 ```
 

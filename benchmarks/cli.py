@@ -132,6 +132,8 @@ def _validate_outputs(parser: argparse.ArgumentParser, options: Options) -> None
     for label, directory in (("--graphs", options.graphs_dir), ("--docs", options.docs_dir)):
         if directory is not None and not directory.parent.is_dir():
             parser.error(f"{label} {directory}: parent directory does not exist")
+        if directory is not None and directory.exists() and not directory.is_dir():
+            parser.error(f"{label} {directory}: exists and is not a directory")
     if options.inject_path is not None:
         if not options.inject_path.is_file():
             parser.error(f"--inject {options.inject_path}: no such file")
@@ -302,7 +304,8 @@ def write_docs(result: model.RunResult, docs_dir: pathlib.Path, charts_dir: path
         path.write_text(markdown.codec_page(result, codec, charts), encoding="utf-8")
         written.append(path)
     for stale in docs_dir.glob("*.md"):
-        if stale not in written:
+        # Only our own pages: a hand-written file in the same directory is not ours to delete.
+        if stale not in written and stale.read_text(encoding="utf-8").startswith(markdown.GENERATED):
             stale.unlink()
     return written
 

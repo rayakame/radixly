@@ -8,7 +8,7 @@ would have two interpreters sharing objects that belong to one.
 On Python 3.12 and later the module says so itself: importing radixly inside
 a subinterpreter raises
 
-```
+```text
 ImportError: module radixly._core does not support loading in subinterpreters
 ```
 
