@@ -22,7 +22,12 @@ channel tolerates only a small, contiguous range.
 .. autofunction:: decode(data: str, /) -> bytes
 .. autofunction:: encoded_len
 .. autofunction:: max_bytes
-.. autodata:: BITS_PER_CHAR
+.. data:: BITS_PER_CHAR
+   :type: int
+   :value: 6
+
+   Payload bits per character: one hexagram per six bits.
+
 .. data:: HEXAGRAM
    :type: radixly.Codec
 

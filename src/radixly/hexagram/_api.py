@@ -13,6 +13,7 @@ encode = hexagram_encode
 decode = hexagram_decode
 
 BITS_PER_CHAR = 6
+"""Payload bits per character: one hexagram per six bits."""
 
 
 def encoded_len(num_bytes: int) -> int:

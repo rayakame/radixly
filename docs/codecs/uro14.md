@@ -26,7 +26,12 @@ The 14-bit length claim wraps at 16,384 bytes — see {doc}`../guides/uro14-wind
 .. autofunction:: decode(data: str, /) -> bytes
 .. autofunction:: encoded_len
 .. autofunction:: max_bytes
-.. autodata:: BITS_PER_CHAR
+.. data:: BITS_PER_CHAR
+   :type: int
+   :value: 14
+
+   Payload bits carried by one body character; the length prefix is one character on top.
+
 .. data:: URO14
    :type: radixly.Codec
 

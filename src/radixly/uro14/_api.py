@@ -13,6 +13,7 @@ encode = uro14_encode
 decode = uro14_decode
 
 BITS_PER_CHAR = 14
+"""Payload bits carried by one body character; the length prefix is one character on top."""
 
 
 def encoded_len(num_bytes: int) -> int:

@@ -13,6 +13,7 @@ encode = braille_encode
 decode = braille_decode
 
 BITS_PER_CHAR = 8
+"""Payload bits per character: one byte per braille pattern."""
 
 
 def encoded_len(num_bytes: int) -> int:

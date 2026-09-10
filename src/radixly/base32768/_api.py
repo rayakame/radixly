@@ -13,6 +13,7 @@ encode = base32768_encode
 decode = base32768_decode
 
 BITS_PER_CHAR = 15
+"""Payload bits carried by one full character; a final short character carries 7."""
 
 
 def encoded_len(num_bytes: int) -> int:

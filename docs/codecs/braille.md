@@ -22,7 +22,12 @@ single-block alphabet that survives channels which mangle wider ranges.
 .. autofunction:: decode(data: str, /) -> bytes
 .. autofunction:: encoded_len
 .. autofunction:: max_bytes
-.. autodata:: BITS_PER_CHAR
+.. data:: BITS_PER_CHAR
+   :type: int
+   :value: 8
+
+   Payload bits per character: one byte per braille pattern.
+
 .. data:: BRAILLE
    :type: radixly.Codec
 
