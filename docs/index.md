@@ -47,7 +47,6 @@ data = radixly.base32768.decode(text)
 
 guides/getting-started
 guides/choosing-a-codec
-guides/truncation
 guides/subinterpreters
 ```
 
