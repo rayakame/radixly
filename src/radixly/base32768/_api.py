@@ -66,7 +66,7 @@ def max_bytes(num_chars: int) -> int:
     Examples
     --------
     >>> from radixly import base32768
-    >>> base32768.max_bytes(100)  # a Discord custom_id
+    >>> base32768.max_bytes(100)
     187
     """
     if num_chars < 0:
