@@ -26,7 +26,6 @@ extensions = [
 # annotations of the Python-level functions) into each parameter list, so
 # the stub stays the single source of truth for types.
 autodoc_member_order = "bysource"
-always_document_param_types = True
 typehints_document_rtype = True
 typehints_use_signature = True
 typehints_use_signature_return = True
