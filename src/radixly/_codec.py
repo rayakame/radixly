@@ -19,7 +19,7 @@ class Codec:
     """One codec as a value: its C functions bound as instance attributes, plus its numbers.
 
     ``encode``, ``decode``, ``encoded_len`` and ``max_bytes`` are the codec
-    module's own functions bound as attributes -- calling ``codec.encode(data)``
+    module's own functions bound as attributes. Calling ``codec.encode(data)``
     is one attribute load and the C call, never a Python frame.
 
     Attributes

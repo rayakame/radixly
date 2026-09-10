@@ -1,7 +1,7 @@
 # Codec registry
 
-Each codec module also exposes its codec as a value — `radixly.base32768.BASE32768`
-and so on — and registers it under its name. The registry is populated as soon as
+Each codec module also exposes its codec as a value, `radixly.base32768.BASE32768`
+and so on, and registers it under its name. The registry is populated as soon as
 `radixly` is imported.
 
 ```{eval-rst}
@@ -9,13 +9,11 @@ and so on — and registers it under its name. The registry is populated as soon
 
    .. method:: encode(data: collections.abc.Buffer, /) -> str
 
-      Encode ``data`` with this codec -- the codec module's ``encode``
-      (for example :func:`radixly.base32768.encode`) bound as an attribute.
+      Encode ``data`` with this codec.
 
    .. method:: decode(data: str, /) -> bytes
 
-      Decode ``data`` with this codec -- the codec module's ``decode``
-      bound as an attribute.
+      Decode ``data`` with this codec.
 
    .. method:: encoded_len(num_bytes: int) -> int
 
