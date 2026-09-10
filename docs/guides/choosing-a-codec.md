@@ -41,9 +41,3 @@ All four sit in the same range, roughly 0.1 to 0.3 microseconds per call at
 200 bytes and hundreds of megabytes per second on large inputs. Pick by
 alphabet and truncation behavior; the numbers on each codec page are there
 to confirm that whichever you pick will not be the bottleneck.
-
-## In short
-
-When in doubt, base32768. If a cut-off string must be detected, uro14. If the
-alphabet has to be small, hexagram; braille if bytes and characters should
-line up one to one.
