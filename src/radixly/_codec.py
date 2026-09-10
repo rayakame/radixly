@@ -18,7 +18,8 @@ __all__ = ("CODECS", "Codec", "get_codec", "register")
 class Codec:
     """One codec as a value: its C functions bound as instance attributes, plus its numbers.
 
-    The fields hold the raw extension functions -- calling ``codec.encode(data)``
+    ``encode``, ``decode``, ``encoded_len`` and ``max_bytes`` are the codec
+    module's own functions bound as attributes -- calling ``codec.encode(data)``
     is one attribute load and the C call, never a Python frame.
 
     Attributes
@@ -27,14 +28,6 @@ class Codec:
         The registry key, e.g. ``"base32768"``.
     bits_per_char
         Payload bits carried by one output character.
-    encode
-        The codec's ``encode`` function.
-    decode
-        The codec's ``decode`` function.
-    encoded_len
-        Output length in characters for a payload size in bytes.
-    max_bytes
-        Largest payload that fits a character budget.
     """
 
     name: str
