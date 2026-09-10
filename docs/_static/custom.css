@@ -1,0 +1,2 @@
+/* A square mark at full sidebar width dwarfs the name beneath it. */
+.sidebar-logo { max-width: 42%; }
