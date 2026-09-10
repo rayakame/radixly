@@ -51,10 +51,6 @@ are not capped; the window is the documented limit of the guarantee.
 ```{include} ../benchmarks/uro14.md
 ```
 
-## The length window
-
-The 14-bit length claim wraps at 16,384 bytes — see {doc}`../guides/uro14-window`.
-
 ## Reference
 
 ```{eval-rst}
