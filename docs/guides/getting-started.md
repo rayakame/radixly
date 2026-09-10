@@ -86,9 +86,3 @@ mapping, as long as the name is free.
 A `Codec` is a frozen dataclass whose fields are the codec module's own
 functions. Calling `codec.encode(data)` is one attribute load and the C call,
 the same cost as calling the module function directly.
-
-## Next
-
-{doc}`choosing-a-codec` puts the four codecs side by side; each codec page
-explains its alphabet, its speed and what happens when a string is cut
-short.
