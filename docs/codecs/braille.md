@@ -34,7 +34,8 @@ braille.decode(text[:8]) == payload[:8]  # True, always
 ```
 
 If a shortened string must be caught, carry a length or checksum alongside
-it, or use {doc}`uro14`.
+it, or use {doc}`uro14`, whose length prefix catches truncation below its
+16,384-byte window.
 
 ## Benchmarks
 

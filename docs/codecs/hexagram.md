@@ -44,7 +44,8 @@ hexagram.decode(text[:25])                   # DecodeError: 6 padding bits, no p
 ```
 
 If you need to know whether a string arrived whole, carry a length or
-checksum alongside it, or use {doc}`uro14`.
+checksum alongside it, or use {doc}`uro14`, whose length prefix catches
+truncation below its 16,384-byte window.
 
 ## Benchmarks
 

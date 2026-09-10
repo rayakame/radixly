@@ -5,22 +5,22 @@
 | braille | encode | 0.019 μs | 0.168 μs | 1,397 MB/s | 1,404 MB/s | 95x at 200 B |
 | braille | decode | 0.016 μs | 0.269 μs | 800 MB/s | 799 MB/s | 77x at 200 B |
 
-```{image} ../../benchmarks/charts/braille/throughput.svg
+```{image} /benchmarks/charts/braille/throughput.svg
 :alt: braille sustained throughput
 :class: only-light
 ```
 
-```{image} ../../benchmarks/charts/braille/throughput.dark.svg
+```{image} /benchmarks/charts/braille/throughput.dark.svg
 :alt: braille sustained throughput
 :class: only-dark
 ```
 
-```{image} ../../benchmarks/charts/braille/latency.svg
+```{image} /benchmarks/charts/braille/latency.svg
 :alt: braille per-call latency
 :class: only-light
 ```
 
-```{image} ../../benchmarks/charts/braille/latency.dark.svg
+```{image} /benchmarks/charts/braille/latency.dark.svg
 :alt: braille per-call latency
 :class: only-dark
 ```

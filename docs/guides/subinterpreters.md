@@ -19,5 +19,9 @@ Ordinary threads are fine. `encode` and `decode` hold the GIL for the
 duration of a call, which for these functions is microseconds, so threads
 share the work but do not run it in parallel. For real parallelism across
 cores use processes; every process imports its own copy of the extension.
-Free-threaded CPython builds are not supported for the same reason as
-subinterpreters: the module-level state is not prepared for it.
+Free-threaded CPython builds (`3.13t`, `3.14t`) are a different story: the
+import succeeds, but the module does not declare itself safe without the
+GIL, so CPython switches the GIL back on for the whole process and prints a
+`RuntimeWarning` saying so. radixly works, everything else in that process
+loses its free threading. Running with `PYTHON_GIL=0` removes even that
+protection and is not supported.

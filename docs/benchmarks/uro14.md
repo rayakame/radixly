@@ -5,22 +5,22 @@
 | uro14 | encode | 0.018 μs | 0.118 μs | 2,020 MB/s | 2,007 MB/s | 122x at 200 B |
 | uro14 | decode | 0.015 μs | 0.242 μs | 899 MB/s | 896 MB/s | 91x at 200 B |
 
-```{image} ../../benchmarks/charts/uro14/throughput.svg
+```{image} /benchmarks/charts/uro14/throughput.svg
 :alt: uro14 sustained throughput
 :class: only-light
 ```
 
-```{image} ../../benchmarks/charts/uro14/throughput.dark.svg
+```{image} /benchmarks/charts/uro14/throughput.dark.svg
 :alt: uro14 sustained throughput
 :class: only-dark
 ```
 
-```{image} ../../benchmarks/charts/uro14/latency.svg
+```{image} /benchmarks/charts/uro14/latency.svg
 :alt: uro14 per-call latency
 :class: only-light
 ```
 
-```{image} ../../benchmarks/charts/uro14/latency.dark.svg
+```{image} /benchmarks/charts/uro14/latency.dark.svg
 :alt: uro14 per-call latency
 :class: only-dark
 ```

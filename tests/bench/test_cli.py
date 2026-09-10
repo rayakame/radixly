@@ -136,18 +136,26 @@ def test_inject_target_must_carry_the_markers(tmp_path: pathlib.Path) -> None:
     assert cli.parse_options(["--inject", str(marked)]).inject_path == marked
 
 
-def test_docs_pages_land_per_codec_with_relative_charts(tmp_path: pathlib.Path) -> None:
+def test_docs_pages_land_per_codec_with_pruning(tmp_path: pathlib.Path) -> None:
     result = factories.make_result(
         (factories.make_measurement(), factories.make_measurement(codec="uro14", reference_ns_per_call=None))
     )
     docs = tmp_path / "docs" / "benchmarks"
     docs.parent.mkdir()
-    written = cli.write_docs(result, docs, tmp_path / "benchmarks" / "charts")
+    charts = tmp_path / "benchmarks" / "charts"
+    charts.mkdir(parents=True)
+    (docs.parent / "stale").mkdir()
+    docs.mkdir()
+    (docs / "retired.md").write_text("gone codec\n", encoding="utf-8")
+    written = cli.write_docs(result, docs, charts)
     assert sorted(path.name for path in written) == ["base32768.md", "uro14.md"]
+    assert not (docs / "retired.md").exists()  # a page for an unregistered codec is pruned
     page = (docs / "uro14.md").read_text(encoding="utf-8")
     assert "| uro14 |" in page
     assert "| base32768 |" not in page  # one codec per page
-    assert "../../benchmarks/charts/uro14/throughput.dark.svg" in page
+    # Source-root absolute: the include site's depth must not matter.
+    assert "/benchmarks/charts/uro14/throughput.dark.svg" in page
+    assert (docs / "charts").resolve() == charts.resolve()
 
 
 def test_wrapper_shapes_are_distinct_statements() -> None:

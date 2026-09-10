@@ -194,7 +194,8 @@ Vmin degradation); it lives in git history at cefe701.
   self-certification, provenance (mode/forced/dirty) on every document.
   Suite 21,684 tests.
 - **M9 — CURRENT** — ship 1.0: cibuildwheel matrix, .pyi stubs + py.typed, docs stating the
-  truncation caveat honestly (base32768 silently accepts ~50% of truncations).
+  truncation caveat honestly (base32768 silently accepts about one in four
+  truncations: 15k mod 8 padding bits, measured 24%).
 
 ## Commands
 

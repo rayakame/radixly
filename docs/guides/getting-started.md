@@ -6,10 +6,11 @@
 pip install radixly
 ```
 
-Wheels ship for CPython 3.11 to 3.14 on Linux (x86_64, aarch64, musl), macOS
-(Intel and Apple silicon) and Windows (64-bit). radixly is a C extension with
-no pure-Python fallback; on any other platform pip builds the sdist, which
-needs a C compiler.
+Releases ship wheels for CPython 3.11 to 3.14 on Linux (x86_64, aarch64,
+musl), macOS (Intel and Apple silicon) and Windows (64-bit). radixly is a C
+extension with no pure-Python fallback, so on any other platform, or when
+installing a pre-release from source, pip builds the sdist and needs a C
+compiler.
 
 ## A first round trip
 

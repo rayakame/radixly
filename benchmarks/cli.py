@@ -6,6 +6,7 @@ import argparse
 import dataclasses
 import os
 import pathlib
+import shutil
 import sys
 import typing
 
@@ -114,7 +115,7 @@ def _validate(parser: argparse.ArgumentParser, options: Options, *, scoped: bool
         or options.docs_dir is not None
     )
     if wants_codec_output and options.render_from is None and options.suite == "wrapper":
-        parser.error("--markdown/--graphs/--inject need codec results; --suite wrapper has none")
+        parser.error("--markdown/--graphs/--inject/--docs need codec results; --suite wrapper has none")
     if options.suite == "wrapper" and scoped:
         parser.error("--suite wrapper is a fixed-shape probe; scope flags do not apply")
     if options.ci_mode and options.render_from is not None:
@@ -278,14 +279,31 @@ def _write_outputs(options: Options, result: model.RunResult) -> None:
 
 
 def write_docs(result: model.RunResult, docs_dir: pathlib.Path, charts_dir: pathlib.Path) -> list[pathlib.Path]:
-    """One page fragment per codec; chart paths are relative to the fragment's directory."""
+    """One page fragment per codec, stale pages pruned.
+
+    The fragments are meant for MyST ``{include}``, which resolves image
+    paths against the *including* page, so relative paths would silently
+    depend on where the include happens. The charts are reached through a
+    ``charts`` link inside ``docs_dir`` and referenced by a source-root
+    absolute path (``/<docs_dir name>/charts/...``) that holds from any depth.
+    """
     docs_dir.mkdir(exist_ok=True)
-    charts = pathlib.PurePosixPath(os.path.relpath(charts_dir.resolve(), docs_dir.resolve()))
+    link = docs_dir / "charts"
+    if not link.exists():
+        target = os.path.relpath(charts_dir.resolve(), docs_dir.resolve())
+        try:
+            link.symlink_to(target, target_is_directory=True)
+        except OSError:  # no symlink privilege (Windows): a copy serves the same paths
+            shutil.copytree(charts_dir, link)
+    charts = f"/{docs_dir.name}/charts"
     written: list[pathlib.Path] = []
     for codec in dict.fromkeys(m.codec for m in result.measurements):
         path = docs_dir / f"{codec}.md"
-        path.write_text(markdown.codec_page(result, codec, str(charts)), encoding="utf-8")
+        path.write_text(markdown.codec_page(result, codec, charts), encoding="utf-8")
         written.append(path)
+    for stale in docs_dir.glob("*.md"):
+        if stale not in written:
+            stale.unlink()
     return written
 
 

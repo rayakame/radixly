@@ -8,9 +8,9 @@ from one to another is a change of import.
 ## What makes it different
 
 **Speed.** Every codec is a hand-written C extension with no Python in the
-hot path, measured on every commit against a pure-Python reference of the
-same algorithm. The numbers on each codec page come from the benchmark suite
-that ships with the repository.
+hot path. Pull requests are gated on its speed relative to a pure-Python
+reference of the same algorithm, and the numbers on each codec page are a
+committed record from the benchmark suite that ships with the repository.
 
 **One interface.** Every codec offers `encode`, `decode` and the size math
 to plan around a length limit, with type stubs and no dependencies.
@@ -29,7 +29,7 @@ to plan around a length limit, with type stubs and no dependencies.
 :::{grid-item-card} uro14
 :link: codecs/uro14
 :link-type: doc
-14 bits per character from one CJK block, with a length prefix that catches truncation.
+14 bits per character from one CJK block, with a length prefix that catches truncation below 16,384 bytes.
 :::
 
 :::{grid-item-card} braille

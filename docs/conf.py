@@ -55,7 +55,8 @@ suppress_warnings = [
 napoleon_numpy_docstring = True
 napoleon_google_docstring = False
 
-intersphinx_mapping = {"python": ("https://docs.python.org/3", None)}
+# The committed inventory keeps -W builds green when docs.python.org is unreachable.
+intersphinx_mapping = {"python": ("https://docs.python.org/3", (None, "_inv/python-objects.inv"))}
 
 myst_enable_extensions = ["colon_fence", "deflist", "attrs_inline"]
 myst_heading_anchors = 3

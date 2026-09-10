@@ -61,3 +61,5 @@ jobs:
         run: |
           uv run python -m benchmarks --render-from benchmarks/results/i9-14900KF-performance.json --inject README.md --docs docs/benchmarks
           git diff --exit-code README.md docs/benchmarks
+          # git diff ignores untracked and pruned files; a new codec's page must be committed too.
+          test -z "$(git status --porcelain docs/benchmarks)"

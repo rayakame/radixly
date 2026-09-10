@@ -5,22 +5,22 @@
 | hexagram | encode | 0.019 μs | 0.201 μs | 1,137 MB/s | 1,126 MB/s | 108x at 200 B |
 | hexagram | decode | 0.016 μs | 0.328 μs | 616 MB/s | 641 MB/s | 84x at 200 B |
 
-```{image} ../../benchmarks/charts/hexagram/throughput.svg
+```{image} /benchmarks/charts/hexagram/throughput.svg
 :alt: hexagram sustained throughput
 :class: only-light
 ```
 
-```{image} ../../benchmarks/charts/hexagram/throughput.dark.svg
+```{image} /benchmarks/charts/hexagram/throughput.dark.svg
 :alt: hexagram sustained throughput
 :class: only-dark
 ```
 
-```{image} ../../benchmarks/charts/hexagram/latency.svg
+```{image} /benchmarks/charts/hexagram/latency.svg
 :alt: hexagram per-call latency
 :class: only-light
 ```
 
-```{image} ../../benchmarks/charts/hexagram/latency.dark.svg
+```{image} /benchmarks/charts/hexagram/latency.dark.svg
 :alt: hexagram per-call latency
 :class: only-dark
 ```
