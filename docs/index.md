@@ -1,29 +1,19 @@
 # radixly
 
-radixly encodes bytes as text for channels that count characters, not bytes.
-Where base64 spends a whole character on six bits, radixly's codecs pack up
-to fifteen bits into a single Unicode code point, so a 100-character field
-holds 187 bytes instead of 75.
+radixly is a fast Python library for binary-to-text codecs. It ships the
+codecs you reach for when bytes have to travel as a string, each one
+implemented in C and exposed through the same small interface, so switching
+from one to another is a change of import.
 
 ## What makes it different
 
-**It is fast.** Every codec is a hand-written C extension with no Python in
-the hot path, measured on every commit against a pure-Python reference of the
+**Speed.** Every codec is a hand-written C extension with no Python in the
+hot path, measured on every commit against a pure-Python reference of the
 same algorithm. The numbers on each codec page come from the benchmark suite
 that ships with the repository.
 
-**Decoding is strict.** One payload has exactly one accepted spelling. An
-invalid character, broken padding or a non-canonical final character raises
-a {class}`~radixly.DecodeError` that tells you the position, instead of
-quietly returning something.
-
-**The alphabets are chosen, not just counted.** Each codec draws from
-assigned, printable code points with no whitespace, control characters or
-combining marks, so the text survives chat clients, databases and
-normalizing frameworks unchanged.
-
-**It is typed and small.** Four codecs behind one consistent interface,
-shipped with type stubs and no dependencies.
+**One interface.** Every codec offers `encode`, `decode` and the size math
+to plan around a length limit, with type stubs and no dependencies.
 
 ## Codecs
 
