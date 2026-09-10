@@ -6,11 +6,14 @@
 pip install radixly
 ```
 
-Wheels ship for CPython 3.11–3.14 on Linux (x86_64, aarch64, musl), macOS
-(Intel, Apple silicon) and Windows (64-bit). radixly is a C extension with no
-pure-Python fallback; anything else builds from the sdist and needs a C compiler.
+Wheels ship for CPython 3.11 to 3.14 on Linux (x86_64, aarch64, musl), macOS
+(Intel and Apple silicon) and Windows (64-bit). radixly is a C extension with
+no pure-Python fallback; on any other platform pip builds the sdist, which
+needs a C compiler.
 
-## Encode and decode
+## A first round trip
+
+Every codec lives in its own module and exposes the same two functions:
 
 ```python
 import radixly
@@ -20,18 +23,72 @@ data = radixly.uro14.decode(text)
 assert data == b"hello"
 ```
 
-`encode` accepts any bytes-like object (`bytes`, `bytearray`, `memoryview`, …)
-and returns a `str`; passing a `str` raises `TypeError`. `decode` is strict:
-an invalid or misplaced character, broken padding or a non-canonical final
-character raises {class}`radixly.DecodeError` carrying the offending position.
+`encode` takes any bytes-like object (`bytes`, `bytearray`, `memoryview`, an
+array, a NumPy buffer) and returns a `str`. Passing a `str` raises
+`TypeError`; encode your text first. `decode` takes a `str` and returns
+`bytes`.
 
-## Size arithmetic without encoding
+Decoding is strict. If the string is not something this codec could have
+produced, you get a {class}`~radixly.DecodeError` that says why and where:
 
 ```python
-radixly.base32768.encoded_len(100)   # characters produced by 100 bytes
-radixly.base32768.max_bytes(100)     # largest payload that fits 100 characters
+try:
+    radixly.base32768.decode("hello")
+except radixly.DecodeError as error:
+    print(error)           # invalid base32768 character U+68 at index 0
+    print(error.position)  # 0
 ```
 
-:::{note}
-This guide is a skeleton; the walkthrough is still being written.
-:::
+`DecodeError` is a `ValueError`, so an existing `except ValueError` keeps
+working.
+
+## Planning around a length limit
+
+You rarely need to encode something to learn how long it would be. Every
+codec has two helpers that do the arithmetic without touching the data:
+
+```python
+radixly.base32768.encoded_len(16)   # 9: characters produced by 16 bytes
+radixly.base32768.max_bytes(100)    # 187: largest payload that fits 100 characters
+```
+
+`encoded_len` is exact, so it is safe to reserve space with. `max_bytes`
+answers the question a length-limited field poses: how much can I put in
+here?
+
+## The registry
+
+Each codec module also exposes its codec as a value, a
+{class}`~radixly.Codec`, and registers it under its name. That lets you pick
+a codec at runtime, by name or by property, instead of hard-coding an import:
+
+```python
+codec = radixly.get_codec("uro14")
+codec.bits_per_char        # 14
+codec.encode(b"hello")     # the same function as radixly.uro14.encode
+codec.max_bytes(100)       # 173
+```
+
+{data}`radixly.CODECS` is a read-only mapping of every registered codec, in
+registration order. Asking it which codec fits the most into a 100-character
+field is one line:
+
+```python
+list(radixly.CODECS)                                   # ['base32768', 'braille', 'hexagram', 'uro14']
+{name: c.max_bytes(100) for name, c in radixly.CODECS.items()}
+# {'base32768': 187, 'braille': 100, 'hexagram': 75, 'uro14': 173}
+```
+
+A name that is not registered raises `KeyError` with the registered names in
+the message. {func}`radixly.register` adds a codec of your own to the same
+mapping, as long as the name is free.
+
+A `Codec` is a frozen dataclass whose fields are the codec module's own
+functions. Calling `codec.encode(data)` is one attribute load and the C call,
+the same cost as calling the module function directly.
+
+## Next
+
+{doc}`choosing-a-codec` puts the four codecs side by side; each codec page
+explains its alphabet, its speed and what happens when a string is cut
+short.
