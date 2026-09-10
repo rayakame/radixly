@@ -15,7 +15,7 @@ truncation, carry the length or a checksum yourself.
 
 uro14's length-prefix character lets the decoder reject a body that does not
 match the claimed length. That guarantee is windowed: see
-{doc}`uro14-window`.
+{doc}`../codecs/uro14`.
 
 :::{note}
 This guide is a skeleton; the worked examples are still being written.
