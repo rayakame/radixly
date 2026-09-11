@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """Synthetic result builders shared by the benchmark suite's self-tests."""
 
 from __future__ import annotations

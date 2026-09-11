@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """Console renderer: the familiar aligned tables."""
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ _THROUGHPUT_FLOOR: typing.Final = 65536  # below this, per-call time is the read
 
 
 def render(result: model.RunResult) -> str:
+    """Render the console report of a run: one block per codec and direction."""
     env = result.environment
     lines = [
         f"python   {env.python}",

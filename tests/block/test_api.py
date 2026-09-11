@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """The block presets' codec surfaces: re-exports, Codec values, and size math."""
 
 from __future__ import annotations

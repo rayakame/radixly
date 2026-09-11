@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """Shared rejection tables for the block presets: same (input, position) on both sides."""
 
 from __future__ import annotations

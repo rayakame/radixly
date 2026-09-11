@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """SVG charts, one file per theme, deterministic output for committing.
 
 Two charts: sustained throughput (MB/s at the largest size with a throughput

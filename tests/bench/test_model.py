@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """The JSON layer: canonical round-trip, schema guard, forward compatibility."""
 
 # This file's business is poking raw JSON documents:
@@ -60,8 +61,10 @@ def test_implementation_round_trips_and_defaults() -> None:
 
 
 def test_run_info_round_trips_with_varied_booleans() -> None:
-    """Provenance survives the trip: mode, reference loop count, forced flag,
-    and the environment booleans a record's honesty hangs on."""
+    """Provenance survives the trip.
+
+    Mode, reference loop count, forced flag, and the environment booleans a record's honesty hangs on.
+    """
     original = model.RunResult(
         model.SCHEMA_VERSION,
         factories.make_environment(dirty=True, optimized=False),
@@ -93,9 +96,11 @@ def test_zero_or_negative_timing_is_rejected(bad: float) -> None:
 
 
 def test_deep_nesting_stays_inside_the_error_contract() -> None:
-    """3.13's parser raises RecursionError here (from_json translates it);
-    3.14's deeper C stack parses the list and _mapping rejects it. Either
-    way the baseline scan's TypeError/ValueError net must hold."""
+    """The baseline scan's TypeError/ValueError net must hold on deep nesting.
+
+    3.13's parser raises RecursionError here (from_json translates it); 3.14's
+    deeper C stack parses the list and _mapping rejects it.
+    """
     with pytest.raises((TypeError, ValueError)):
         model.from_json("[" * 100_000 + "]" * 100_000)
 
@@ -116,8 +121,10 @@ def test_unsupported_schema_version_raises() -> None:
 
 
 def test_missing_field_raises_the_documented_error() -> None:
-    """Missing keys must be ValueError, not KeyError: the error contract is
-    TypeError/ValueError, and the baseline scan relies on it to skip bad files."""
+    """Missing keys must be ValueError, not KeyError.
+
+    The error contract is TypeError/ValueError, and the baseline scan relies on it to skip bad files.
+    """
     document = json.loads(model.to_json(factories.make_result()))
     del document["environment"]["cpu"]
     with pytest.raises(ValueError, match="cpu: missing"):

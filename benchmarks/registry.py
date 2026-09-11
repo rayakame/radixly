@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """What to measure: every registered codec, references resolved by convention.
 
 A new codec joins the benchmarks by registering itself in radixly -- which its
@@ -52,13 +53,20 @@ class ReferenceCodec(typing.Protocol):
     """The shape every tests.reference module shares."""
 
     @property
-    def encode(self) -> Callable[[bytes], str]: ...
+    def encode(self) -> Callable[[bytes], str]:
+        """The reference encoder."""
+        ...
+
     @property
-    def decode(self) -> Callable[[str], bytes]: ...
+    def decode(self) -> Callable[[str], bytes]:
+        """The reference decoder."""
+        ...
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class CodecSpec:
+    """A registered codec's functions with their tests.reference twins, if those resolve."""
+
     name: str
     encode: Callable[[bytes], str]
     decode: Callable[[str], bytes]
@@ -72,10 +80,12 @@ def unknown_codecs(names: Sequence[str]) -> list[str]:
 
 
 def specs_names() -> list[str]:
+    """List the registered codec names in registration order."""
     return list(radixly.CODECS)
 
 
 def reference_module(name: str) -> ReferenceCodec | None:
+    """Resolve tests.reference.<name>, or None when the codec has no oracle twin."""
     # `python -m benchmarks` from the repo root already has the root on
     # sys.path; the insert covers other invocation styles (`tests.` must resolve).
     root = str(pathlib.Path(__file__).resolve().parent.parent)
@@ -120,7 +130,7 @@ class Implementation:
 
 
 def implementations(names: Sequence[str] | None = None) -> list[Implementation]:
-    """radixly first, then any rivals; competitors ride their codec's selection."""
+    """Every implementation in scope: radixly first, then the rivals riding their codec's selection."""
     rows: list[Implementation] = []
     for spec in specs(names):
         rows.append(
@@ -134,6 +144,7 @@ def implementations(names: Sequence[str] | None = None) -> list[Implementation]:
 
 
 def specs(names: Sequence[str] | None = None) -> list[CodecSpec]:
+    """Build a CodecSpec per requested codec; every registered codec by default."""
     chosen = dict(radixly.CODECS) if names is None else {name: radixly.get_codec(name) for name in names}
     result: list[CodecSpec] = []
     for name, codec in chosen.items():

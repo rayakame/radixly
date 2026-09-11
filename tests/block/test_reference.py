@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """Reference tests for the contiguous-block presets: braille (8 bits) and hexagram (6 bits)."""
 
 from __future__ import annotations

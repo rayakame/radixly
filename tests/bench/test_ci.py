@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """The ratio gates: file integrity, breach detection, and the registry lockstep."""
 
 from __future__ import annotations

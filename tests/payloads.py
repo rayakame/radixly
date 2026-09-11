@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """Payload flavors shared by the differential sweeps, one suite-neutral home.
 
 Seeded so any failing length reproduces byte-for-byte; zeros and ones flank

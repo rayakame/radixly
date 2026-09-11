@@ -1,3 +1,6 @@
+# Copyright (c) 2026-present rayakame
+"""Generate the committed lookup-table headers for the C codecs."""
+
 from __future__ import annotations
 
 import itertools
@@ -84,7 +87,7 @@ def _verify_base32768_tables(lookup_e: dict[int, tuple[int, ...]]) -> None:
 
 
 def write_base_32768_table() -> None:
-
+    """Generate src/radixly/base32768/_tables.h from qntm's block layout."""
     lookup_e = _build_base32768_tables()
 
     writer = IndentWriter(BASE_32768_PATH)

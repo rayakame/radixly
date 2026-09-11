@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """The result data model: one run produces one RunResult; renderers only consume.
 
 The JSON form is the canonical artifact (schema_version 1, additive evolution
@@ -17,6 +18,8 @@ SCHEMA_VERSION: typing.Final = 1
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class Environment:
+    """Where and how a run was taken; every field lands in the document."""
+
     python: str
     cpu: str
     governor: str
@@ -31,6 +34,8 @@ class Environment:
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class Measurement:
+    """One timed cell: a codec, a direction, a size and an implementation."""
+
     codec: str
     direction: str  # "encode" | "decode"
     size_label: str
@@ -43,10 +48,12 @@ class Measurement:
 
     @property
     def mb_per_s(self) -> float:
+        """Throughput derived from the timing; written for readers, never read back."""
         return self.size_bytes / self.ns_per_call * 1e3
 
     @property
     def ratio(self) -> float | None:
+        """Speedup over the pure-Python reference, or None when no reference row was timed."""
         if self.reference_ns_per_call is None:
             return None
         return self.reference_ns_per_call / self.ns_per_call
@@ -63,6 +70,8 @@ class RunInfo:
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class RunResult:
+    """The whole run: environment, measurements, and how it was taken."""
+
     schema_version: int
     environment: Environment
     measurements: tuple[Measurement, ...]
@@ -70,6 +79,7 @@ class RunResult:
 
 
 def to_dict(result: RunResult) -> dict[str, object]:
+    """Build the canonical JSON shape as a dict, derived values included."""
     rows: list[dict[str, object]] = []
     for measurement in result.measurements:
         row = typing.cast("dict[str, object]", dataclasses.asdict(measurement))
@@ -85,6 +95,7 @@ def to_dict(result: RunResult) -> dict[str, object]:
 
 
 def to_json(result: RunResult) -> str:
+    """Serialize the run as sorted, indented JSON with a trailing newline."""
     return json.dumps(to_dict(result), indent=2, sort_keys=True) + "\n"
 
 
@@ -128,8 +139,10 @@ def _bool(mapping: dict[str, object], key: str) -> bool:
 
 
 def _positive_finite(mapping: dict[str, object], key: str) -> float:
-    """Domain check on top of the type check: json.loads accepts NaN/Infinity
-    tokens, and a zero would reach renderers as a ZeroDivisionError."""
+    """Domain check on top of the type check.
+
+    json.loads accepts NaN/Infinity tokens, and a zero would reach renderers as a ZeroDivisionError.
+    """
     value = _float(mapping, key)
     if not math.isfinite(value) or value <= 0:
         msg = f"{key}: must be a positive finite number, got {value}"

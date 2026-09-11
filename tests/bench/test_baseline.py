@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """The floor tripwire: baseline matching and the warning band."""
 
 from __future__ import annotations
@@ -37,8 +38,10 @@ def test_unreadable_files_are_skipped(tmp_path: pathlib.Path) -> None:
 
 
 def test_missing_key_documents_are_skipped_not_fatal(tmp_path: pathlib.Path) -> None:
-    """The empirical crasher: a committed result missing 'cpu' must be skipped
-    by the scan, never brick every future measured run."""
+    """The empirical crasher.
+
+    A committed result missing 'cpu' must be skipped by the scan, never brick every future measured run.
+    """
     broken = model.to_json(factories.make_result()).replace('"cpu": "TestCPU",', "")
     assert '"cpu"' not in broken  # the surgery worked; the document is truly missing the key
     (tmp_path / "aa-broken.json").write_text(broken, encoding="utf-8")

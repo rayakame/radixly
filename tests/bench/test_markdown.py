@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """The markdown fragment and the splice: provenance, idempotence, refusals."""
 
 from __future__ import annotations
@@ -33,8 +34,10 @@ def test_fragment_carries_markers_and_provenance() -> None:
 
 
 def test_dirty_flag_survives_into_print() -> None:
-    """Finding: a dirty record reached the README unnoticed because only the
-    console printed the flag. The provenance line must carry it."""
+    """The provenance line must carry the dirty flag.
+
+    Finding: a dirty record reached the README unnoticed because only the console printed it.
+    """
     result = _result()
     dirty = dataclasses.replace(result, environment=dataclasses.replace(result.environment, dirty=True))
     assert "abc1234 (dirty)," in markdown.fragment(dirty)
@@ -54,8 +57,10 @@ def test_non_record_runs_confess_in_both_renderers() -> None:
 
 
 def test_codec_page_pairs_light_and_dark_charts() -> None:
-    """The docs page must carry Furo's toggle-following classes, never a
-    <picture> that follows the OS instead of the site's theme."""
+    """The docs page must carry Furo's toggle-following classes.
+
+    A <picture> would follow the OS instead of the site's theme.
+    """
     page = markdown.codec_page(_result(), "base32768", "/benchmarks/charts")
     assert "| base32768 | encode |" in page
     assert page.count(":class: only-light") == 2

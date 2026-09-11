@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """Fast binary-to-text codecs."""
 
 from __future__ import annotations

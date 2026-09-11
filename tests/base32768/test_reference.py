@@ -1,5 +1,8 @@
-"""Conformance tests for the pure-Python reference, against qntm's vectors
-(plus the locally generated seven-bit-final — see the vectors README)."""
+# Copyright (c) 2026-present rayakame
+"""Conformance tests for the pure-Python reference against qntm's vectors.
+
+Plus the locally generated seven-bit-final vector, see the vectors README.
+"""
 
 from __future__ import annotations
 
@@ -53,8 +56,10 @@ def test_decode_rejects_bad_input(name: str, vector_dir: pathlib.Path) -> None:
     ids=error_cases.HOSTILE_NON_BMP,
 )
 def test_decode_rejects_astral_and_surrogate_input(string: str, position: int) -> None:
-    """Pins non-BMP rejection so the C differential has a spec: surrogates ride
-    through the reverse table, astral would index past it."""
+    """Pin non-BMP rejection so the C differential has a spec.
+
+    Surrogates ride through the reverse table; astral would index past it.
+    """
     with pytest.raises(errors_reference.DecodeError) as exc_info:
         base32768_reference.decode(string)
     assert exc_info.value.position == position
@@ -84,8 +89,10 @@ def test_decode_accepts_canonical_seven_padding_bits() -> None:
 
 
 def test_seven_bit_final_vector_pins_fresh_repertoire(vector_dir: pathlib.Path) -> None:
-    """qntm's vectors use only z = 47/63/127; seven-bit-final pins the untouched
-    'ƀ'..'Ɵ' block, and this guards the vector's own coverage."""
+    """Guard the seven-bit-final vector's own coverage.
+
+    qntm's vectors use only z = 47/63/127; seven-bit-final pins the untouched 'ƀ'..'Ɵ' block.
+    """
     encoded = (vector_dir / "pairs" / "seven-bit-final.txt").read_text(encoding="utf-8")
     num_z_bits, z = base32768_reference.LOOKUP_D[encoded[-1]]
     assert num_z_bits == 7

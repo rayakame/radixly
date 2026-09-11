@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """Environment capture: a benchmark that records its own conditions can be believed later."""
 
 from __future__ import annotations
@@ -53,6 +54,7 @@ def _git(*args: str) -> str | None:
 
 
 def capture() -> model.Environment:
+    """Snapshot the machine, interpreter, compiler and checkout state for provenance."""
     commit = _git("rev-parse", "--short", "HEAD") or "unknown"
     status = _git("status", "--porcelain")
     # A failed probe reports dirty, not clean: the pessimistic direction is

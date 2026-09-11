@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """Deterministic tests for the benchmark suite's discovery and calibration."""
 
 from __future__ import annotations
@@ -46,8 +47,10 @@ def test_reference_resolved_by_convention() -> None:
 
 
 def test_every_registered_codec_resolves_its_reference() -> None:
-    """No oracle, no ratio, no CI gate: a codec whose tests/reference twin
-    fails to resolve would silently lose its gate coverage."""
+    """No oracle, no ratio, no CI gate.
+
+    A codec whose tests/reference twin fails to resolve would silently lose its gate coverage.
+    """
     for spec in registry.specs():
         assert spec.reference_encode is not None, f"{spec.name}: reference encode did not resolve"
         assert spec.reference_decode is not None, f"{spec.name}: reference decode did not resolve"

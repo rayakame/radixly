@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """Public face of the uro14 codec; the package ``__init__`` re-exports everything here."""
 
 from __future__ import annotations

@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """Base32768: 15 bits of payload per BMP code point, after qntm's spec.
 
 Encodes arbitrary bytes as dense Unicode text for channels that budget by

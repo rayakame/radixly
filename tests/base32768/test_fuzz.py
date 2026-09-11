@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """Fuzz the C decoder against the oracle over hostile input spaces."""
 
 from __future__ import annotations
@@ -91,8 +92,10 @@ def test_every_single_character_agrees() -> None:
 
 
 def test_multi_megabyte_hostile_tail() -> None:
-    """Multi-MB hostile tail: correct position deep into big input. Payload is a
-    multiple of 15 so no 7-bit final char would fail one index earlier."""
+    """Multi-MB hostile tail: correct position deep into big input.
+
+    The payload is a multiple of 15 so no 7-bit final char would fail one index earlier.
+    """
     payload = random.Random(3_000_000).randbytes(3_000_000)
     corrupted = base32768_reference.encode(payload) + "\ud800"
     hostile_index = len(corrupted) - 1

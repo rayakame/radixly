@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """The Codec value type and the name registry shared by every codec."""
 
 from __future__ import annotations

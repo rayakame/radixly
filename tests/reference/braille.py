@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """Braille preset: 8 bits per character, one byte per braille pattern."""
 
 from __future__ import annotations

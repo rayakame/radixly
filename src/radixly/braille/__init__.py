@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """Braille: one byte per braille pattern, U+2800..U+28FF.
 
 Encoded length equals payload length; decoding is strict and canonical.

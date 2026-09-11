@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """Conformance and differential tests for the C base32768 codec."""
 
 from __future__ import annotations

@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """The root surface: DecodeError, the registry machinery, and the frozen Codec."""
 
 from __future__ import annotations

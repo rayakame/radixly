@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """The codec surface: re-exports, the Codec value, and the length math."""
 
 from __future__ import annotations
@@ -33,8 +34,11 @@ def test_codec_fields() -> None:
 
 
 def test_api_all_is_nonempty() -> None:
-    """An emptied __all__ would make the re-export parametrization collect zero
-    cases and skip -- green while guarding nothing. This test makes that loud."""
+    """Make an emptied __all__ loud.
+
+    It would make the re-export parametrization collect zero cases and skip,
+    green while guarding nothing.
+    """
     assert len(_api.__all__) > 0
 
 

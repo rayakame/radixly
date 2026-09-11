@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """Floor-sanity tripwire: warn when 1 B floors drift from the committed baseline.
 
 A warning, never a refusal -- the committed results/ JSON for this machine and

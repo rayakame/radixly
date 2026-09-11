@@ -13,8 +13,6 @@ select = ["ALL"]
 ignore = [
     # Comment and docstring rules are disabled while the library is being
     # (re)written; comments and docs are a dedicated pass at the end.
-    "CPY", # copyright header
-    "D",   # pydocstyle
     "DOC", # pydoclint
     "ERA", # commented-out code
 
@@ -28,6 +26,12 @@ ignore = [
     "F403", # unable to detect undefined names
 ]
 "tests/**" = [
+    "D100",    # undocumented module, package, class, method, function: test names carry the intent
+    "D101",
+    "D102",
+    "D103",
+    "D104",
+    "D105",
     "S101",    # use of assert
     "PLR2004", # magic value comparison
     "SLF001", # private memeber access

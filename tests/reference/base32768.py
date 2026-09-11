@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """Pure-Python reference implementation of Base32768.
 
 Differential oracle for the C extension. Correctness and readability over
@@ -82,11 +83,13 @@ def encode(data: bytes) -> str:
 def decode(string: str) -> bytes:
     """Decode a Base32768 string back to bytes.
 
-    Raises:
-        errors.DecodeError: on a character outside the alphabet; on a 7-bit character
-            anywhere but the final position; on a final character that carries
-            no payload bits (non-canonical); or on padding bits that are not
-            all 1. Every message names the position at fault.
+    Raises
+    ------
+    errors.DecodeError
+        On a character outside the alphabet; on a 7-bit character anywhere but
+        the final position; on a final character that carries no payload bits
+        (non-canonical); or on padding bits that are not all 1. Every message
+        names the position at fault.
     """
     acc = 0
     num_bits = 0

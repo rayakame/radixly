@@ -1,4 +1,5 @@
-"""The wrapper-cost probe: what does the API layering cost at the call floor?
+# Copyright (c) 2026-present rayakame
+"""The wrapper-cost probe: what the API layering costs at the call floor.
 
 The old bench_api, absorbed. Each shape's dotted access happens inside the
 timed statement -- hoisting it to setup would measure four identical calls.
@@ -26,6 +27,8 @@ SIZES: tuple[tuple[str, int], ...] = (("1 B", 1), ("200 B", 200))
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class Shape:
+    """One timed statement with the setup bindings it needs."""
+
     label: str
     statement: str
     bindings: dict[str, object]
@@ -42,6 +45,8 @@ _SHAPES: tuple[Shape, ...] = (
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class ShapeRow:
+    """One shape measured at one size, with its delta to the baseline."""
+
     size_label: str
     shape: str
     ns_per_call: float
@@ -57,6 +62,7 @@ def _measure_statement(statement: str, bindings: dict[str, object], number: int,
 
 
 def measure(repeat: int = timing.REPEAT, target: float = timing.TARGET_SECONDS) -> list[ShapeRow]:
+    """Time every shape at every size, one calibration per size."""
     rows: list[ShapeRow] = []
     for size_label, size in SIZES:
         data = payloads.payload(size)
@@ -75,6 +81,7 @@ def measure(repeat: int = timing.REPEAT, target: float = timing.TARGET_SECONDS) 
 
 
 def render(rows: Sequence[ShapeRow]) -> str:
+    """Console table of the shape rows with their deltas to the baseline."""
     lines: list[str] = []
     current_size = ""
     for row in rows:

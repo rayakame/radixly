@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """Hexagram preset: 6 bits per character from the Yijing hexagram block."""
 
 from __future__ import annotations

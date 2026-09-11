@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """The light/dark palette pair, defined once for every chart.
 
 Backgrounds are transparent on purpose: the docs embed both variants via
@@ -12,6 +13,8 @@ import dataclasses
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class Theme:
+    """One chart palette; light and dark are two instances."""
+
     name: str
     text: str
     muted: str

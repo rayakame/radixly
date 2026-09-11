@@ -1,5 +1,9 @@
-"""Deterministic CLI pieces: size parsing, option resolution, wrapper shapes,
-the non-optimized guard on both doors, and the --ci verdict end to end."""
+# Copyright (c) 2026-present rayakame
+"""Deterministic CLI pieces.
+
+Size parsing, option resolution, wrapper shapes, the non-optimized guard on
+both doors, and the --ci verdict end to end.
+"""
 
 from __future__ import annotations
 

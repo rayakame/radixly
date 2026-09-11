@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """The uro14 codec surface: re-exports, the Codec value, and the length math."""
 
 from __future__ import annotations
@@ -50,9 +51,10 @@ def test_encoded_len_matches_encode(payload: bytes) -> None:
 
 @pytest.mark.parametrize("n", range(1000))
 def test_max_bytes_is_maximal(n: int) -> None:
-    """max_bytes(n) fits in n characters; one more byte would not. At n = 0
-    there is no truthful answer -- even b"" needs the prefix -- so the
-    contract is to refuse."""
+    """max_bytes(n) fits in n characters; one more byte would not.
+
+    At n = 0 there is no truthful answer, even b"" needs the prefix, so the contract is to refuse.
+    """
     if n == 0:
         with pytest.raises(ValueError, match="no payload fits in 0 characters"):
             radixly.uro14.max_bytes(0)

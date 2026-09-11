@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """The timeit core: setup-bound locals, min-of-N, calibrated loop counts.
 
 The setup line binds func/value as true locals of timeit's synthetic function,

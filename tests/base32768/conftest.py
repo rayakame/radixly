@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """base32768 vector machinery, scoped by location to this codec's tests."""
 
 from __future__ import annotations

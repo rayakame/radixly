@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """Task runner for reproducible dev invocations."""
 
 from __future__ import annotations
@@ -81,7 +82,7 @@ def reformat(session: nox.Session) -> None:
 
 @nox.session(name="format-check", reuse_venv=True)
 def reformat_check(session: nox.Session) -> None:
-    # Non-mutating counterpart to `reformat`, for CI.
+    """Check formatting and import order without rewriting: the CI counterpart of reformat."""
     sync(session, "ruff", "clang", project=False)
     session.run("ruff", "format", "--check", *PATHS, *session.posargs)
     session.run("ruff", "check", *PATHS, "--select", "I,RUF022,RUF023", *session.posargs)
@@ -165,7 +166,6 @@ def _write_compiledb() -> None:
     Machine-specific (absolute include paths), so it is generated on demand
     and gitignored rather than committed.
     """
-
     include: object = sysconfig.get_config_var("INCLUDEPY")  # pyright: ignore[reportAny]
     assert isinstance(include, str), "INCLUDEPY missing from sysconfig"
     sources = [p for p in C_PATHS if p.endswith(".c")]
@@ -186,7 +186,7 @@ def _write_compiledb() -> None:
 
 @nox.session(reuse_venv=True)
 def tidy(session: nox.Session) -> None:
-    """Static analysis for the C sources. Enforced in CI; warnings are errors."""
+    """Run clang-tidy over the C sources; CI enforces it with warnings as errors."""
     sync(session, "clang", project=False)
     _write_compiledb()
     sources = [p for p in C_PATHS if p.endswith(".c")]

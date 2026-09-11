@@ -1,5 +1,9 @@
-"""Shared rejection tables: both implementations must reject each input with
-the same kind at the same position, pinned to each other through this data."""
+# Copyright (c) 2026-present rayakame
+"""Shared rejection tables.
+
+Both implementations must reject each input with the same kind at the same
+position, pinned to each other through this data.
+"""
 
 from __future__ import annotations
 

@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """SVG chart smoke: both themes, valid XML, deterministic bytes."""
 
 from __future__ import annotations

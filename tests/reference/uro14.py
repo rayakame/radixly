@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """uro14: 14 bits per character from the CJK block at U+4E00.
 
 The first character carries the payload length mod 16384, so every tail

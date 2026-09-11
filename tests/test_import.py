@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 from __future__ import annotations
 
 import importlib.machinery

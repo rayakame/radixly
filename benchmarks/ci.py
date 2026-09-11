@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """Ratio gates for CI: floors that divide out the runner's noise.
 
 Absolute numbers are meaningless on shared runners (plus or minus half is

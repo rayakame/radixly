@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """``uv run python -m benchmarks`` — the suite's only entry point."""
 
 from __future__ import annotations

@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """uro14: 14 bits per CJK character behind a length-prefix character.
 
 The prefix makes every tail truncation of a payload under 16,384 bytes

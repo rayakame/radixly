@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 """Reference for contiguous-block codecs: one alphabet run, bits_per_char per character."""
 
 from __future__ import annotations
