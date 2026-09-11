@@ -4,7 +4,7 @@ dynamic = ["version"]
 description = "Fast binary-to-text codecs for Python: base32768, uro14, braille and hexagram in C"
 readme = "README.md"
 authors = [
-    { name = "Christopher", email = "github.android206@passmail.net" }
+    { name = "rayakame", email = "github.android206@passmail.net" }
 ]
 requires-python = ">=3.11"
 dependencies = []
