@@ -81,7 +81,8 @@ def test_committed_header_matches_the_generator(codec: str, tmp_path: pathlib.Pa
     write, committed = _WRITERS[codec]
     target = tmp_path / "_tables.h"
     write(target)
-    assert target.read_bytes() == committed.read_bytes()
+    # A Windows checkout may hold the committed header with CRLF; the content is what is pinned.
+    assert target.read_bytes() == committed.read_bytes().replace(b"\r\n", b"\n")
 
 
 @pytest.mark.parametrize(
