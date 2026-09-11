@@ -1,38 +1,51 @@
-name: Release
+name: release
 
+# Merging the release PR bumps _about.py on main; that push tags, builds and
+# publishes. Nothing here is triggered by a tag, because tags pushed by a
+# workflow trigger no other workflows.
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
+    paths:
+      - src/radixly/_about.py
   workflow_dispatch:
 
-# Build only reads the repo; the publish job declares its own OIDC grant.
 permissions:
   contents: read
 
 jobs:
-  build:
+  version:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+      release: ${{ steps.read.outputs.release }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          persist-credentials: false
-      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-        with:
-          enable-cache: true
-      # Sdist only until M9: a plain `uv build` wheel gets a `linux_x86_64`
-      # platform tag that PyPI rejects. Proper manylinux wheels arrive with
-      # cibuildwheel at M9 and extend this job.
-      - name: Build sdist
-        run: uv build --sdist
-      - name: Check metadata
-        run: uvx twine check dist/*
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: dist
-          path: dist/
+          fetch-depth: 0
+      - name: Read the version and tag it once
+        id: read
+        run: |
+          version=$(sed -n 's/^__version__: typing.Final\[str\] = "\(.*\)"$/\1/p' src/radixly/_about.py)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          case "$version" in *dev*) echo "release=false" >> "$GITHUB_OUTPUT"; echo "dev version, nothing to release"; exit 0;; esac
+          echo "release=true" >> "$GITHUB_OUTPUT"
+          if git rev-parse -q --verify "refs/tags/v$version" > /dev/null; then echo "tag v$version exists"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "v$version" -m "radixly $version"
+          git push origin "v$version"
+
+  wheels:
+    needs: version
+    if: needs.version.outputs.release == 'true'
+    uses: ./.github/workflows/wheels.yml
 
   publish:
-    needs: build
+    needs: [version, wheels]
+    if: needs.version.outputs.release == 'true'
     runs-on: ubuntu-latest
     environment:
       name: pypi
@@ -42,6 +55,37 @@ jobs:
     steps:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: dist
+          pattern: "{wheels-*,sdist}"
           path: dist/
+          merge-multiple: true
+      - run: ls -l dist/
       - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+
+  github-release:
+    needs: [version, publish]
+    if: needs.version.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: "{wheels-*,sdist}"
+          path: dist/
+          merge-multiple: true
+      - name: Publish the GitHub release with the changelog section
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          python3 - > notes.md <<'EOF'
+          import re, os, pathlib
+          text = pathlib.Path("CHANGELOG.md").read_text(encoding="utf-8")
+          version = os.environ["VERSION"]
+          m = re.search(rf"^## {re.escape(version)} .*?(?=^## |\Z)", text, re.M | re.S)
+          print(m.group(0).strip() if m else "No significant changes.")
+          EOF
+          gh release create "v$VERSION" --title "radixly $VERSION" --notes-file notes.md dist/*

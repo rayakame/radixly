@@ -1453,6 +1453,9 @@ pytest = [
     { name = "hypothesis" },
     { name = "pytest" },
 ]
+release = [
+    { name = "towncrier" },
+]
 ruff = [
     { name = "ruff" },
 ]
@@ -1497,6 +1500,7 @@ pytest = [
     { name = "hypothesis", specifier = ">=6.100" },
     { name = "pytest", specifier = ">=9.1.1" },
 ]
+release = [{ name = "towncrier", specifier = ">=24.8" }]
 ruff = [{ name = "ruff", specifier = ">=0.16.3" }]
 
 [[package]]
@@ -1800,6 +1804,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/b5/b4/205b0d5241d934e8add0c38aa924c4f9fb7330834ff11e5444db964ec3f9/starlette-1.6.0.tar.gz", hash = "sha256:d4e3ac5e546444960c710297a3c9fc3f7ebae1b7e963f3d36173b49da535be9b", size = 2716969, upload-time = "2026-08-08T18:27:57.512Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c8/cb/6a6a47d5b464bd08695d254f3da6e7986cc70c9fa5d778eda57538edfe56/starlette-1.6.0-py3-none-any.whl", hash = "sha256:a86dd39d14bb45f85a3d18525215a9ef0cfd1f192ac793220e72598c90335f0c", size = 75969, upload-time = "2026-08-08T18:27:56.196Z" },
+]
+
+[[package]]
+name = "towncrier"
+version = "26.9.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "click" },
+    { name = "jinja2" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/92/d4/e85ce614bf45b1a7fe13b82cc687819c2eaac5a1dd94b84834322095fd98/towncrier-26.9.0.tar.gz", hash = "sha256:ace9031631c718cc0709107b8755e6e31350eb8acdc877af43df3177addb9a55", size = 79338, upload-time = "2026-09-04T12:57:25.341Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/82/88/f9340b545dafa64de053798e760515a2736fbb60092cf9aa6b146ccf3ede/towncrier-26.9.0-py3-none-any.whl", hash = "sha256:ae4d223e6aadaff98d29b7f09e58d9c9ccf4cd3b455a2d2e0486d432cd8bf660", size = 67030, upload-time = "2026-09-04T12:57:23.986Z" },
 ]
 
 [[package]]
