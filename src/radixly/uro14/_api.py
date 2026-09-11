@@ -36,7 +36,7 @@ BITS_PER_CHAR = 14
 
 
 def encoded_len(num_bytes: int) -> int:
-    """Exact length of ``encode(data)``: the length prefix plus the body.
+    """Exact length of ``encode(data)``: the prefix plus the body.
 
     Parameters
     ----------
@@ -66,17 +66,14 @@ def encoded_len(num_bytes: int) -> int:
 
 
 def max_bytes(num_chars: int) -> int:
-    """Largest payload that encodes into at most ``num_chars`` characters.
+    """Largest payload that fits in ``num_chars`` characters.
 
-    The prefix eats one character, so nothing whatsoever fits in zero -- the
-    contract has no truthful integer answer there and refuses instead of
-    lying (the sibling codecs' max_bytes(0) == 0 genuinely holds; only uro14
-    has a nonempty empty).
+    Zero characters fit nothing, the prefix alone needs one, so ``max_bytes(0)`` refuses.
 
     Parameters
     ----------
     num_chars
-        The channel's limit, counted in code points, prefix included.
+        The limit, in code points, prefix included.
 
     Returns
     -------

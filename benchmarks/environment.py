@@ -75,9 +75,7 @@ def capture() -> model.Environment:
     """Snapshot the machine, interpreter, compiler and checkout state for provenance."""
     commit = _git("rev-parse", "--short", "HEAD") or "unknown"
     status = _git("status", "--porcelain")
-    # A failed probe reports dirty, not clean: the pessimistic direction is
-    # the honest one. Note commit/dirty describe the checkout, not the tree
-    # the installed .so was built from -- rebuild before believing either.
+    # A failed probe reports dirty, not clean; commit/dirty describe the checkout, not the built .so.
     dirty = True if status is None else bool(status)
     return model.Environment(
         python=platform.python_version(),

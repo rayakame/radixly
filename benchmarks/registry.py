@@ -17,11 +17,9 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-"""What to measure: every registered codec, references resolved by convention.
+"""Every registered codec gets measured.
 
-A new codec joins the benchmarks by registering itself in radixly -- which its
-_api module does anyway. A codec without a tests.reference twin only loses
-its ratio rows.
+References resolve by convention; without one a codec only loses its ratio rows.
 """
 
 from __future__ import annotations
@@ -104,8 +102,7 @@ def specs_names() -> list[str]:
 
 def reference_module(name: str) -> ReferenceCodec | None:
     """Resolve tests.reference.<name>, or None when the codec has no oracle twin."""
-    # `python -m benchmarks` from the repo root already has the root on
-    # sys.path; the insert covers other invocation styles (`tests.` must resolve).
+    # The repo root is on sys.path under `python -m benchmarks`; the insert covers other invocations.
     root = str(pathlib.Path(__file__).resolve().parent.parent)
     if root not in sys.path:
         sys.path.insert(0, root)
@@ -119,12 +116,7 @@ def reference_module(name: str) -> ReferenceCodec | None:
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class CompetitorSpec:
-    """A rival implementation of a codec, measured for comparison charts.
-
-    encode/decode must match radixly's contracts (bytes -> str, str -> bytes);
-    adapters will live in a competitors module, their cost visible, when the
-    first rival arrives with base64.
-    """
+    """A rival implementation for the comparison charts, with radixly's contracts: bytes -> str, str -> bytes."""
 
     name: str
     encode: Callable[[bytes], str]

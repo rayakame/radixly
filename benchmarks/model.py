@@ -17,11 +17,9 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-"""The result data model: one run produces one RunResult; renderers only consume.
+"""One run, one RunResult.
 
-The JSON form is the canonical artifact (schema_version 1, additive evolution
-only). Derived values (mb_per_s, ratio) are written for readers' convenience
-but ignored on load -- the dataclass fields are the only source of truth.
+JSON is schema_version 1, additive only; derived values are for readers, ignored on load.
 """
 
 from __future__ import annotations
@@ -157,10 +155,7 @@ def _bool(mapping: dict[str, object], key: str) -> bool:
 
 
 def _positive_finite(mapping: dict[str, object], key: str) -> float:
-    """Domain check on top of the type check.
-
-    json.loads accepts NaN/Infinity tokens, and a zero would reach renderers as a ZeroDivisionError.
-    """
+    """Reject NaN, Infinity and zero: json.loads lets them through and a renderer would divide by them."""
     value = _float(mapping, key)
     if not math.isfinite(value) or value <= 0:
         msg = f"{key}: must be a positive finite number, got {value}"
@@ -224,17 +219,14 @@ def _run_info_from(document: dict[str, object]) -> RunInfo:
 
 
 def from_json(text: str) -> RunResult:
-    """Parse the canonical JSON; unknown keys are ignored for forward compatibility.
+    """Parse the canonical JSON, unknown keys ignored.
 
-    Raises TypeError or ValueError on malformed documents -- never anything
-    else, so callers scanning many files (the baseline tripwire) can skip
-    bad ones instead of dying on them.
+    Raises only TypeError/ValueError so the baseline scan can skip bad files.
     """
     try:
         parsed: object = json.loads(text)  # pyright: ignore[reportAny]
     except RecursionError as error:
-        # A deeply nested document must not break the TypeError/ValueError
-        # contract the baseline scan's skip logic hangs on.
+        # Deep nesting must not break the TypeError/ValueError contract the baseline scan relies on.
         msg = "document nesting exceeds the parser's limit"
         raise ValueError(msg) from error
     document = _mapping(parsed)

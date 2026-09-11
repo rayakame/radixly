@@ -37,9 +37,7 @@ typedef struct {
 static const char radixly_decode_error_doc[] =
     PyDoc_STR("Malformed or non-canonical input was rejected during decoding.\n"
               "\n"
-              "A ``ValueError`` subclass, so existing ``except ValueError`` handlers\n"
-              "keep working. Every decoder raises it with the index of the offending\n"
-              "character; the message is generated unless one is given.\n"
+              "A ``ValueError`` subclass. The message is generated unless one is given.\n"
               "\n"
               "Parameters\n"
               "----------\n"
@@ -105,9 +103,7 @@ static PyMemberDef decode_error_members[] = {
 static int
 decode_error_traverse(PyObject *self, visitproc visit, void *arg)
 {
-    /* Instances of heap types own a strong reference to their type, and the
-     * collector only learns about it here; ValueError's traverse is a
-     * static-type traverse and will never report it for us. */
+    /* Heap-type instances own their type; ValueError's static traverse would never report it. */
     Py_VISIT(Py_TYPE(self));
     return ((PyTypeObject *)PyExc_ValueError)->tp_traverse(self, visit, arg);
 }

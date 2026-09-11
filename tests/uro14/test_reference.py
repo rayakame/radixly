@@ -70,10 +70,7 @@ def test_swapped_prefix_is_a_length_lie() -> None:
 
 
 def test_round_trip_past_the_modulus() -> None:
-    """20,000 bytes: the claim wraps and the candidate match must still pick the right length.
-
-    20000 % 16384 = 3616. Hypothesis stays small by design, so this one is deterministic.
-    """
+    """20,000 bytes: the claim wraps (20000 % 16384 = 3616); deterministic on purpose."""
     payload = random.Random(20_000).randbytes(20_000)
     assert uro14.decode(uro14.encode(payload)) == payload
 
@@ -93,10 +90,7 @@ def test_paper_pins(payload: bytes, expected: str) -> None:
 
 @pytest.mark.parametrize("bad", ["A", "踀"], ids=["ascii", "one-past-block"])
 def test_invalid_prefix_char(bad: str) -> None:
-    """Must be the invalid-character error, not length-mismatch.
-
-    The one place prose is worth matching.
-    """
+    """Must be the invalid-character error, not length mismatch."""
     with pytest.raises(errors_reference.DecodeError, match="invalid character") as exc_info:
         uro14.decode(bad)
     assert exc_info.value.position == 0

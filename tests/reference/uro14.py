@@ -17,17 +17,9 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-"""uro14: 14 bits per character from the CJK block at U+4E00.
+"""uro14: 14 bits per CJK character behind a length prefix.
 
-The first character carries the payload length mod 16384, so every tail
-truncation of a payload under 16,384 bytes fails to decode. Payloads of
-16,384+ bytes wrap the claim: a claim-matching truncation whose cut point
-leaves no padding is byte-identical to a valid shorter encoding and decodes
-as one; cut points with padding slip only when the payload bits there happen
-to be all ones (accepted risk -- no decoder can tell two meanings of the
-same string apart). Front
-truncation is not protected. The empty string is never valid; b"" encodes
-to the lone length character U+4E00.
+Truncations under 16,384 bytes always fail, bigger payloads wrap the claim. b"" encodes to the lone prefix U+4E00.
 """
 
 from __future__ import annotations
@@ -51,13 +43,9 @@ def encode(data: bytes) -> str:
 
 
 def decode(string: str) -> bytes:
-    """Decode strictly; DecodeError on invalid input or any length mismatch.
+    """Decode strictly.
 
-    A 14-bit single-width alphabet can leave up to 13 padding bits -- more
-    than a byte -- so the bit stream alone cannot say where the payload ends.
-    The claim resolves it: a body of k characters fits at most two payload
-    lengths (ceil(8n/14) == k), and the claim picks one. That is the prefix's
-    second job, after making every tail truncation detectable.
+    14-bit characters can leave up to 13 padding bits, so a body fits two payload lengths; the claim picks one.
     """
     if not string:
         msg = "empty string: missing the length prefix"

@@ -46,24 +46,15 @@ def sync(
     build_env: dict[str, str] | None = None,
 ) -> None:
     """Install dependency groups (and by default the project) into the session venv."""
-    # Env CFLAGS displace the distro's optimized flags here (only OPT survives
-    # composition) -- proven by _core.OPTIMIZED reading False without the -O3.
-    # -O3 matches the distro base, so it cannot downgrade under either
-    # replace or append semantics.
+    # Env CFLAGS displace the distro's -O flags; -O3 matches the distro base, so it never downgrades.
     env = {"UV_PROJECT_ENVIRONMENT": session.virtualenv.location, "CFLAGS": "-O3 -Wall -Wextra -Werror"}
     if build_env is not None:
         env |= build_env
     args: list[str]
     if project:
-        # --refresh-package busts uv's built-wheel cache: its key ignores env
-        # vars, so a CFLAGS change alone would keep serving the stale build.
+        # --refresh-package: uv's wheel cache ignores env vars, a CFLAGS change alone would serve the stale build.
         args = ["--no-default-groups", "--reinstall-package", "radixly", "--refresh-package", "radixly"]
-        # Sessions build with per-session flags, but setuptools reuses .o files
-        # from the shared in-tree build/ without checking what flags built them
-        # -- an asan session would poison later plain builds and vice versa.
-        # The build_base carries a digest of the flags, not just the session
-        # name: create_tmp persists across runs, so a flag edit within one
-        # session name would otherwise reuse the stale objects too.
+        # setuptools reuses .o files across flag sets; a flag-digested build_base keeps asan and plain builds apart.
         digest = hashlib.sha256(env["CFLAGS"].encode()).hexdigest()[:12]
         session_tmp = pathlib.Path(session.create_tmp())
         dist_cfg = session_tmp / "dist-extra.cfg"
@@ -137,9 +128,7 @@ def docs(session: nox.Session) -> None:
         "docs",
         "docs/_build/html",
         *session.posargs,
-        # Sphinx >= 8.2 prefers a .pyi next to a compiled module over the module
-        # itself; the C docstrings would vanish. Only the addressed module is
-        # affected and we never address _core directly, but keep the belt on.
+        # Sphinx >= 8.2 prefers a .pyi next to a compiled module; the C docstrings would vanish.
         env={"SPHINX_AUTODOC_IGNORE_NATIVE_MODULE_TYPE_STUBS": "1"},
     )
 
@@ -162,14 +151,9 @@ def docs_serve(session: nox.Session) -> None:
 def verifytypes(session: nox.Session) -> None:
     """PEP 561 gate from the consumer's seat.
 
-    Non-editable install, run from outside the repo: the gate must see the
-    packaged py.typed and stubs, not the source tree -- pyproject's
-    extraPaths=["src"] would otherwise resolve the working copy and pass
-    even with the wheel wiring broken.
+    Non-editable install, run outside the repo so extraPaths cannot leak the tree.
     """
-    # Fresh build, always: setuptools' persistent build/lib keeps copies of
-    # package-data files, so a deleted py.typed would still ship from the
-    # stale tree and this gate would certify a broken wheel.
+    # Fresh build: setuptools' persistent build/lib would still ship a deleted py.typed.
     for stale in pathlib.Path(session.create_tmp()).glob("build-*"):
         shutil.rmtree(stale)
     sync(session, "pyright", editable=False)
@@ -179,11 +163,7 @@ def verifytypes(session: nox.Session) -> None:
 
 
 def _write_compiledb() -> None:
-    """clang-tidy needs compile_commands.json to know how the C is built.
-
-    Machine-specific (absolute include paths), so it is generated on demand
-    and gitignored rather than committed.
-    """
+    """Write compile_commands.json for clang-tidy; machine-specific, so generated and gitignored."""
     include: object = sysconfig.get_config_var("INCLUDEPY")  # pyright: ignore[reportAny]
     assert isinstance(include, str), "INCLUDEPY missing from sysconfig"
     sources = [p for p in C_PATHS if p.endswith(".c")]
@@ -191,10 +171,7 @@ def _write_compiledb() -> None:
         {
             "directory": str(pathlib.Path.cwd()),
             "file": path,
-            # -std matches PEP 7's target (C11); analysis-side only until the
-            # build pins its own -std.
-            # src/radixly mirrors the build's include root so quoted
-            # includes resolve identically for the compiler and the tools.
+            # -std is PEP 7's C11; src/radixly mirrors the build's include root so quoted includes resolve alike.
             "arguments": ["cc", "-std=c11", "-I", include, "-I", "src/radixly", "-c", path],
         }
         for path in sources
@@ -237,19 +214,12 @@ def asan(session: nox.Session) -> None:
         "ASAN_OPTIONS": "detect_leaks=0",
         "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1",
     }
-    # tests/bench stays out of the sanitized process: importing
-    # matplotlib.pyplot under a preloaded libasan <= 13 dies in ASan's
-    # __cxa_throw interceptor (CHECK failed, asan_interceptors.cpp) when
-    # matplotlib's C++ throws during init. Those tests are pure Python,
-    # audit none of our C, and run in every plain pytest job.
+    # tests/bench stays out: matplotlib.pyplot under a preloaded libasan <= 13 dies in ASan's __cxa_throw interceptor.
     session.run("pytest", "--ignore=tests/bench", *session.posargs, env=asan_env)
 
 
 @nox.session(reuse_venv=True)
 def pytest(session: nox.Session) -> None:
-    """Build and install the package into a clean venv, then run the suite.
-
-    Extra args pass through: ``nox -s pytest -- -k import``.
-    """
+    """Build into a clean venv and run the suite. Extra args pass through: nox -s pytest -- -k import."""
     sync(session, "pytest", "bench")
     session.run("pytest", *session.posargs)

@@ -65,10 +65,7 @@ def test_reference_resolved_by_convention() -> None:
 
 
 def test_every_registered_codec_resolves_its_reference() -> None:
-    """No oracle, no ratio, no CI gate.
-
-    A codec whose tests/reference twin fails to resolve would silently lose its gate coverage.
-    """
+    """A codec whose reference fails to resolve would silently lose its gate."""
     for spec in registry.specs():
         assert spec.reference_encode is not None, f"{spec.name}: reference encode did not resolve"
         assert spec.reference_decode is not None, f"{spec.name}: reference decode did not resolve"

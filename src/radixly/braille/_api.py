@@ -36,7 +36,7 @@ BITS_PER_CHAR = 8
 
 
 def encoded_len(num_bytes: int) -> int:
-    """Exact length of ``encode(data)``: one braille pattern per byte.
+    """Exact length of ``encode(data)``: one pattern per byte.
 
     Parameters
     ----------
@@ -46,7 +46,7 @@ def encoded_len(num_bytes: int) -> int:
     Returns
     -------
     int
-        ``num_bytes`` -- braille never pads.
+        ``num_bytes``.
 
     Raises
     ------
@@ -60,17 +60,17 @@ def encoded_len(num_bytes: int) -> int:
 
 
 def max_bytes(num_chars: int) -> int:
-    """Largest payload that encodes into at most ``num_chars`` characters.
+    """Largest payload that fits in ``num_chars`` characters.
 
     Parameters
     ----------
     num_chars
-        The channel's limit, counted in code points.
+        The limit, in code points.
 
     Returns
     -------
     int
-        ``num_chars`` -- one byte per pattern.
+        ``num_chars``.
 
     Raises
     ------

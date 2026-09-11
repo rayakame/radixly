@@ -42,12 +42,8 @@ static PyMethodDef radixly_methods[] = {
 static int
 radixly_meta_exec(PyObject *module)
 {
-/* Self-certification for the benchmark harness: it refuses to measure a
- * non-optimized build. GCC/Clang define __OPTIMIZE__ at any -O level; MSVC
- * has no optimization macro, so NDEBUG stands in -- distutils and
- * cibuildwheel couple /O2 with /DNDEBUG in release flags and omit it in
- * debug configs. An MSVC debug build now reads False (--force remains the
- * escape). Insurance against a stray -O0 build or toolchain drift. */
+/* Benchmark self-certification. GCC/Clang set __OPTIMIZE__; MSVC has none, so NDEBUG stands in (release sets
+ * it). */
 #if defined(__OPTIMIZE__) || (defined(_MSC_VER) && defined(NDEBUG))
     PyObject *optimized = Py_True;
 #else
@@ -56,8 +52,7 @@ radixly_meta_exec(PyObject *module)
     if (PyModule_AddObjectRef(module, "OPTIMIZED", optimized) < 0) {
         return -1;
     }
-/* The compiler that produced this extension, recorded by the artifact
- * itself; clang's __VERSION__ already names itself, gcc's does not. */
+/* The compiler that built this extension; clang's __VERSION__ names itself, gcc's does not. */
 #ifdef __clang__
     const char *compiler = __VERSION__;
 #elif defined(__GNUC__)

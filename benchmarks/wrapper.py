@@ -17,13 +17,9 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-"""The wrapper-cost probe: what the API layering costs at the call floor.
+"""Wrapper-cost probe: what the API layering costs at the call floor.
 
-The old bench_api, absorbed. Each shape's dotted access happens inside the
-timed statement -- hoisting it to setup would measure four identical calls.
-Setup binds each receiver as a local, matching the main harness shape, so the
-baseline row reads the same floor as the codec suite. Console-only: shape rows
-deliberately stay out of the canonical JSON document.
+The dotted access stays inside the timed statement. Console only.
 """
 
 from __future__ import annotations
@@ -84,8 +80,7 @@ def measure(repeat: int = timing.REPEAT, target: float = timing.TARGET_SECONDS) 
     rows: list[ShapeRow] = []
     for size_label, size in SIZES:
         data = payloads.payload(size)
-        # One calibration per size, shared by every shape: identical loop
-        # counts keep the nanosecond deltas comparable.
+        # One calibration per size, shared by every shape, keeps the deltas comparable.
         number = timing.calibrate(_core.base32768_encode, data, target)
         measured = [
             (shape, _measure_statement(shape.statement, shape.bindings | {"p": data}, number, repeat) * 1e9)

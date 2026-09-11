@@ -34,8 +34,7 @@ from tests.reference import errors as errors_reference
 from tests.reference import hexagram
 
 
-# Expected strings hand-derived on paper from START and the bit stream, then
-# cross-checked; they must never be regenerated from the code they test.
+# Hand-derived from START and the bit stream; never regenerate from the code under test.
 @pytest.mark.parametrize(
     ("preset", "payload", "expected"),
     [

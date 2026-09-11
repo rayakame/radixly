@@ -69,8 +69,7 @@ INVALID_CASES: dict[str, dict[str, tuple[str, int]]] = {
 }
 INVALID_KINDS = tuple(INVALID_CASES["braille"])  # identical keys for every preset
 
-# Hexagram-only: 6n bits at n % 4 == 1 leave 6 padding bits (zero-payload final
-# char), an appended filler is the same sin, and zeroed padding is corruption.
+# Hexagram-only: n % 4 == 1 leaves 6 padding bits, a zero-payload final char; filler and zeroed padding likewise.
 HEXAGRAM_REJECTIONS: dict[str, tuple[str, int]] = {
     "lone-filler": ("䷿", 0),
     "five-fillers": ("䷿" * 5, 4),

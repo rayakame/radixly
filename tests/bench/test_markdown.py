@@ -52,10 +52,7 @@ def test_fragment_carries_markers_and_provenance() -> None:
 
 
 def test_dirty_flag_survives_into_print() -> None:
-    """The provenance line must carry the dirty flag.
-
-    Finding: a dirty record reached the README unnoticed because only the console printed it.
-    """
+    """A dirty record once reached the README unnoticed; the provenance line must carry the flag."""
     result = _result()
     dirty = dataclasses.replace(result, environment=dataclasses.replace(result.environment, dirty=True))
     assert "abc1234 (dirty)," in markdown.fragment(dirty)
@@ -75,10 +72,7 @@ def test_non_record_runs_confess_in_both_renderers() -> None:
 
 
 def test_codec_page_pairs_light_and_dark_charts() -> None:
-    """The docs page must carry Furo's toggle-following classes.
-
-    A <picture> would follow the OS instead of the site's theme.
-    """
+    """Furo's toggle classes, never a <picture> that follows the OS."""
     page = markdown.codec_page(_result(), "base32768", "/benchmarks/charts")
     assert "| base32768 | encode |" in page
     assert page.count(":class: only-light") == 2

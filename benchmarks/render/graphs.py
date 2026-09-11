@@ -17,14 +17,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-"""SVG charts, one file per theme, deterministic output for committing.
-
-Two charts: sustained throughput (MB/s at the largest size with a throughput
-story) and per-call latency at the ratio size. Each renders twice --
-``<name>.svg`` (light) and ``<name>.dark.svg`` -- for the ``<picture>``
-dark-mode embed. ``svg.hashsalt`` is pinned so re-rendering unchanged data
-produces byte-identical files: committed artifacts diff cleanly.
-"""
+"""SVG charts, a light and a dark file each, deterministic bytes so commits diff cleanly."""
 
 # Matplotlib's public API is loosely typed; this file quarantines the noise:
 # pyright: reportUnknownMemberType=false, reportUnknownVariableType=false, reportUnknownArgumentType=false

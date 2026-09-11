@@ -17,11 +17,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-"""Payload flavors shared by the differential sweeps, one suite-neutral home.
-
-Seeded so any failing length reproduces byte-for-byte; zeros and ones flank
-the random flavor to hit the table corners random data misses.
-"""
+"""Payload flavors for the differential sweeps, seeded; zeros and ones hit the corners random data misses."""
 
 from __future__ import annotations
 

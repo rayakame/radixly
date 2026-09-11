@@ -50,10 +50,7 @@ def _assert_parity(string: str) -> bytes | None:
 
 @given(st.binary(max_size=50))
 def test_every_tail_truncation_raises(payload: bytes) -> None:
-    """The crown: every chop of every C encoding must raise from the C too.
-
-    At the oracle's position.
-    """
+    """Every chop of every C encoding raises, at the oracle's position."""
     encoded = _core.uro14_encode(payload)
     for i in range(len(encoded)):
         assert _assert_parity(encoded[:i]) is None
@@ -127,10 +124,7 @@ def test_bad_padding_in_final_body_char() -> None:
 
 
 def test_round_trip_past_the_modulus() -> None:
-    """20,000 bytes: the claim wraps and the candidate match must still pick the right length.
-
-    In the C this time.
-    """
+    """20,000 bytes: the claim wraps, the C still picks the right length."""
     payload = random.Random(20_000).randbytes(20_000)
     assert _core.uro14_decode(_core.uro14_encode(payload)) == payload
 

@@ -79,10 +79,7 @@ def test_implementation_round_trips_and_defaults() -> None:
 
 
 def test_run_info_round_trips_with_varied_booleans() -> None:
-    """Provenance survives the trip.
-
-    Mode, reference loop count, forced flag, and the environment booleans a record's honesty hangs on.
-    """
+    """Mode, reference count, forced flag and the env booleans survive the trip."""
     original = model.RunResult(
         model.SCHEMA_VERSION,
         factories.make_environment(dirty=True, optimized=False),
@@ -114,11 +111,7 @@ def test_zero_or_negative_timing_is_rejected(bad: float) -> None:
 
 
 def test_deep_nesting_stays_inside_the_error_contract() -> None:
-    """The baseline scan's TypeError/ValueError net must hold on deep nesting.
-
-    3.13's parser raises RecursionError here (from_json translates it); 3.14's
-    deeper C stack parses the list and _mapping rejects it.
-    """
+    """3.13 raises RecursionError (translated), 3.14 parses it and _mapping rejects; either way TypeError/ValueError."""
     with pytest.raises((TypeError, ValueError)):
         model.from_json("[" * 100_000 + "]" * 100_000)
 
@@ -139,10 +132,7 @@ def test_unsupported_schema_version_raises() -> None:
 
 
 def test_missing_field_raises_the_documented_error() -> None:
-    """Missing keys must be ValueError, not KeyError.
-
-    The error contract is TypeError/ValueError, and the baseline scan relies on it to skip bad files.
-    """
+    """Missing keys are ValueError, not KeyError; the baseline scan relies on that."""
     document = json.loads(model.to_json(factories.make_result()))
     del document["environment"]["cpu"]
     with pytest.raises(ValueError, match="cpu: missing"):

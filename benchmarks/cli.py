@@ -306,14 +306,7 @@ def _write_outputs(options: Options, result: model.RunResult) -> None:
 
 
 def write_docs(result: model.RunResult, docs_dir: pathlib.Path, charts_dir: pathlib.Path) -> list[pathlib.Path]:
-    """One page fragment per codec, stale pages pruned.
-
-    The fragments are meant for MyST ``{include}``, which resolves image
-    paths against the *including* page, so relative paths would silently
-    depend on where the include happens. The charts are reached through a
-    ``charts`` link inside ``docs_dir`` and referenced by a source-root
-    absolute path (``/<docs_dir name>/charts/...``) that holds from any depth.
-    """
+    """Write one page fragment per codec and prune stale ones; charts go via a symlink and a source-root path."""
     docs_dir.mkdir(exist_ok=True)
     link = docs_dir / "charts"
     if not link.exists():

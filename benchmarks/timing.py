@@ -17,14 +17,9 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-"""The timeit core: setup-bound locals, min-of-N, calibrated loop counts.
+"""timeit core: setup-bound locals, min-of-N, calibrated loop counts.
 
-The setup line binds func/value as true locals of timeit's synthetic function,
-so the timed statement is LOAD_FAST plus the call -- with globals= alone the
-names are LOAD_GLOBAL dictionary lookups every iteration. Settled by
-measurement at the 1 B floor: 17.7-18.2 ns (setup-locals) vs 19.3 ns
-(globals), ~1-1.7 ns of harness tax removed; this suite measures the codec,
-not a dictionary. min() is the statistic because noise only ever adds.
+Locals measured 1-1.7 ns cheaper than globals= at the 1 B floor; min because noise only adds.
 """
 
 from __future__ import annotations
@@ -42,11 +37,7 @@ _T = typing.TypeVar("_T")
 
 
 def round_to_grid(raw: float) -> int:
-    """Largest 1-2-5 x 10^k count <= raw (floor 1): stable across runs.
-
-    Flooring can undershoot the time target by up to 2.5x (raw 4.9M -> 2M);
-    accepted -- "near the target" is the contract, shorter runs the reward.
-    """
+    """Round down to the largest 1-2-5 x 10^k count <= raw; may undershoot the target by up to 2.5x, accepted."""
     n = max(1, int(raw))
     magnitude = 1
     while magnitude * 10 <= n:

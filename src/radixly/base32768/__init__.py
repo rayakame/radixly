@@ -17,11 +17,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-"""Base32768: 15 bits of payload per BMP code point, after qntm's spec.
-
-Encodes arbitrary bytes as dense Unicode text for channels that budget by
-code point; decoding is strict and canonical.
-"""
+"""base32768: 15 bits per BMP code point, qntm's spec. Strict, canonical decoding."""
 
 from __future__ import annotations
 

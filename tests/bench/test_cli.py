@@ -17,11 +17,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-"""Deterministic CLI pieces.
-
-Size parsing, option resolution, wrapper shapes, the non-optimized guard on
-both doors, and the --ci verdict end to end.
-"""
+"""CLI pieces: size parsing, options, wrapper shapes, the guard, the --ci verdict."""
 
 from __future__ import annotations
 
@@ -190,8 +186,7 @@ def test_wrapper_shapes_are_distinct_statements() -> None:
     statements = [shape.statement for shape in wrapper._SHAPES]  # pyright: ignore[reportPrivateUsage]
     assert len(set(statements)) == len(statements)
     assert "m.encode(p)" in statements  # the dotted access lives inside the timed statement
-    # Exactly one anchor: every delta is against the same baseline, by flag,
-    # not by label prefix or tuple position.
+    # Exactly one anchor, by flag, not by label prefix or tuple position.
     assert sum(shape.is_baseline for shape in wrapper._SHAPES) == 1  # pyright: ignore[reportPrivateUsage]
 
 

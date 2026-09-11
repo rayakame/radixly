@@ -17,10 +17,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-"""Braille: one byte per braille pattern, U+2800..U+28FF.
-
-Encoded length equals payload length; decoding is strict and canonical.
-"""
+"""braille: one byte per Braille pattern, U+2800..U+28FF."""
 
 from __future__ import annotations
 

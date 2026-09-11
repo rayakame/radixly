@@ -36,7 +36,7 @@ BITS_PER_CHAR = 15
 
 
 def encoded_len(num_bytes: int) -> int:
-    """Exact length of ``encode(data)`` for a ``num_bytes``-byte payload, without encoding anything.
+    """Exact length of ``encode(data)`` for ``num_bytes`` bytes, without encoding.
 
     Parameters
     ----------
@@ -66,12 +66,12 @@ def encoded_len(num_bytes: int) -> int:
 
 
 def max_bytes(num_chars: int) -> int:
-    """Largest payload that encodes into at most ``num_chars`` characters.
+    """Largest payload that fits in ``num_chars`` characters.
 
     Parameters
     ----------
     num_chars
-        The channel's limit, counted in code points.
+        The limit, in code points.
 
     Returns
     -------

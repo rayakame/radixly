@@ -17,12 +17,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-"""The light/dark palette pair, defined once for every chart.
-
-Backgrounds are transparent on purpose: the docs embed both variants via
-``<picture><source media="(prefers-color-scheme: dark)">``, and transparency
-lets each sit on whatever surface the page provides.
-"""
+"""Light and dark palettes. Backgrounds are transparent so the charts sit on any page."""
 
 from __future__ import annotations
 

@@ -17,11 +17,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-"""uro14: 14 bits per CJK character behind a length-prefix character.
-
-The prefix makes every tail truncation of a payload under 16,384 bytes
-detectable (bigger payloads wrap the claim); decoding is strict and canonical.
-"""
+"""uro14: 14 bits per CJK character behind a length prefix that catches truncation below 16,384 bytes."""
 
 from __future__ import annotations
 

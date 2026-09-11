@@ -17,14 +17,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-"""Ratio gates for CI: floors that divide out the runner's noise.
-
-Absolute numbers are meaningless on shared runners (plus or minus half is
-normal); the C-vs-reference ratio is not, because both sides share the same
-noisy machine. Floors live in ci-gates.json, deliberately slack -- they exist
-to catch structural regressions (an added Python frame, an unoptimized wheel,
-a broken fast path), never five-percent wobble.
-"""
+"""Ratio gates for CI: C vs reference, so runner noise divides out. Floors live in ci-gates.json, deliberately slack."""
 
 from __future__ import annotations
 
@@ -63,8 +56,7 @@ def load_gates(path: pathlib.Path = GATES_PATH) -> dict[str, dict[str, float]]:
                 msg = f"ratio_floors[{codec!r}][{direction!r}] must be a number"
                 raise TypeError(msg)
             if not math.isfinite(floor):
-                # json.loads accepts NaN/Infinity tokens; a NaN floor would
-                # compare False forever and pass the gate silently.
+                # json.loads lets NaN through, and a NaN floor would pass the gate forever.
                 msg = f"ratio_floors[{codec!r}][{direction!r}] must be finite"
                 raise ValueError(msg)
             gates[codec][direction] = float(floor)

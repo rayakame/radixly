@@ -17,10 +17,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-"""Conformance tests for the pure-Python reference against qntm's vectors.
-
-Plus the locally generated seven-bit-final vector, see the vectors README.
-"""
+"""Conformance against qntm's vectors, plus the local seven-bit-final vector."""
 
 from __future__ import annotations
 
@@ -43,8 +40,7 @@ if typing.TYPE_CHECKING:
 # LOOKUP_D is insertion-ordered: the 15-bit repertoire, then the 7-bit one.
 ALPHABET: str = "".join(base32768_reference.LOOKUP_D)
 
-# Everything a transport could mangle: surrogates, unassigned, controls/format,
-# private use, combining marks, separators.
+# Everything a transport could mangle: surrogates, unassigned, controls, private use, marks, separators.
 UNSAFE_CATEGORIES = frozenset({"Cc", "Cf", "Cn", "Co", "Cs", "Mc", "Me", "Mn", "Zl", "Zp", "Zs"})
 
 
@@ -74,10 +70,7 @@ def test_decode_rejects_bad_input(name: str, vector_dir: pathlib.Path) -> None:
     ids=error_cases.HOSTILE_NON_BMP,
 )
 def test_decode_rejects_astral_and_surrogate_input(string: str, position: int) -> None:
-    """Pin non-BMP rejection so the C differential has a spec.
-
-    Surrogates ride through the reverse table; astral would index past it.
-    """
+    """Non-BMP rejection pinned so the C differential has a spec."""
     with pytest.raises(errors_reference.DecodeError) as exc_info:
         base32768_reference.decode(string)
     assert exc_info.value.position == position
@@ -107,10 +100,7 @@ def test_decode_accepts_canonical_seven_padding_bits() -> None:
 
 
 def test_seven_bit_final_vector_pins_fresh_repertoire(vector_dir: pathlib.Path) -> None:
-    """Guard the seven-bit-final vector's own coverage.
-
-    qntm's vectors use only z = 47/63/127; seven-bit-final pins the untouched 'ƀ'..'Ɵ' block.
-    """
+    """Vectors from qntm only use z = 47/63/127; this one covers the rest of the 7-bit block."""
     encoded = (vector_dir / "pairs" / "seven-bit-final.txt").read_text(encoding="utf-8")
     num_z_bits, z = base32768_reference.LOOKUP_D[encoded[-1]]
     assert num_z_bits == 7

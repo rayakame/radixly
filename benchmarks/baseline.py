@@ -17,13 +17,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-"""Floor-sanity tripwire: warn when 1 B floors drift from the committed baseline.
-
-A warning, never a refusal -- the committed results/ JSON for this machine and
-governor is the expectation, and gross drift at the floor means something about
-the run (build, frequency, scheduling) deserves a look before the numbers are
-believed. Born from a mystery slowdown whose cause took three theories to find.
-"""
+"""Floor tripwire: warn when 1 B floors drift from the committed baseline. A warning, never a refusal."""
 
 from __future__ import annotations
 

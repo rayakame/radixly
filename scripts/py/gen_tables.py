@@ -57,7 +57,7 @@ _LICENSE_HEADER: typing.Final[tuple[str, ...]] = (
     " */",
 )
 BASE_32768_BITS_PER_BYTE: typing.Final = 8
-# alphabet data copied from qntm's base32768 (github.com/qntm/base32768), MIT licensed, copyright qntm.
+# Alphabet data from qntm's base32768 (github.com/qntm/base32768), MIT, copyright qntm.
 BASE_32768_PAIR_STRINGS: typing.Final[tuple[str, ...]] = (
     "ҠҿԀԟڀڿݠޟ߀ߟကဟႠႿᄀᅟᆀᆟᇠሿበቿዠዿጠጿᎠᏟᐠᙟᚠᛟកសᠠᡟᣀᣟᦀᦟ᧠᧿ᨠᨿᯀᯟᰀᰟᴀᴟ⇠⇿⋀⋟⍀⏟␀␟─❟➀➿⠀⥿⦠⦿⨠⩟⪀⪿⫠⭟ⰀⰟⲀⳟⴀⴟⵀⵟ⺠⻟㇀㇟㐀䶟䷀龿ꀀꑿ꒠꒿ꔀꗿꙀꙟꚠꛟ꜀ꝟꞀꞟꡀꡟ",
     "ƀƟɀʟ",

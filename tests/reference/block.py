@@ -70,8 +70,7 @@ def decode(string: str, start: int, bits_per_char: int) -> bytes:
             acc &= (1 << num_bits) - 1
 
     num_pad = num_bits
-    # Canonicality (fixed decision, mirrors base32768): the final character
-    # must carry at least one payload bit.
+    # Canonicality, same rule as base32768: the final char must carry a payload bit.
     if bits_per_char <= num_pad:
         msg = (
             f"non-canonical input: {bits_per_char}-bit final character "

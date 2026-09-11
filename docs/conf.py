@@ -41,11 +41,7 @@ extensions = [
     "sphinx_copybutton",
 ]
 
-# The public functions are C builtins: autodoc gets their signature from
-# __text_signature__ and their text from the docstring, but no annotations.
-# sphinx-autodoc-typehints lifts the types from _core.pyi (and from the
-# annotations of the Python-level functions) into each parameter list, so
-# the stub stays the single source of truth for types.
+# C builtins carry no annotations; sphinx-autodoc-typehints lifts the types from _core.pyi instead.
 autodoc_member_order = "bysource"
 typehints_document_rtype = True
 typehints_use_signature = True
@@ -53,12 +49,7 @@ typehints_use_signature_return = True
 
 
 def typehints_formatter(annotation: object, _config: object = None) -> str | None:
-    """``ReadableBuffer`` exists only in typeshed; its public name is the Buffer protocol.
-
-    Called with one argument from the signature hook and two from the
-    docstring hook; a required second parameter makes autodoc drop the
-    function silently.
-    """
+    """Show ReadableBuffer as the Buffer protocol; it only exists in typeshed. One arg from the signature hook, two from the docstring hook."""
     if getattr(annotation, "__forward_arg__", None) == "ReadableBuffer" or annotation == "ReadableBuffer":
         return ":class:`~collections.abc.Buffer`"
     return None

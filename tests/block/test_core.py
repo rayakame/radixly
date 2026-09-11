@@ -127,10 +127,7 @@ _ACCEPTED_SINGLES = {"braille": 256, "hexagram": 0}
 
 @pytest.mark.parametrize("preset", error_cases.PRESETS)
 def test_every_single_character_agrees(preset: str) -> None:
-    """All 65,536 one-char strings, C vs oracle.
-
-    Braille accepts exactly its 256 own characters, hexagram none (6 bits cannot fill a byte).
-    """
+    """All 65,536 one-char strings; braille accepts its 256, hexagram none."""
     accepted = sum(1 for code_point in range(0x10000) if _assert_parity(preset, chr(code_point)) is not None)
     assert accepted == _ACCEPTED_SINGLES[preset]
 

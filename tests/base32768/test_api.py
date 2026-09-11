@@ -52,11 +52,7 @@ def test_codec_fields() -> None:
 
 
 def test_api_all_is_nonempty() -> None:
-    """Make an emptied __all__ loud.
-
-    It would make the re-export parametrization collect zero cases and skip,
-    green while guarding nothing.
-    """
+    """An emptied __all__ would collect zero cases and stay green."""
     assert len(_api.__all__) > 0
 
 
