@@ -11,4 +11,5 @@ recursive-include src/radixly *.h
 # wheels via package-data — decided M9).
 recursive-include src/radixly *.pyi
 include src/radixly/py.typed
+prune changes
 global-exclude __pycache__ *.py[cod]

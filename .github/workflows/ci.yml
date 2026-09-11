@@ -131,3 +131,18 @@ jobs:
         with:
           name: dist
           path: dist/
+
+  changelog:
+    # Every PR carries a fragment, or the no-changelog label says why not.
+    if: github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'no-changelog')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+      - name: Check for a changelog fragment
+        run: uv run --only-group release towncrier check --compare-with origin/${{ github.base_ref }}

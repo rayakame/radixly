@@ -54,6 +54,9 @@ clang = [
     "clang-format>=19",
     "clang-tidy>=19",
 ]
+release = [
+    "towncrier>=24.8",
+]
 docs = [
     "sphinx>=9.0",
     "furo>=2025.12",
@@ -91,6 +94,41 @@ executionEnvironments = [
 ]
 
 reportUnusedCallResult = "none" # every nox.session() triggers this
+
+[tool.towncrier]
+package = "radixly"
+directory = "changes"
+filename = "CHANGELOG.md"
+start_string = "<!-- towncrier release notes start -->\n"
+title_format = "## {version} ({project_date})"
+issue_format = "[#{issue}](https://github.com/rayakame/radixly/pull/{issue})"
+underlines = ["", "", ""]
+ignore = ["README.md"]
+
+[[tool.towncrier.type]]
+directory = "feature"
+name = "Added"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "bugfix"
+name = "Fixed"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "removal"
+name = "Removed"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "doc"
+name = "Documentation"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "misc"
+name = "Other"
+showcontent = true
 
 [tool.setuptools.dynamic]
 version = { attr = "radixly._about.__version__" }
