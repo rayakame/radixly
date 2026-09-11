@@ -41,6 +41,21 @@ from tests.payloads import PAYLOAD_FLAVORS
 from tests.reference import base2048 as base2048_reference
 
 
+def test_case_tables_are_nonempty() -> None:
+    """An emptied table would collect zero cases and stay green."""
+    tables = (
+        PAYLOAD_FLAVORS,
+        error_cases.BAD_CASES,
+        error_cases.HOSTILE_CASES,
+        error_cases.CANONICALITY_CASES,
+        error_cases.PADDING_CASES,
+        error_cases.SHORT_CASES,
+        error_cases.NARROW_PINS,
+        error_cases.NON_STR_INPUTS,
+    )
+    assert all(len(table) > 0 for table in tables)
+
+
 def test_encode_conformance(base2048_bin_path: pathlib.Path) -> None:
     payload = base2048_bin_path.read_bytes()
     expected = base2048_bin_path.with_suffix(".txt").read_text(encoding="utf-8")

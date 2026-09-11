@@ -111,6 +111,7 @@ def _check(condition: bool, message: str) -> None:  # ruff: ignore[boolean-type-
 
 def _expand(pair_string: str) -> tuple[int, ...]:
     """Flatten inclusive code point ranges, two characters per range."""
+    _check(len(pair_string) % 2 == 0, f"pair string has {len(pair_string)} characters, not an even number")
     repertoire: list[int] = []
     for i in range(0, len(pair_string), 2):
         first, last = ord(pair_string[i]), ord(pair_string[i + 1])
@@ -220,6 +221,7 @@ def write_base_2048_table(path: pathlib.Path = BASE_2048_PATH) -> None:
 def write_base_65536_table(path: pathlib.Path = BASE_65536_PATH) -> None:
     """Generate the base65536 header from qntm's block layout."""
     starts, pad_start = _build_base65536_tables()
+    _check(starts[-1] > 0xFFFF, "no astral block: the C decides the string kind by the first astral index")
     first_astral = next(k for k, start in enumerate(starts) if start > 0xFFFF)
 
     writer = IndentWriter(path)
