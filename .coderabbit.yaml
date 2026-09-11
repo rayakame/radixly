@@ -18,6 +18,9 @@ reviews:
     # never authored here, nothing to review.
     - "!tests/vectors/**"
     - "!uv.lock"
+    # Changelog fragments are single sentences that towncrier folds into
+    # list items; markdownlint's document rules do not apply to them.
+    - "!changes/**"
 
   path_instructions:
     - path: "src/radixly/*.c"
