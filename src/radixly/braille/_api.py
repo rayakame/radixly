@@ -13,10 +13,27 @@ encode = braille_encode
 decode = braille_decode
 
 BITS_PER_CHAR = 8
+"""Payload bits per character: one byte per braille pattern."""
 
 
 def encoded_len(num_bytes: int) -> int:
-    """Exact length of ``encode(data)``: one braille pattern per byte."""
+    """Exact length of ``encode(data)``: one braille pattern per byte.
+
+    Parameters
+    ----------
+    num_bytes
+        Payload size in bytes.
+
+    Returns
+    -------
+    int
+        ``num_bytes`` -- braille never pads.
+
+    Raises
+    ------
+    ValueError
+        If ``num_bytes`` is negative.
+    """
     if num_bytes < 0:
         msg = f"num_bytes must be >= 0, got {num_bytes}"
         raise ValueError(msg)
@@ -24,7 +41,23 @@ def encoded_len(num_bytes: int) -> int:
 
 
 def max_bytes(num_chars: int) -> int:
-    """Largest payload that encodes into at most ``num_chars`` characters."""
+    """Largest payload that encodes into at most ``num_chars`` characters.
+
+    Parameters
+    ----------
+    num_chars
+        The channel's limit, counted in code points.
+
+    Returns
+    -------
+    int
+        ``num_chars`` -- one byte per pattern.
+
+    Raises
+    ------
+    ValueError
+        If ``num_chars`` is negative.
+    """
     if num_chars < 0:
         msg = f"num_chars must be >= 0, got {num_chars}"
         raise ValueError(msg)

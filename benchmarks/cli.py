@@ -6,6 +6,7 @@ import argparse
 import dataclasses
 import os
 import pathlib
+import shutil
 import sys
 import typing
 
@@ -25,6 +26,7 @@ if typing.TYPE_CHECKING:
     from collections.abc import Sequence
 
 DIRECTIONS: typing.Final = ("encode", "decode")
+CHARTS_DIR: typing.Final = pathlib.Path("benchmarks/charts")
 REFERENCE_NUMBER: typing.Final = 10_000
 QUICK_REPEAT: typing.Final = 3
 QUICK_TARGET: typing.Final = 0.05
@@ -45,6 +47,7 @@ class Options:
     graphs_dir: pathlib.Path | None
     render_from: pathlib.Path | None
     inject_path: pathlib.Path | None
+    docs_dir: pathlib.Path | None
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -74,6 +77,9 @@ def _build_parser() -> argparse.ArgumentParser:
         help="render from a committed result JSON instead of measuring",
     )
     parser.add_argument("--inject", type=pathlib.Path, default=None, help="splice the markdown fragment into this file")
+    parser.add_argument(
+        "--docs", type=pathlib.Path, default=None, help="write one docs page fragment per codec into this directory"
+    )
     return parser
 
 
@@ -103,10 +109,13 @@ def _validate(parser: argparse.ArgumentParser, options: Options, *, scoped: bool
     if options.render_from is not None and measurement_flags:
         parser.error("--render-from renders an existing document; measurement and scope flags do not apply")
     wants_codec_output = (
-        options.markdown_path is not None or options.graphs_dir is not None or options.inject_path is not None
+        options.markdown_path is not None
+        or options.graphs_dir is not None
+        or options.inject_path is not None
+        or options.docs_dir is not None
     )
     if wants_codec_output and options.render_from is None and options.suite == "wrapper":
-        parser.error("--markdown/--graphs/--inject need codec results; --suite wrapper has none")
+        parser.error("--markdown/--graphs/--inject/--docs need codec results; --suite wrapper has none")
     if options.suite == "wrapper" and scoped:
         parser.error("--suite wrapper is a fixed-shape probe; scope flags do not apply")
     if options.ci_mode and options.render_from is not None:
@@ -120,8 +129,11 @@ def _validate_outputs(parser: argparse.ArgumentParser, options: Options) -> None
     for label, path in (("--json", options.json_path), ("--markdown", options.markdown_path)):
         if path is not None and not path.parent.is_dir():
             parser.error(f"{label} {path}: parent directory does not exist")
-    if options.graphs_dir is not None and not options.graphs_dir.parent.is_dir():
-        parser.error(f"--graphs {options.graphs_dir}: parent directory does not exist")
+    for label, directory in (("--graphs", options.graphs_dir), ("--docs", options.docs_dir)):
+        if directory is not None and not directory.parent.is_dir():
+            parser.error(f"{label} {directory}: parent directory does not exist")
+        if directory is not None and directory.exists() and not directory.is_dir():
+            parser.error(f"{label} {directory}: exists and is not a directory")
     if options.inject_path is not None:
         if not options.inject_path.is_file():
             parser.error(f"--inject {options.inject_path}: no such file")
@@ -156,6 +168,7 @@ def parse_options(argv: Sequence[str] | None = None) -> Options:
         graphs_dir=typing.cast("pathlib.Path | None", args.graphs),
         render_from=typing.cast("pathlib.Path | None", args.render_from),
         inject_path=typing.cast("pathlib.Path | None", args.inject),
+        docs_dir=typing.cast("pathlib.Path | None", args.docs),
     )
     scoped = codecs_raw is not None or sizes_raw is not None or directions_raw is not None
     _validate(parser, options, scoped=scoped, suite_given=suite_raw is not None)
@@ -262,6 +275,39 @@ def _write_outputs(options: Options, result: model.RunResult) -> None:
     if options.graphs_dir is not None:
         for path in graphs.write_charts(result, options.graphs_dir):
             print(f"wrote {path}", file=sys.stderr)
+    if options.docs_dir is not None:
+        for path in write_docs(result, options.docs_dir, options.graphs_dir or CHARTS_DIR):
+            print(f"wrote {path}", file=sys.stderr)
+
+
+def write_docs(result: model.RunResult, docs_dir: pathlib.Path, charts_dir: pathlib.Path) -> list[pathlib.Path]:
+    """One page fragment per codec, stale pages pruned.
+
+    The fragments are meant for MyST ``{include}``, which resolves image
+    paths against the *including* page, so relative paths would silently
+    depend on where the include happens. The charts are reached through a
+    ``charts`` link inside ``docs_dir`` and referenced by a source-root
+    absolute path (``/<docs_dir name>/charts/...``) that holds from any depth.
+    """
+    docs_dir.mkdir(exist_ok=True)
+    link = docs_dir / "charts"
+    if not link.exists():
+        target = os.path.relpath(charts_dir.resolve(), docs_dir.resolve())
+        try:
+            link.symlink_to(target, target_is_directory=True)
+        except OSError:  # no symlink privilege (Windows): a copy serves the same paths
+            shutil.copytree(charts_dir, link)
+    charts = f"/{docs_dir.name}/charts"
+    written: list[pathlib.Path] = []
+    for codec in dict.fromkeys(m.codec for m in result.measurements):
+        path = docs_dir / f"{codec}.md"
+        path.write_text(markdown.codec_page(result, codec, charts), encoding="utf-8")
+        written.append(path)
+    for stale in docs_dir.glob("*.md"):
+        # Only our own pages: a hand-written file in the same directory is not ours to delete.
+        if stale not in written and stale.read_text(encoding="utf-8").startswith(markdown.GENERATED):
+            stale.unlink()
+    return written
 
 
 def _ci_gate(result: model.RunResult) -> int:

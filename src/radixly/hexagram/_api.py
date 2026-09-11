@@ -13,10 +13,33 @@ encode = hexagram_encode
 decode = hexagram_decode
 
 BITS_PER_CHAR = 6
+"""Payload bits per character: one hexagram per six bits."""
 
 
 def encoded_len(num_bytes: int) -> int:
-    """Exact length of ``encode(data)`` for a ``num_bytes``-byte payload."""
+    """Exact length of ``encode(data)`` for a ``num_bytes``-byte payload.
+
+    Parameters
+    ----------
+    num_bytes
+        Payload size in bytes.
+
+    Returns
+    -------
+    int
+        ``ceil(8 * num_bytes / 6)``.
+
+    Raises
+    ------
+    ValueError
+        If ``num_bytes`` is negative.
+
+    Examples
+    --------
+    >>> from radixly import hexagram
+    >>> hexagram.encoded_len(10)
+    14
+    """
     if num_bytes < 0:
         msg = f"num_bytes must be >= 0, got {num_bytes}"
         raise ValueError(msg)
@@ -24,7 +47,29 @@ def encoded_len(num_bytes: int) -> int:
 
 
 def max_bytes(num_chars: int) -> int:
-    """Largest payload that encodes into at most ``num_chars`` characters."""
+    """Largest payload that encodes into at most ``num_chars`` characters.
+
+    Parameters
+    ----------
+    num_chars
+        The channel's limit, counted in code points.
+
+    Returns
+    -------
+    int
+        ``floor(6 * num_chars / 8)``.
+
+    Raises
+    ------
+    ValueError
+        If ``num_chars`` is negative.
+
+    Examples
+    --------
+    >>> from radixly import hexagram
+    >>> hexagram.max_bytes(100)
+    75
+    """
     if num_chars < 0:
         msg = f"num_chars must be >= 0, got {num_chars}"
         raise ValueError(msg)

@@ -1,0 +1,2 @@
+/* The stacked lockup wants room, not the whole sidebar. */
+.sidebar-logo { max-width: 62%; }

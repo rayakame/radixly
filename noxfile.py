@@ -12,7 +12,7 @@ import tempfile
 import nox
 
 nox.options.default_venv_backend = "uv"
-nox.options.sessions = ["reformat", "pytest", "pyright", "verifytypes", "tidy", "lint"]
+nox.options.sessions = ["reformat", "pytest", "pyright", "verifytypes", "tidy", "lint", "docs"]
 
 PATHS = ["noxfile.py", "benchmarks", "scripts", "src", "tests"]
 C_PATHS = sorted(str(p) for p in pathlib.Path("src").rglob("*.[ch]"))
@@ -101,6 +101,42 @@ def pyright(session: nox.Session) -> None:
     """Type-check with basedpyright (recommended mode; warnings fail)."""
     sync(session, "nox", "pyright", "pytest", "bench")
     session.run("basedpyright", "--pythonpath", str(pathlib.Path(session.virtualenv.bin) / "python"))
+
+
+@nox.session(reuse_venv=True)
+def docs(session: nox.Session) -> None:
+    """Build the docs; every warning is an error (-W), every missing reference too (-n)."""
+    sync(session, "docs")
+    session.run(
+        "sphinx-build",
+        "-W",
+        "-n",
+        "-E",  # no doctree cache: a stale one can hide an autodoc drop behind a green build
+        "--keep-going",
+        "-b",
+        "html",
+        "docs",
+        "docs/_build/html",
+        *session.posargs,
+        # Sphinx >= 8.2 prefers a .pyi next to a compiled module over the module
+        # itself; the C docstrings would vanish. Only the addressed module is
+        # affected and we never address _core directly, but keep the belt on.
+        env={"SPHINX_AUTODOC_IGNORE_NATIVE_MODULE_TYPE_STUBS": "1"},
+    )
+
+
+@nox.session(name="docs-serve", reuse_venv=True)
+def docs_serve(session: nox.Session) -> None:
+    """Live-reloading docs at http://127.0.0.1:8000; rebuild the extension for C docstring changes."""
+    sync(session, "docs")
+    session.run(
+        "sphinx-autobuild",
+        "docs",
+        "docs/_build/html",
+        "--open-browser",
+        *session.posargs,
+        env={"SPHINX_AUTODOC_IGNORE_NATIVE_MODULE_TYPE_STUBS": "1"},
+    )
 
 
 @nox.session(reuse_venv=True)
