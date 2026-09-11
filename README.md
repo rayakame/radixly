@@ -1,5 +1,9 @@
 # radixly
 
+[![Documentation](https://readthedocs.org/projects/radixly/badge/?version=latest)](https://radixly.rayakame.dev/en/latest/)
+
+Documentation: <https://radixly.rayakame.dev>
+
 ## Support
 
 - CPython 3.11+ only. radixly is a hand-written C extension and ships no

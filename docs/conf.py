@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 import radixly
 
 project = "radixly"
@@ -69,6 +71,9 @@ nitpick_ignore = [
 
 templates_path: list[str] = []
 exclude_patterns = ["_build"]
+
+# Read the Docs sets the canonical URL per version; local builds get none.
+html_baseurl = os.environ.get("READTHEDOCS_CANONICAL_URL", "")
 
 html_theme = "furo"
 html_title = "radixly"
