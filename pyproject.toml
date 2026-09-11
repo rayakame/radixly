@@ -65,6 +65,7 @@ docs = [
     "sphinx-copybutton>=0.5",
     "sphinx-autodoc-typehints>=3.0",
     "sphinx-autobuild>=2024.10",
+    "sphinxext-opengraph>=0.10",
 ]
 nox = [
     "nox>=2026.8.17",

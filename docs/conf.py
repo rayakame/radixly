@@ -39,6 +39,7 @@ extensions = [
     "myst_parser",
     "sphinx_design",
     "sphinx_copybutton",
+    "sphinxext.opengraph",
 ]
 
 # C builtins carry no annotations; sphinx-autodoc-typehints lifts the types from _core.pyi instead.
@@ -101,3 +102,9 @@ html_theme_options = {
     "source_branch": "main",
     "source_directory": "docs/",
 }
+
+# Link previews (Discord, Slack, X) read these tags; the card is a PNG because embeds do not render SVG.
+ogp_site_url = html_baseurl
+ogp_image = "_static/social-card.png"
+ogp_image_alt = "radixly"
+ogp_custom_meta_tags = ['<meta name="twitter:card" content="summary_large_image">']
