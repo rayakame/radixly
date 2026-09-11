@@ -31,6 +31,7 @@ import typing
 
 from benchmarks import baseline
 from benchmarks import ci
+from benchmarks import competitors
 from benchmarks import environment
 from benchmarks import model
 from benchmarks import payloads
@@ -259,6 +260,7 @@ def run(config: RunConfig | None = None) -> model.RunResult:
     config = RunConfig() if config is None else config
     env = environment.capture()
     ensure_measurable(env, force=config.force)
+    competitors.install()
     chosen_sizes = registry.SIZES if config.sizes is None else config.sizes
 
     measurements: list[model.Measurement] = []

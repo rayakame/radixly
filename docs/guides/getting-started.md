@@ -75,9 +75,9 @@ registration order. Asking it which codec fits the most into a 100-character
 field is one line:
 
 ```python
-list(radixly.CODECS)                                   # ['base32768', 'braille', 'hexagram', 'uro14']
+list(radixly.CODECS)   # ['base2048', 'base32768', 'base65536', 'braille', 'hexagram', 'uro14']
 {name: c.max_bytes(100) for name, c in radixly.CODECS.items()}
-# {'base32768': 187, 'braille': 100, 'hexagram': 75, 'uro14': 173}
+# {'base2048': 137, 'base32768': 187, 'base65536': 200, 'braille': 100, 'hexagram': 75, 'uro14': 173}
 ```
 
 A name that is not registered raises `KeyError` with the registered names in

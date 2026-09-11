@@ -69,6 +69,26 @@ wheels = [
 ]
 
 [[package]]
+name = "base2048"
+version = "0.1.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/00/a5/2c630c47316f6bf0a2a0fc920f7b09f012bb53ee20baac6172ec3a030cdc/base2048-0.1.3.tar.gz", hash = "sha256:51d9eeae723b8aa84d9721211ca3b62a20cb2b884efbf53b61b3c3a7c440969d", size = 91401, upload-time = "2022-09-26T21:50:16.358Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/38/be/47723c2a1cf051c2f302be4dd42f847cf50fb7141569aedf8ae834e06a10/base2048-0.1.3-cp37-abi3-macosx_10_9_x86_64.macosx_11_0_arm64.macosx_10_9_universal2.whl", hash = "sha256:a99289d9594300e55f04fa95a009f24d25d101160818c0be13e56edd9e4ca5c5", size = 448191, upload-time = "2022-09-26T21:50:11.2Z" },
+    { url = "https://files.pythonhosted.org/packages/44/8c/1a3e859adbe3ae8f3d7c589abfd5983bd3d707b6197c369eb8e56a25cedd/base2048-0.1.3-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:ad23081619ae06cd7de156252303a865e571bf0527f18272bedaad0f9d431164", size = 1011385, upload-time = "2022-09-26T21:50:13.879Z" },
+    { url = "https://files.pythonhosted.org/packages/34/6f/e234bd2c89d714340a8389ebd2e313b30d87eef6cadebe12d852c671662a/base2048-0.1.3-cp37-abi3-win_amd64.whl", hash = "sha256:d1aefd5ee3bee6a6999e38fc01e6ec9cf788d72a5df28b54d8656e51b4a24a9b", size = 122941, upload-time = "2022-09-26T21:50:15.227Z" },
+]
+
+[[package]]
+name = "base65536"
+version = "0.1.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "six" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f3/8c/a8051c952ad74e2745bafa10f3d4325df8d65531e66b9f92dfdb30dcc2f2/base65536-0.1.1.tar.gz", hash = "sha256:f06c559abe1f49855e7f14fa44750fd3b2dbfa2d2ec5f71a6149fcf911a823ea", size = 5005, upload-time = "2015-12-22T01:47:48.098Z" }
+
+[[package]]
 name = "basedpyright"
 version = "1.39.10"
 source = { registry = "https://pypi.org/simple" }
@@ -1407,6 +1427,8 @@ source = { editable = "." }
 
 [package.dev-dependencies]
 bench = [
+    { name = "base2048" },
+    { name = "base65536" },
     { name = "matplotlib" },
 ]
 clang = [
@@ -1414,6 +1436,8 @@ clang = [
     { name = "clang-tidy" },
 ]
 dev = [
+    { name = "base2048" },
+    { name = "base65536" },
     { name = "basedpyright" },
     { name = "clang-format" },
     { name = "clang-tidy" },
@@ -1463,12 +1487,18 @@ ruff = [
 [package.metadata]
 
 [package.metadata.requires-dev]
-bench = [{ name = "matplotlib", specifier = ">=3.10" }]
+bench = [
+    { name = "base2048", specifier = ">=0.1.3" },
+    { name = "base65536", specifier = ">=0.1.1" },
+    { name = "matplotlib", specifier = ">=3.10" },
+]
 clang = [
     { name = "clang-format", specifier = ">=19" },
     { name = "clang-tidy", specifier = ">=19" },
 ]
 dev = [
+    { name = "base2048", specifier = ">=0.1.3" },
+    { name = "base65536", specifier = ">=0.1.1" },
     { name = "basedpyright", specifier = ">=1.39.10" },
     { name = "clang-format", specifier = ">=19" },
     { name = "clang-tidy", specifier = ">=19" },
