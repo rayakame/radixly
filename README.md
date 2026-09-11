@@ -72,18 +72,18 @@ Generated from the committed record run by the benchmark suite in
 is the speedup over the pure-Python oracle in `tests/reference/`.
 
 <!-- radixly-bench:begin -->
-*Measured on Intel(R) Core(TM) i9-14900KF (performance governor), CachyOS, kernel 7.2.3-1-cachyos, CPython 3.13.14, gcc 16.2.1 20260810, radixly 0.1.0.dev0 @ cefe701, 2026-09-08T18:59:26+00:00.*
+*Measured on Intel(R) Core(TM) i9-14900KF (performance governor), CachyOS, kernel 7.2.4-3-cachyos, CPython 3.14.6, gcc 16.2.1 20260810, radixly 1.0.0 @ ab1b857, 2026-09-11T17:05:55+00:00.*
 
 | codec | direction | 1 B | 200 B | 64 KiB | 1 MiB | vs reference |
 |---|---|---|---|---|---|---|
-| base32768 | encode | 0.019 μs | 0.114 μs | 1,963 MB/s | 1,963 MB/s | 117x at 200 B |
-| base32768 | decode | 0.014 μs | 0.173 μs | 1,275 MB/s | 1,269 MB/s | 127x at 200 B |
-| braille | encode | 0.019 μs | 0.168 μs | 1,397 MB/s | 1,404 MB/s | 95x at 200 B |
-| braille | decode | 0.016 μs | 0.269 μs | 800 MB/s | 799 MB/s | 77x at 200 B |
-| hexagram | encode | 0.019 μs | 0.201 μs | 1,137 MB/s | 1,126 MB/s | 108x at 200 B |
-| hexagram | decode | 0.016 μs | 0.328 μs | 616 MB/s | 641 MB/s | 84x at 200 B |
-| uro14 | encode | 0.018 μs | 0.118 μs | 2,020 MB/s | 2,007 MB/s | 122x at 200 B |
-| uro14 | decode | 0.015 μs | 0.242 μs | 899 MB/s | 896 MB/s | 91x at 200 B |
+| base32768 | encode | 0.018 μs | 0.110 μs | 2,038 MB/s | 2,042 MB/s | 106x at 200 B |
+| base32768 | decode | 0.014 μs | 0.179 μs | 1,216 MB/s | 1,216 MB/s | 106x at 200 B |
+| braille | encode | 0.019 μs | 0.164 μs | 1,421 MB/s | 1,421 MB/s | 91x at 200 B |
+| braille | decode | 0.016 μs | 0.266 μs | 812 MB/s | 812 MB/s | 67x at 200 B |
+| hexagram | encode | 0.018 μs | 0.196 μs | 1,175 MB/s | 1,176 MB/s | 100x at 200 B |
+| hexagram | decode | 0.016 μs | 0.313 μs | 682 MB/s | 681 MB/s | 73x at 200 B |
+| uro14 | encode | 0.017 μs | 0.120 μs | 1,933 MB/s | 1,979 MB/s | 103x at 200 B |
+| uro14 | decode | 0.015 μs | 0.183 μs | 1,049 MB/s | 1,079 MB/s | 98x at 200 B |
 <!-- radixly-bench:end -->
 
 <picture>
