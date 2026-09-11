@@ -1,4 +1,6 @@
 # Copyright (c) 2026-present rayakame
+"""Constants every reference implementation shares."""
+
 from __future__ import annotations
 
 import typing

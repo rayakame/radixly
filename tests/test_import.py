@@ -1,4 +1,6 @@
 # Copyright (c) 2026-present rayakame
+"""The tripwire: the compiled extension, not a stray pure-Python file, is what imported."""
+
 from __future__ import annotations
 
 import importlib.machinery

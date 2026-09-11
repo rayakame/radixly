@@ -1,4 +1,6 @@
 # Copyright (c) 2026-present rayakame
+"""The reference DecodeError: the message and pickle contract the C type must match."""
+
 from __future__ import annotations
 
 import typing
