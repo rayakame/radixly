@@ -32,7 +32,11 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           case "$version" in *dev*) echo "release=false" >> "$GITHUB_OUTPUT"; echo "dev version, nothing to release"; exit 0;; esac
           echo "release=true" >> "$GITHUB_OUTPUT"
-          if git rev-parse -q --verify "refs/tags/v$version" > /dev/null; then echo "tag v$version exists"; exit 0; fi
+          if git rev-parse -q --verify "refs/tags/v$version" > /dev/null; then
+            tagged=$(git rev-parse "v$version^{commit}")
+            if [ "$tagged" = "$(git rev-parse HEAD)" ]; then echo "tag v$version exists at HEAD"; exit 0; fi
+            echo "tag v$version exists at $tagged, not at HEAD: bump the version instead of reusing it"; exit 1
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "v$version" -m "radixly $version"
@@ -88,4 +92,10 @@ jobs:
           m = re.search(rf"^## {re.escape(version)} .*?(?=^## |\Z)", text, re.M | re.S)
           print(m.group(0).strip() if m else "No significant changes.")
           EOF
-          gh release create "v$VERSION" --title "radixly $VERSION" --notes-file notes.md dist/*
+          # A rerun after a partial failure updates the release instead of tripping over it.
+          if gh release view "v$VERSION" > /dev/null 2>&1; then
+            gh release edit "v$VERSION" --title "radixly $VERSION" --notes-file notes.md
+            gh release upload "v$VERSION" dist/* --clobber
+          else
+            gh release create "v$VERSION" --title "radixly $VERSION" --notes-file notes.md dist/*
+          fi
