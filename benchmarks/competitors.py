@@ -62,7 +62,7 @@ def _probe(distribution: str, spec: registry.CompetitorSpec) -> None:
 
 
 def discover(rivals: tuple[Rival, ...] | None = None) -> dict[str, tuple[registry.CompetitorSpec, ...]]:
-    """One CompetitorSpec per installed rival, named after the distribution and its version."""
+    """One CompetitorSpec per installed rival, named after distribution and version, flagged for another alphabet."""
     found: dict[str, tuple[registry.CompetitorSpec, ...]] = {}
     for rival in RIVALS if rivals is None else rivals:
         try:

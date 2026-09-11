@@ -64,9 +64,10 @@ _PURE_PADDING = base2048_reference.LOOKUP_E[3][7]  # '7', a 3-bit character that
 CANONICALITY_CASES: dict[str, tuple[str, int]] = {
     "lone-padding": (_PURE_PADDING, 0),
     "appended-padding": (_VALID_8_CHARS + _PURE_PADDING, 8),
+    "short-after-four-full": ("8888" + _PURE_PADDING, 4),  # 44 + 3 bits: 7 left over, all of them padding
 }
 
-# Padding bits that are not all ones; "88" plus "0" is b"\x00\x00" with the short character's pad bit zeroed.
+# Padding bits that are not all ones; "881" is three zero bytes, "880" has the short character's pad bit zeroed.
 PADDING_CASES: dict[str, tuple[str, int]] = {
     "short-final-zero-pad": ("880", 2),
     "long-final-zero-pad": ("8", 0),

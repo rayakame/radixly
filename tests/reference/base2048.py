@@ -71,10 +71,7 @@ del _lookup_e, _lookup_d
 
 
 def _as_bytes(data: ReadableBuffer) -> bytes:
-    """Draw the C's line: any buffer is accepted, str is refused."""
-    if isinstance(data, str):
-        msg = "a bytes-like object is required, not 'str'"
-        raise TypeError(msg)
+    """Draw the C's line: any buffer is accepted, and memoryview refuses str with the same words."""
     return bytes(memoryview(data))
 
 
@@ -87,8 +84,8 @@ def _require_str(string: object) -> None:
 def encode(data: ReadableBuffer) -> str:
     """Encode ``data`` as a Base2048 string; any buffer is accepted, ``str`` is not."""
     data = _as_bytes(data)
-    acc = 0  # bit accumulator, most significant bit first
-    num_bits = 0  # how many bits currently live in acc
+    acc = 0
+    num_bits = 0
     out: list[str] = []
 
     # Main loop: 8 bits in, 11 bits out whenever enough have piled up

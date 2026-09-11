@@ -97,7 +97,7 @@ def _type_id(value: object) -> str:
 
 @pytest.mark.parametrize("bad", error_cases.NON_STR_INPUTS, ids=_type_id)
 def test_decode_rejects_non_str(bad: object) -> None:
-    with pytest.raises(TypeError, match="expected str"):
+    with pytest.raises(TypeError, match="expected str, not"):
         base65536_reference.decode(bad)  # pyright: ignore[reportArgumentType]
 
 

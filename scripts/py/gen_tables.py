@@ -89,15 +89,15 @@ class IndentWriter:
         self.indent_amount: int = indent_amount
 
     def write_line(self, text: str, indent_depth: int = 0) -> None:
-        """Write a line with a new line character at the end to the buffer."""
+        """Buffer one line."""
         self.lines.append((text + "\n", indent_depth))
 
     def write_blank(self) -> None:
-        """Write a blank empty line to the buffer."""
+        """Buffer a blank line."""
         self.lines.append(("\n", 0))
 
     def write_file(self) -> None:
-        """Write content to file."""
+        """Write the buffered lines to the file."""
         with self.file_path.open("w", encoding="utf-8", newline="\n") as file:
             for line in self.lines:
                 indent: str = (self.indent_char * self.indent_amount) * line[1]

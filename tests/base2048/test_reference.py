@@ -136,7 +136,7 @@ def _type_id(value: object) -> str:
 
 @pytest.mark.parametrize("bad", error_cases.NON_STR_INPUTS, ids=_type_id)
 def test_decode_rejects_non_str(bad: object) -> None:
-    with pytest.raises(TypeError, match="expected str"):
+    with pytest.raises(TypeError, match="expected str, not"):
         base2048_reference.decode(bad)  # pyright: ignore[reportArgumentType]
 
 
@@ -148,7 +148,7 @@ def test_decode_accepts_canonical_short_final_character() -> None:
 
 @pytest.mark.parametrize(("payload", "expected"), list(error_cases.NARROW_PINS.items()), ids=repr)
 def test_narrow_pins(payload: bytes, expected: str) -> None:
-    """Single bytes 0 to 6 pad to an index under 63, inside the repertoire's Latin-1 run, the strings the C pins."""
+    """Single bytes 0 to 6 pad to indexes below 63, the repertoire's Latin-1 run; the C test pins the same strings."""
     assert base2048_reference.encode(payload) == expected
 
 
@@ -159,9 +159,9 @@ def test_alphabet_sizes() -> None:
     assert len(ALPHABET) == (1 << base2048_reference.BITS_PER_CHAR) + (1 << 3)
 
 
-def test_alphabet_stays_light() -> None:
-    """Every character sits below U+1100, where Twitter counted one and where the C table ends: the design point."""
-    assert max(map(ord, ALPHABET)) < 0x1100
+def test_alphabet_top_is_the_c_table_end() -> None:
+    """The C's MAX_CHAR is 0x1055 and its reverse table ends there; the alphabet's top must be that cell."""
+    assert max(map(ord, ALPHABET)) == 0x1055
 
 
 def test_alphabet_has_no_unsafe_characters() -> None:

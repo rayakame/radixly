@@ -59,7 +59,7 @@ FULL_RANGE_STRINGS = st.lists(st.integers(min_value=0, max_value=0x10FFFF)).map(
 
 @given(LIGHT_STRINGS)
 def test_fuzz_light_strings(string: str) -> None:
-    """Only the table's own range: the density of hits is what finds a wrong cell."""
+    """Code points up to U+10FF: dense hits inside the table and just past its U+1055 end."""
     _assert_parity(string)
 
 

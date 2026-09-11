@@ -21,6 +21,7 @@
 
 from __future__ import annotations
 
+import importlib.metadata
 import typing
 
 import pytest
@@ -73,8 +74,43 @@ def test_broken_install_of_a_present_rival_is_loud(tmp_path: pathlib.Path, monke
     (package / "__init__.py").write_text("from radixly_broken_rival._ext import encode\n", encoding="utf-8")
     monkeypatch.syspath_prepend(str(tmp_path))  # pyright: ignore[reportUnknownMemberType]
     broken = competitors.Rival("base2048", "radixly_broken_rival", wire_compatible=True)
-    with pytest.raises(ModuleNotFoundError, match="_ext"):
+    with pytest.raises(ModuleNotFoundError) as exc_info:
         competitors.discover((broken,))
+    assert exc_info.value.name == "radixly_broken_rival._ext"  # the discriminator discover() branches on
+
+
+def _fake_distribution(root: pathlib.Path, name: str, source: str) -> None:
+    """Build a one-file module with just enough dist-info for importlib.metadata to find a version."""
+    (root / f"{name}.py").write_text(source, encoding="utf-8")
+    info = root / f"{name}-0.0.dist-info"
+    info.mkdir()
+    (info / "METADATA").write_text(f"Metadata-Version: 2.1\nName: {name}\nVersion: 0.0\n", encoding="utf-8")
+
+
+def test_rival_returning_bytes_is_refused(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _fake_distribution(tmp_path, "radixly_bytes_rival", "encode = lambda data: bytes(data)\ndecode = bytes\n")
+    monkeypatch.syspath_prepend(str(tmp_path))  # pyright: ignore[reportUnknownMemberType]
+    rival = competitors.Rival("base2048", "radixly_bytes_rival", wire_compatible=True)
+    with pytest.raises(TypeError, match="not str"):
+        competitors.discover((rival,))
+
+
+def test_rival_that_cannot_round_trip_is_refused(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    source = "encode = lambda data: data.hex()\ndecode = lambda text: b''\n"
+    _fake_distribution(tmp_path, "radixly_lying_rival", source)
+    monkeypatch.syspath_prepend(str(tmp_path))  # pyright: ignore[reportUnknownMemberType]
+    rival = competitors.Rival("base2048", "radixly_lying_rival", wire_compatible=True)
+    with pytest.raises(ValueError, match="round-trip"):
+        competitors.discover((rival,))
+
+
+def test_shadowing_module_without_metadata_is_loud(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A stray module of the rival's name is not the package; the version lookup must not be swallowed."""
+    (tmp_path / "radixly_shadow_rival.py").write_text("encode = str\ndecode = bytes\n", encoding="utf-8")
+    monkeypatch.syspath_prepend(str(tmp_path))  # pyright: ignore[reportUnknownMemberType]
+    rival = competitors.Rival("base2048", "radixly_shadow_rival", wire_compatible=True)
+    with pytest.raises(importlib.metadata.PackageNotFoundError):
+        competitors.discover((rival,))
 
 
 def test_install_puts_rivals_next_to_radixly(monkeypatch: pytest.MonkeyPatch) -> None:

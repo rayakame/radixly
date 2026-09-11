@@ -57,7 +57,7 @@ class Generator(typing.Protocol):
 
 
 def _load_generator() -> Generator:
-    """Load the script by path; it is tooling, not a package, so nothing imports it."""
+    """Load the script by path; it is tooling, not a package, and stays off the import path."""
     spec = importlib.util.spec_from_file_location("gen_tables", GENERATOR)
     assert spec is not None
     assert spec.loader is not None
@@ -100,9 +100,20 @@ def test_generator_alphabets_are_the_oracle_alphabets(
     assert generator_strings == reference_strings
 
 
-def test_generator_refuses_a_corrupted_repertoire(monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> None:
-    """The checks must survive -O: a ValueError, never an assert."""
-    monkeypatch.setattr(gen_tables, "BASE_2048_PAIR_STRINGS", (gen_tables.BASE_2048_PAIR_STRINGS[0], "06"))
-    with pytest.raises(ValueError, match="3-bit repertoire has 7 code points"):
+@pytest.mark.parametrize(
+    ("tail", "message"),
+    [
+        ("06", "3-bit repertoire has 7 code points"),
+        ("8?", "repertoires overlap"),  # eight code points from U+0038, the first two also 11-bit
+        ("\u1056\u105d", "outside"),
+    ],
+    ids=["short", "overlap", "out-of-range"],
+)
+def test_generator_refuses_a_corrupted_repertoire(
+    tail: str, message: str, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    """The checks must survive -O: a ValueError, never an assert, and no header is written."""
+    monkeypatch.setattr(gen_tables, "BASE_2048_PAIR_STRINGS", (gen_tables.BASE_2048_PAIR_STRINGS[0], tail))
+    with pytest.raises(ValueError, match=message):
         gen_tables.write_base_2048_table(tmp_path / "_tables.h")
     assert not (tmp_path / "_tables.h").exists()

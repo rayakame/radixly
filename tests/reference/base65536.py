@@ -75,10 +75,7 @@ del _lookup_e, _lookup_d
 
 
 def _as_bytes(data: ReadableBuffer) -> bytes:
-    """Draw the C's line: any buffer is accepted, str is refused."""
-    if isinstance(data, str):
-        msg = "a bytes-like object is required, not 'str'"
-        raise TypeError(msg)
+    """Draw the C's line: any buffer is accepted, and memoryview refuses str with the same words."""
     return bytes(memoryview(data))
 
 

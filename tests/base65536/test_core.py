@@ -79,7 +79,7 @@ def test_encode_matches_reference_megabyte() -> None:
     ids=["last-bmp-block", "first-astral-block", "bmp-with-tail", "empty"],
 )
 def test_astral_output_starts_at_block_110(payload: bytes, expected_kind: int) -> None:
-    """The second byte of a pair picks the block; blocks from 110 on leave the BMP. Equality pins the kind."""
+    """Blocks from 110 on leave the BMP; a str built in the wrong kind would compare unequal to the oracle."""
     encoded = _core.base65536_encode(payload)
     widest = max(map(ord, encoded), default=0)
     assert (1 if widest < 0x100 else 2 if widest <= 0xFFFF else 4) == expected_kind

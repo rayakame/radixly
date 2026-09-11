@@ -30,7 +30,7 @@
 enum {
     BLOCK_SHIFT = 8,
     MAX_CODE_POINT = 0x10FFFF,
-    REV_SIZE = (0x10FFFF >> 8) + 1, /* MAX_CODE_POINT >> BLOCK_SHIFT; literals keep the shift unsigned */
+    REV_SIZE = ((unsigned)MAX_CODE_POINT >> (unsigned)BLOCK_SHIFT) + 1,
     REV_INVALID = 0xFFFF,
     REV_PAD = 0x0100, /* the 8-bit tail block; no block index reaches it */
     BMP_MAX_CHAR = 0xFFFF,
@@ -38,12 +38,13 @@ enum {
 
 /* Indexed by code point >> 8: the block index, REV_PAD, or REV_INVALID. */
 static uint16_t REV[REV_SIZE];
-_Static_assert((unsigned)RADIXLY_B65536_PAD_START <= (unsigned)MAX_CODE_POINT,
-               "the tail block must index REV");
 
 int
 radixly_base65536_exec(PyObject *Py_UNUSED(module))
 {
+    /* Compile-time pins on the generated header; Py_BUILD_ASSERT also covers MSVC's default C mode. */
+    Py_BUILD_ASSERT(RADIXLY_ARRAY_SIZE(RADIXLY_B65536_BLOCK_START) == 256);
+    Py_BUILD_ASSERT((unsigned)RADIXLY_B65536_PAD_START <= (unsigned)MAX_CODE_POINT);
     for (size_t i = 0; i < RADIXLY_ARRAY_SIZE(REV); i++) {
         REV[i] = REV_INVALID;
     }
@@ -212,7 +213,7 @@ radixly_base65536_decode(PyObject *Py_UNUSED(self), PyObject *arg)
     }
     unsigned char *out = (unsigned char *)PyBytes_AS_STRING(result);
 
-    /* Everything before the final character must be a pair, so the hot loop carries no tail branch. */
+    /* Every character but the last must be 16-bit, so the hot loop has no last-index branch. */
     const Py_ssize_t last = num_chars - 1;
     for (Py_ssize_t i = 0; i < last; i++) {
         const Py_UCS4 code_point = PyUnicode_READ(kind, data, i);

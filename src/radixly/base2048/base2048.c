@@ -44,6 +44,9 @@ static uint16_t REV[MAX_CHAR + 1];
 int
 radixly_base2048_exec(PyObject *Py_UNUSED(module))
 {
+    /* Compile-time pins on the generated header: the encoder indexes these tables without a check. */
+    Py_BUILD_ASSERT(RADIXLY_ARRAY_SIZE(RADIXLY_B2048_FWD11) == (1U << (unsigned)BITS_PER_CHAR));
+    Py_BUILD_ASSERT(RADIXLY_ARRAY_SIZE(RADIXLY_B2048_FWD3) == (1U << (unsigned)SHORT_BITS));
     for (size_t i = 0; i < RADIXLY_ARRAY_SIZE(REV); i++) {
         REV[i] = REV_INVALID;
     }
@@ -295,8 +298,7 @@ radixly_base2048_decode(PyObject *Py_UNUSED(self), PyObject *arg)
     }
 
     const unsigned num_pad = bits;
-    /* Canonicality: the final char must carry a payload bit. Stricter than qntm on purpose; lockstep with the
-     * reference. */
+    /* The final character must carry a payload bit: stricter than qntm, in lockstep with the reference. */
     if (final_width <= num_pad) {
         Py_DECREF(result);
         return radixly_raise_decode_error(
