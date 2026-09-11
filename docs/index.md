@@ -79,3 +79,10 @@ codecs/hexagram
 reference/errors
 reference/registry
 ```
+
+```{toctree}
+:hidden:
+:caption: Project
+
+changelog
+```
