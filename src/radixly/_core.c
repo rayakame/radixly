@@ -77,6 +77,8 @@ static PyModuleDef_Slot radixly_execs[] = {
 };
 
 static struct PyModuleDef radixly_module = {
+    /* CPython 3.14 ORs signed operands in the static immortal refcount macro. */
+    // NOLINTNEXTLINE(hicpp-signed-bitwise)
     .m_base = PyModuleDef_HEAD_INIT,
     .m_name = "radixly._core",
     .m_doc = "C implementations of radixly's encode/decode routines. Private "
