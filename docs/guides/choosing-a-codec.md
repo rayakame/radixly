@@ -47,7 +47,8 @@ base65536 the one a channel might reject for leaving the BMP.
 
 ## Speed is not the deciding factor
 
-All six sit in the same range, roughly 0.05 to 0.3 microseconds per call at
-200 bytes and hundreds of megabytes per second on large inputs. Pick by
+All six sit in the same range, roughly 0.04 to 0.3 microseconds per call at
+200 bytes and hundreds of megabytes per second on large inputs, base65536 in
+the gigabytes. Pick by
 alphabet and truncation behavior; the numbers on each codec page are there
 to confirm that whichever you pick will not be the bottleneck.

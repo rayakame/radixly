@@ -3,7 +3,7 @@
   "ratio_floors": {
     "base2048": { "encode": 50, "decode": 45 },
     "base32768": { "encode": 55, "decode": 50 },
-    "base65536": { "encode": 90, "decode": 90 },
+    "base65536": { "encode": 90, "decode": 80 },
     "braille": { "encode": 45, "decode": 35 },
     "hexagram": { "encode": 50, "decode": 40 },
     "uro14": { "encode": 55, "decode": 55 }

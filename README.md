@@ -74,18 +74,26 @@ Generated from the committed record run by the benchmark suite in
 is the speedup over the pure-Python oracle in `tests/reference/`.
 
 <!-- radixly-bench:begin -->
-*Measured on Intel(R) Core(TM) i9-14900KF (performance governor), CachyOS, kernel 7.2.4-3-cachyos, CPython 3.14.6, gcc 16.2.1 20260810, radixly 1.0.0 @ ab1b857, 2026-09-11T17:05:55+00:00.*
+*Measured on Intel(R) Core(TM) i9-14900KF (performance governor), CachyOS, kernel 7.2.4-3-cachyos, CPython 3.14.6, gcc 16.2.1 20260810, radixly 1.0.0 @ bba65d9, 2026-09-11T18:44:38+00:00.*
 
 | codec | direction | 1 B | 200 B | 64 KiB | 1 MiB | vs reference |
 |---|---|---|---|---|---|---|
-| base32768 | encode | 0.018 μs | 0.110 μs | 2,038 MB/s | 2,042 MB/s | 106x at 200 B |
-| base32768 | decode | 0.014 μs | 0.179 μs | 1,216 MB/s | 1,216 MB/s | 106x at 200 B |
-| braille | encode | 0.019 μs | 0.164 μs | 1,421 MB/s | 1,421 MB/s | 91x at 200 B |
-| braille | decode | 0.016 μs | 0.266 μs | 812 MB/s | 812 MB/s | 67x at 200 B |
-| hexagram | encode | 0.018 μs | 0.196 μs | 1,175 MB/s | 1,176 MB/s | 100x at 200 B |
-| hexagram | decode | 0.016 μs | 0.313 μs | 682 MB/s | 681 MB/s | 73x at 200 B |
-| uro14 | encode | 0.017 μs | 0.120 μs | 1,933 MB/s | 1,979 MB/s | 103x at 200 B |
-| uro14 | decode | 0.015 μs | 0.183 μs | 1,049 MB/s | 1,079 MB/s | 98x at 200 B |
+| base2048 | encode | 0.018 μs | 0.125 μs | 1,807 MB/s | 1,801 MB/s | 107x at 200 B |
+| base2048 | decode | 0.014 μs | 0.225 μs | 947 MB/s | 948 MB/s | 96x at 200 B |
+| base2048 (PyPI base2048 0.1.3) | encode | 0.097 μs | 0.983 μs | 147 MB/s | 141 MB/s | — |
+| base2048 (PyPI base2048 0.1.3) | decode | 0.087 μs | 0.833 μs | 133 MB/s | 123 MB/s | — |
+| base32768 | encode | 0.018 μs | 0.109 μs | 2,037 MB/s | 2,041 MB/s | 107x at 200 B |
+| base32768 | decode | 0.014 μs | 0.179 μs | 1,216 MB/s | 1,217 MB/s | 105x at 200 B |
+| base65536 | encode | 0.018 μs | 0.044 μs | 7,186 MB/s | 7,217 MB/s | 178x at 200 B |
+| base65536 | decode | 0.018 μs | 0.063 μs | 4,536 MB/s | 4,548 MB/s | 159x at 200 B |
+| base65536 (PyPI base65536 0.1.1) | encode | 0.197 μs | 7.303 μs | 28 MB/s | 28 MB/s | — |
+| base65536 (PyPI base65536 0.1.1) | decode | 0.149 μs | 11.389 μs | 19 MB/s | 19 MB/s | — |
+| braille | encode | 0.018 μs | 0.164 μs | 1,421 MB/s | 1,422 MB/s | 91x at 200 B |
+| braille | decode | 0.015 μs | 0.266 μs | 812 MB/s | 812 MB/s | 68x at 200 B |
+| hexagram | encode | 0.019 μs | 0.196 μs | 1,176 MB/s | 1,177 MB/s | 100x at 200 B |
+| hexagram | decode | 0.016 μs | 0.313 μs | 682 MB/s | 682 MB/s | 72x at 200 B |
+| uro14 | encode | 0.018 μs | 0.119 μs | 1,931 MB/s | 1,977 MB/s | 103x at 200 B |
+| uro14 | decode | 0.014 μs | 0.184 μs | 1,049 MB/s | 1,047 MB/s | 97x at 200 B |
 <!-- radixly-bench:end -->
 
 <picture>
