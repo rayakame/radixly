@@ -1,7 +1,7 @@
 [project]
 name = "radixly"
-version = "0.1.0.dev0"
-description = "Fast binary-to-text codecs: base32768 and friends"
+dynamic = ["version"]
+description = "Fast binary-to-text codecs for Python: base32768, uro14, braille and hexagram in C"
 readme = "README.md"
 authors = [
     { name = "Christopher", email = "github.android206@passmail.net" }
@@ -10,13 +10,28 @@ requires-python = ">=3.11"
 dependencies = []
 license = "MIT"
 license-files = ["LICENSE"]
+keywords = ["base32768", "binary-to-text", "codec", "encoding", "unicode", "c-extension"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
     "Programming Language :: C",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Programming Language :: Python :: Implementation :: CPython",
     "Topic :: Software Development :: Libraries",
+    "Topic :: Text Processing",
+    "Typing :: Typed",
 ]
+
+[project.urls]
+Homepage = "https://radixly.rayakame.dev"
+Documentation = "https://radixly.rayakame.dev/en/latest/"
+Source = "https://github.com/rayakame/radixly"
+Issues = "https://github.com/rayakame/radixly/issues"
 
 [build-system]
 requires = ["setuptools >= 77.0.3"]
@@ -76,6 +91,9 @@ executionEnvironments = [
 ]
 
 reportUnusedCallResult = "none" # every nox.session() triggers this
+
+[tool.setuptools.dynamic]
+version = { attr = "radixly._about.__version__" }
 
 [tool.setuptools]
 ext-modules = [

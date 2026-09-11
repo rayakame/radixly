@@ -1,219 +1,57 @@
 # CLAUDE.md
 
-## GUIDE ONLY — read this before anything else
+## Rules
 
-This is a **teaching project**. The user is learning the CPython C API by building
-this library. The rules below override any instinct to be "helpful" by writing code:
-
-- **The user writes ALL library code**: the C, the Python API layer, the tests, the
-  reference implementations. Do not write these, even when asked casually — if the
-  user wants to change this contract, make them say so explicitly (they chose
-  "Hold the line" when offered the alternatives).
-- **Claude writes tooling and config only**: noxfile, CI workflows, packaging
-  metadata, this file. That is the whole exception.
-- **Hints before answers.** If the user is stuck, hint first. Show code fragments
-  only after two failed attempts, and then the smallest possible fragment — never a
-  whole function.
-- **Review bluntly.** Especially: refcount errors, missing bounds checks, error
-  paths that leak or return NULL without setting an exception, vacuous tests.
-  Bounce unbuilt C unread — "done" means compiled, imported, tests ran.
-- **No standalone quiz questions** (dropped at the user's request). Verify
-  understanding through the work and the review instead.
-- **Design decisions:** lay out options and tradeoffs, give a lean, let the user pick.
-- **Measure before optimizing.** If the user proposes a micro-optimization, ask for
-  a benchmark first. Bounds checks on untrusted input are non-negotiable at any cost.
-- **No AI traces** in commits, PR bodies, code, or docs — no Co-Authored-By
-  trailers, no "generated with" lines. This file is the only permitted mention.
+- This is a teaching project: the user writes the library code (C, Python API,
+  tests, references) unless they explicitly hand a task over. Claude owns
+  tooling: noxfile, CI, packaging, docs scaffolding, this file.
+- Review bluntly: refcounts, bounds checks, error paths that leak or return
+  NULL without an exception, vacuous tests. "Done" means compiled, imported,
+  tests ran.
+- Measure before optimizing; bounds checks on untrusted input are never traded.
+- Design decisions: options and trade-offs, a lean, the user picks.
+- No AI traces anywhere: no Co-Authored-By, no "generated with", not in
+  commits, PRs, code or docs.
+- Comments and docstrings: one short plain sentence, only where needed. Lint
+  suppressions are `# ruff: ignore[rule-name]`, never `noqa`.
 
 ## Project
 
-radixly — dense binary-to-text codecs that pack many bits per Unicode code point,
-for channels limited by code-point count (motivating case: Discord custom_ids,
-100 code points). Hand-written C extension; goal is to be the fastest Python
-implementation of these codecs, full stop.
+radixly: fast binary-to-text codecs for Python, hand-written C extension
+(`radixly._core`), CPython 3.11+, no pure-Python fallback shipped. Codecs:
+base32768 (qntm's spec, 15 bits/char), uro14 (own design, 14 bits/char from
+U+4E00 with a length prefix), braille (8), hexagram (6). Post-1.0 candidates:
+base65536, base2048, base91, Z85.
 
-Codecs for 1.0: base32768 (qntm's spec, 15 bits/char, BMP only), uro14 (own design:
-CJK block from U+4E00, 14 bits/char, length-prefix char), braille (8 bits) and
-hexagram (6 bits) as presets of a contiguous-block factory. Post-1.0: base65536,
-base2048, base91, Z85.
+## Fixed decisions
 
-Performance bars (measured by the benchmarks/ suite — `python -m benchmarks` —
-committed record: benchmarks/results/i9-14900KF-performance.json, i9-14900KF,
-performance governor, CPython 3.13 — protect these; regressions need a reason):
-base32768 encode 0.114 µs / 200 B, 1963 MB/s at 64 KiB (flat to 1 MiB),
-0.019 µs per-call floor at 1 B (METH_O, no arg parsing — why the object layer
-must not add Python call frames), 117x the pure-Python reference. Decode
-0.173 µs / 200 B, 1275 MB/s, 0.014 µs floor, 127x — single-pass since PR #14:
-the two-pass design was retired as a measured decision (validate while filling
-into the floor(15n/8) upper bound, which overshoots by at most one byte).
-Block codecs (encode/decode at 200 B, then 64 KiB throughput): braille
-0.168/0.269 µs, 1397/800 MB/s; hexagram 0.201/0.328 µs, 1137/616 MB/s; uro14
-0.118/0.242 µs, 2020/899 MB/s. Floors all at the METH_O baseline; 77–127x the
-references. Braille is slowest by design: one char per byte maximizes jar
-iterations — an offset-copy fast path is the measured-decision option if ever
-wanted. The 13900K-era record retired with the chip (RMA'd for favored-core
-Vmin degradation); it lives in git history at cefe701.
-
-## Fixed decisions — do not relitigate
-
-- C extension, not Rust/Cython. No abi3/limited API (one wheel per CPython version).
-- CPython-only. **No pure-Python fallback shipped**; the reference implementation
-  lives in `tests/` as the differential oracle and is never imported by the package.
-- Decoding is always canonical and strict. No lenient mode.
-- One extension module `radixly._core` (the engine room); public per-codec
-  namespaces are thin Python modules. Multiple .c files later still link into the
-  single extension.
-- **Layout convention (decided M3, user's call): one folder per codec**, always,
-  even one-file presets — `src/radixly/<codec>/` holds its `_api.py` (the Python
-  face: bindings, size math, Codec instance + registration — revised M6, user's
-  call seconded by ruff's non-empty-init rule), `__init__.py` (pure re-export of
-  `_api`, no `__all__`), bespoke `.c` if any, generated `_tables.h` if any.
-  Within the package, submodules import their siblings directly, never the bare
-  `radixly` package — keeps the import graph cycle-free. (The root __init__
-  importing its own children is the tree edge, not a cycle risk — exempt.)
-  Shared C engine lives
-  in `src/radixly/_common/` (born M4 with errors.c — DecodeError + raise helper
-  are engine-wide; user's call). `_core.c` stays a wiring hub (module init +
-  method table + one exec slot per codec, engine slot first). Uniformity is
-  deliberate: "where is X?" has one answer for every codec.
-- Multi-phase module init (`PyModuleDef_Init`); table init goes in a `Py_mod_exec`
-  slot when it arrives (M4).
-- setuptools backend; extension declared via the experimental
-  `[tool.setuptools] ext-modules` table in pyproject.toml (no setup.py). Revisit at
-  M3 for build-time table codegen: commit a generated header vs switch to setup.py.
-- Python floor >= 3.11. Exceptions root at ValueError; DecodeError carries position.
-- encode() accepts any buffer-protocol object; str input raises TypeError.
-- **DecodeError message contract (M4 review round, user's call — option c):** `message`
-  stays keyword-only forever; `message=None` → generated text; `""` is a legal explicit
-  message (reference tightened from truthiness to `is None`). Pickle/copy work via
-  `__reduce__` + `__setstate__` (state carries the message) — never by making message
-  positional. Both implementations must match.
-- **Subinterpreters: not supported, and declared so** (M4 review round):
-  `Py_mod_multiple_interpreters` NOT_SUPPORTED slot in `_core.c` (3.12+; 3.11 has no
-  refusal mechanism for multi-phase modules — README documents it instead). The static
-  globals (DecodeError type object, REV table) are the reason. If ever demanded:
-  per-module state (`m_size > 0`, functions reach it via their module `self`) is the shape.
-- **M6 API shape (user's rulings, 2026-08-26):** per-codec modules bind the raw C
-  functions under bare names (base32768.encode — the module namespaces, like base64's
-  prefixes do); root exports DecodeError and imports codec modules eagerly (the one .so
-  loads anyway; registry guaranteed populated after `import radixly`). Codec = frozen
-  slots dataclass in `_codec.py` — private on purpose: one public path per name, and a
-  public `radixly.codec` would read like a codec named "codec" next to radixly.base32768.
-  Size math (encoded_len = ceil(8n/15), max_bytes = floor(15N/8); integer arithmetic
-  only, never floats) defined in the codec module, Codec fields hold those same objects.
-  Registry: get_codec() with a helpful unknown-name error + CODECS MappingProxy, one
-  dict behind both; registration explicit only — never automatic in __post_init__.
-  **No typing Protocol through 1.0**: the one concrete Codec class is the interface;
-  revisit only if a structurally different codec type (C-implemented, third-party)
-  ever appears.
-- **Block factory is presets-only through 1.0 (user's call, M7):** start/bits_per_char
-  are compile-time constants in our own wrappers — a programmer contract guarded by
-  assert, never runtime validation (users cannot reach it). A public
-  make-your-own-codec factory is post-1.0; its design needs untrusted-parameter
-  validation (maxchar 0x100–0xFFFF, surrogate-range rejection) and a two-tier
-  fast-preset/generic-user path — sketched in the M7 design round.
-- **uro14's guarantee is windowed (user's call, M7 review round):** the 14-bit claim
-  wraps at 16,384 bytes — a claim-matching truncation of a bigger payload is
-  byte-identical to a valid shorter encoding when its cut point leaves no padding
-  (content-dependent otherwise); no decoder can distinguish two meanings of one string. Unlimited
-  payload sizes kept; every doc states the window; below the modulus the guarantee
-  is absolute. The rejected alternative (cap payloads at 16,383) and the post-1.0
-  option (wider-prefix sibling codec) are on record.
-- **Stricter than qntm's reference JS** (which accepts this): a final character
-  that carries zero payload bits — e.g. a lone all-ones 7-bit char — is rejected,
-  so decode is injective (one payload, one accepted spelling). Width-independent
-  rule: reject when final char's bit width <= padding bit count. The C decoder
-  (M4) and every factory codec (M7) must keep this. Decided after probing both
-  implementations live; qntm's decoder demonstrably accepts the redundant form.
-
-## Roadmap
-
-- **M0 — build plumbing: DONE** (commit 07e9162). Compiled `_core` imports; CI has
-  lint + 3.11–3.14 matrix + wheel checks (wheel must contain the .so).
-- **M1 — pure-Python base32768 reference: DONE.** `tests/reference/base32768.py`
-  (drains bytes incrementally — the naive one-bignum decode was O(n²)), qntm's
-  264 vector pairs + 3 bad vectors vendored under `tests/vectors/` with MIT
-  attribution, conformance both directions, Hypothesis round-trip, alphabet
-  sanity (categories + 4 normalization forms), error positions pinned in tests.
-- **M2 — C API bootcamp: DONE.** Throwaway function written under both METH_O and
-  METH_FASTCALL, all exit paths correct, then deleted with its spike branch as
-  designed. Free rejection message for non-buffer args ("a bytes-like object is
-  required, not 'str'") measured and judged sufficient for the charter.
-- **M3 — base32768 encode in C: DONE.** Committed generated header (option A);
-  per-codec layout born; encode byte-identical to the oracle (265 vectors,
-  lengths 0-600 x 3 payload flavors, Hypothesis); conftest hook dedups vector
-  parametrization; _core.pyi stub begun. Benchmarked 2.4x ahead of the legacy
-  bars (see Performance bars above).
-- **M4 — decode in C: DONE.** Two-pass decoder (validate-and-size, then fill):
-  every reverse-table index behind the cp <= MAX_CHAR guard, surrogates die on
-  painted cells, canonicality rule enforced in C (comment mirrored from the
-  oracle). DecodeError is a full C heap type (position member, message getset,
-  tp_init chaining to ValueError, GC delegation) in _common/errors.c with a
-  goto-ladder raise helper. Error contract shared as data
-  (tests/base32768/error_cases.py): both implementations pinned to the same
-  (input, position) tables. Suite 6566 tests. Measured: see bars above.
-- **M5 — hardening: DONE.** -std=c11 -Wall -Wextra pinned in the build metadata;
-  -Werror rides dev/CI builds only (CFLAGS in nox sync — a stranger building the
-  sdist under a future compiler must not fail). asan nox session: extension
-  rebuilt under ASan+UBSan, non-editable install on purpose (editable envs share
-  the one in-place .so), LD_PRELOAD'd runtime, PYTHONMALLOC=malloc (pymalloc
-  arenas hide object overflows from ASan), leak detection off (CPython exits
-  dirty by design); CI gate across the full 3.11–3.14 matrix. Fuzz suite
-  (tests/base32768/test_fuzz.py): oracle-parity property over hostile inputs —
-  raw-code-point strings incl. surrogates, alphabet-biased corruption fuzz,
-  exhaustive 65,536 single-char sweep (256 accepted, pinned), multi-MB hostile
-  tail. 6,571 tests, all clean under sanitizers. The planned every-length
-  differential was already satisfied by the M3/M4 sweeps.
-- **M6 — Python object layer: DONE.** The public API born: per-codec faces
-  (base32768/_api.py binds the raw C functions under bare names; inits are pure
-  re-export faces per ruff's non-empty-init rule), frozen slots Codec dataclass +
-  registry (get_codec with helpful errors, read-only CODECS view, public register
-  refusing duplicates) in _codec.py, size math with maximality-pinned and
-  encoder-differential tests, DecodeError + eager codec imports at the root
-  (subprocess-pinned). Import graph cycle-free: within the package, imports go
-  directly to submodules, never through `radixly` itself. Wrapper cost measured
-  and the layering committed: at the 1 B floor the dotted shapes cost ~1 ns over
-  the raw C call (module +0.9, codec +1.1; hoisted pre-bound = baseline) — no
-  Python frame anywhere; benchmarks/bench_api.py is the receipt. Suite 7,600 tests.
-- **M7 — contiguous-block factory + uro14/braille/hexagram: DONE.** References
-  first, and it paid twice: the truncation-sweep tests caught a real design
-  flaw (14-bit width leaves up to 13 padding bits — more than a byte — so the
-  claim gained its second job: picking between the two payload lengths a body
-  admits), and the parity tests caught a C check-order divergence (canonicality
-  is decidable from length alone but must not win the position race against an
-  invalid character). C: shared single-pass core in _common/block.c (the
-  reverse table is two comparisons; presets-only contract by assert), ten-line
-  braille/hexagram wrappers, bespoke claim-driven uro14.c. Faces per the M6
-  pattern; registry holds four codecs. Suite 21,580 tests, sanitizers clean.
-  Measured: see bars above.
-- **M8 — benchmark suite as product: DONE.** Registry-driven (a registered
-  codec is a benchmarked codec), one RunResult JSON document behind
-  console/markdown/SVG renderers, README table spliced between markers and
-  gated by readme-sync, ratio-based CI gates in ci-gates.json (runner noise
-  divides out), refusal of non-optimized builds via _core.OPTIMIZED
-  self-certification, provenance (mode/forced/dirty) on every document.
-  Suite 21,684 tests.
-- **M9 — CURRENT** — ship 1.0: cibuildwheel matrix, .pyi stubs + py.typed, docs stating the
-  truncation caveat honestly (base32768 silently accepts about one in four
-  truncations: 15k mod 8 padding bits, measured 24%).
+- One extension module; public per-codec modules are thin Python faces
+  (`src/radixly/<codec>/_api.py` + `__init__.py`), shared C in `_common/`.
+  Submodules import siblings directly, never `radixly` itself.
+- No abi3, one wheel per CPython version. No subinterpreters (declared).
+- Decoding is strict and canonical: one payload, one spelling. A final
+  character carrying no payload bits is rejected (stricter than qntm's JS).
+- `encode` takes any buffer, `str` raises TypeError. `DecodeError` is a
+  ValueError with `position`; `message` is keyword-only.
+- uro14's truncation guarantee is windowed at 16,384 bytes; every doc says so.
+- Codec is a frozen dataclass, registry via `get_codec`/`CODECS`/`register`.
+- Performance bars are the committed record
+  (`benchmarks/results/i9-14900KF-performance.json`), rendered into README and
+  docs; regressions need a reason, CI gates the C-vs-reference ratio.
 
 ## Commands
 
-- Inner loop: `uv run pytest`; after editing C: `uv sync --reinstall-package radixly`
-- Full check: `uv run nox` (reformat + pytest + pyright + tidy); CI gates:
-  `nox -s format-check` and `nox -s lint`
-- Benchmarks: `uv run python -m benchmarks` (full run), `--quick` for a smoke;
-  record refresh (clean tree!): add `--json
-  benchmarks/results/i9-14900KF-performance.json --graphs benchmarks/charts
-  --inject README.md`
-- Build artifacts: `uv build` (wheel must contain `_core.*.so`, never the .c)
-- Diagnostic when imports act weird: `python -c "import radixly._core; print(radixly._core.__file__)"`
-  (src/ path is normal under the editable install; site-packages in nox/CI venvs)
+- `uv run pytest`; after editing C: `uv sync --reinstall-package radixly`
+- `uv run nox` runs everything (reformat, pytest, pyright, verifytypes, tidy,
+  lint, docs); `nox -s asan` for sanitizers; `nox -s docs-serve` for live docs
+- Benchmarks: `uv run python -m benchmarks` (`--quick` for a smoke); record
+  refresh on a clean tree adds `--json benchmarks/results/i9-14900KF-performance.json
+  --graphs benchmarks/charts --inject README.md --docs docs/benchmarks`
+- Version lives in `src/radixly/_about.py` only.
 
-## Testing standards (load-bearing — no shipped fallback means tests are the only guard)
+## Testing standards
 
-Every test must be able to fail: ask "what would make this fail?" of each one.
-Reference written first, C diffed against it byte-for-byte. Conformance vectors
-from qntm. Hypothesis round-trips. Fuzz decode with hostile input (lone surrogates,
-astral chars, empty, multi-MB). The tripwire test asserts the compiled extension
-actually imported (suffix check via importlib.machinery.EXTENSION_SUFFIXES).
+Every test must be able to fail. Reference first, C diffed byte-for-byte
+against it; qntm's vectors; Hypothesis round-trips; fuzz with hostile input
+(surrogates, astral, empty, multi-MB); error contracts pinned as
+(input, position) data shared by both implementations.
