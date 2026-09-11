@@ -1,3 +1,22 @@
+# Copyright (c) 2026-present rayakame
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 """Environment capture: a benchmark that records its own conditions can be believed later."""
 
 from __future__ import annotations
@@ -53,11 +72,10 @@ def _git(*args: str) -> str | None:
 
 
 def capture() -> model.Environment:
+    """Snapshot the machine, interpreter, compiler and checkout state for provenance."""
     commit = _git("rev-parse", "--short", "HEAD") or "unknown"
     status = _git("status", "--porcelain")
-    # A failed probe reports dirty, not clean: the pessimistic direction is
-    # the honest one. Note commit/dirty describe the checkout, not the tree
-    # the installed .so was built from -- rebuild before believing either.
+    # A failed probe reports dirty, not clean; commit/dirty describe the checkout, not the built .so.
     dirty = True if status is None else bool(status)
     return model.Environment(
         python=platform.python_version(),

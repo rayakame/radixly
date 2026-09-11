@@ -1,10 +1,25 @@
-"""The wrapper-cost probe: what does the API layering cost at the call floor?
+# Copyright (c) 2026-present rayakame
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+"""Wrapper-cost probe: what the API layering costs at the call floor.
 
-The old bench_api, absorbed. Each shape's dotted access happens inside the
-timed statement -- hoisting it to setup would measure four identical calls.
-Setup binds each receiver as a local, matching the main harness shape, so the
-baseline row reads the same floor as the codec suite. Console-only: shape rows
-deliberately stay out of the canonical JSON document.
+The dotted access stays inside the timed statement. Console only.
 """
 
 from __future__ import annotations
@@ -26,6 +41,8 @@ SIZES: tuple[tuple[str, int], ...] = (("1 B", 1), ("200 B", 200))
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class Shape:
+    """One timed statement with the setup bindings it needs."""
+
     label: str
     statement: str
     bindings: dict[str, object]
@@ -42,6 +59,8 @@ _SHAPES: tuple[Shape, ...] = (
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class ShapeRow:
+    """One shape measured at one size, with its delta to the baseline."""
+
     size_label: str
     shape: str
     ns_per_call: float
@@ -57,11 +76,11 @@ def _measure_statement(statement: str, bindings: dict[str, object], number: int,
 
 
 def measure(repeat: int = timing.REPEAT, target: float = timing.TARGET_SECONDS) -> list[ShapeRow]:
+    """Time every shape at every size, one calibration per size."""
     rows: list[ShapeRow] = []
     for size_label, size in SIZES:
         data = payloads.payload(size)
-        # One calibration per size, shared by every shape: identical loop
-        # counts keep the nanosecond deltas comparable.
+        # One calibration per size, shared by every shape, keeps the deltas comparable.
         number = timing.calibrate(_core.base32768_encode, data, target)
         measured = [
             (shape, _measure_statement(shape.statement, shape.bindings | {"p": data}, number, repeat) * 1e9)
@@ -75,6 +94,7 @@ def measure(repeat: int = timing.REPEAT, target: float = timing.TARGET_SECONDS) 
 
 
 def render(rows: Sequence[ShapeRow]) -> str:
+    """Console table of the shape rows with their deltas to the baseline."""
     lines: list[str] = []
     current_size = ""
     for row in rows:

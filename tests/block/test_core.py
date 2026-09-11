@@ -1,3 +1,22 @@
+# Copyright (c) 2026-present rayakame
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 """Differential tests: the block-preset C functions against their reference oracles."""
 
 from __future__ import annotations
@@ -108,8 +127,7 @@ _ACCEPTED_SINGLES = {"braille": 256, "hexagram": 0}
 
 @pytest.mark.parametrize("preset", error_cases.PRESETS)
 def test_every_single_character_agrees(preset: str) -> None:
-    """All 65,536 one-char strings, C vs oracle; braille accepts exactly its
-    256 own characters, hexagram none (6 bits cannot fill a byte)."""
+    """All 65,536 one-char strings; braille accepts its 256, hexagram none."""
     accepted = sum(1 for code_point in range(0x10000) if _assert_parity(preset, chr(code_point)) is not None)
     assert accepted == _ACCEPTED_SINGLES[preset]
 

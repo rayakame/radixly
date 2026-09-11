@@ -1,3 +1,4 @@
+# Copyright (c) 2026-present rayakame
 from typing import Final
 
 from _typeshed import ReadableBuffer

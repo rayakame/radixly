@@ -1,3 +1,24 @@
+/*
+ * Copyright (c) 2026-present rayakame
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include "uro14.h"
@@ -19,11 +40,9 @@ const char radixly_uro14_encode_doc[] =
               "\n"
               "Encode a bytes-like object as uro14 text.\n"
               "\n"
-              "One length-prefix character, then the body at 14 payload bits per\n"
-              "character, all drawn from the contiguous CJK block starting at\n"
-              "U+4E00: ``n`` bytes become ``1 + ceil(8 * n / 14)`` characters. The\n"
-              "prefix claims ``n`` modulo 16,384, which is what lets the decoder\n"
-              "reject truncated input below that window.\n"
+              "A length-prefix character, then 14 payload bits per character from the\n"
+              "CJK block at U+4E00: ``n`` bytes become ``1 + ceil(8 * n / 14)``\n"
+              "characters. The prefix claims ``n`` modulo 16,384.\n"
               "\n"
               "Parameters\n"
               "----------\n"
@@ -102,11 +121,8 @@ const char radixly_uro14_decode_doc[] =
               "\n"
               "Decode uro14 text back to bytes.\n"
               "\n"
-              "Strict and canonical. The length prefix must agree with the body:\n"
-              "every tail truncation of a payload under 16,384 bytes is rejected.\n"
-              "Bigger payloads wrap the length claim, so a truncation that lands on\n"
-              "a matching claim can decode to a shorter payload -- the window is\n"
-              "the documented limit of the guarantee.\n"
+              "Strict and canonical. The prefix must agree with the body, so every\n"
+              "truncation under 16,384 bytes is rejected; bigger payloads wrap the claim.\n"
               "\n"
               "Parameters\n"
               "----------\n"

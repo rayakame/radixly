@@ -1,3 +1,22 @@
+# Copyright (c) 2026-present rayakame
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 """Reference for contiguous-block codecs: one alphabet run, bits_per_char per character."""
 
 from __future__ import annotations
@@ -51,8 +70,7 @@ def decode(string: str, start: int, bits_per_char: int) -> bytes:
             acc &= (1 << num_bits) - 1
 
     num_pad = num_bits
-    # Canonicality (fixed decision, mirrors base32768): the final character
-    # must carry at least one payload bit.
+    # Canonicality, same rule as base32768: the final char must carry a payload bit.
     if bits_per_char <= num_pad:
         msg = (
             f"non-canonical input: {bits_per_char}-bit final character "

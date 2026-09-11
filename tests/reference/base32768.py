@@ -1,8 +1,23 @@
-"""Pure-Python reference implementation of Base32768.
-
-Differential oracle for the C extension. Correctness and readability over
-speed; this module is never shipped in the wheel.
-"""
+# Copyright (c) 2026-present rayakame
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+"""Pure-Python reference, the oracle for the C. Never shipped."""
 
 from __future__ import annotations
 
@@ -19,7 +34,7 @@ __all__ = ("BITS_PER_CHAR", "LOOKUP_D", "LOOKUP_E", "PAIR_STRINGS", "decode", "e
 
 BITS_PER_CHAR: typing.Final = 15  # Base32768 is a 15-bit encoding
 
-# alphabet data copied from qntm's base32768 (github.com/qntm/base32768), MIT licensed, copyright qntm.
+# Alphabet data from qntm's base32768 (github.com/qntm/base32768), MIT, copyright qntm.
 PAIR_STRINGS: typing.Final[tuple[str, ...]] = (
     "ҠҿԀԟڀڿݠޟ߀ߟကဟႠႿᄀᅟᆀᆟᇠሿበቿዠዿጠጿᎠᏟᐠᙟᚠᛟកសᠠᡟᣀᣟᦀᦟ᧠᧿ᨠᨿᯀᯟᰀᰟᴀᴟ⇠⇿⋀⋟⍀⏟␀␟─❟➀➿⠀⥿⦠⦿⨠⩟⪀⪿⫠⭟ⰀⰟⲀⳟⴀⴟⵀⵟ⺠⻟㇀㇟㐀䶟䷀龿ꀀꑿ꒠꒿ꔀꗿꙀꙟꚠꛟ꜀ꝟꞀꞟꡀꡟ",
     "ƀƟɀʟ",
@@ -82,11 +97,11 @@ def encode(data: bytes) -> str:
 def decode(string: str) -> bytes:
     """Decode a Base32768 string back to bytes.
 
-    Raises:
-        errors.DecodeError: on a character outside the alphabet; on a 7-bit character
-            anywhere but the final position; on a final character that carries
-            no payload bits (non-canonical); or on padding bits that are not
-            all 1. Every message names the position at fault.
+    Raises
+    ------
+    errors.DecodeError
+        Invalid character, 7-bit character not last, no-payload final character,
+        or padding not all ones; position names the culprit.
     """
     acc = 0
     num_bits = 0
@@ -109,8 +124,7 @@ def decode(string: str) -> bytes:
         num_bits += num_z_bits
         final_num_z_bits = num_z_bits
 
-        # Drain completed bytes as we go. Letting acc grow to hold the whole
-        # payload makes every shift copy a bignum, which is quadratic.
+        # Drain bytes as we go; a whole-payload bignum makes every shift quadratic.
         while num_bits >= shared.BITS_PER_BYTE:
             num_bits -= shared.BITS_PER_BYTE
             out.append(acc >> num_bits)
@@ -118,15 +132,7 @@ def decode(string: str) -> bytes:
 
     num_pad = num_bits  # 0..7 bits of padding are all that can be left
 
-    # Canonicality: the final character must carry at least one payload bit.
-    # A 7-bit final character with 7 padding bits is pure filler, which the
-    # encoder never emits (it stops instead of emitting an empty character).
-    # Stated width-independently: reject when the final character is no wider
-    # than the padding it would have to hold.
-    #
-    # NOTE: this deliberately diverges from qntm's reference JS, which accepts
-    # such a string. radixly rejects it so that decode is injective: one payload,
-    # exactly one accepted spelling. Keep this behaviour in the C extension.
+    # Canonicality: the final char must carry a payload bit. Stricter than qntm's JS on purpose; keep the C in lockstep.
     if final_num_z_bits <= num_pad:
         msg = (
             f"non-canonical input: {final_num_z_bits}-bit final character "
@@ -134,10 +140,7 @@ def decode(string: str) -> bytes:
         )
         raise errors.DecodeError(last_index, message=msg)
 
-    # The drain loop masks acc after every byte, so acc holds exactly num_pad
-    # bits here. Comparing all of acc — no mask — makes stray high bits
-    # (payload that never reached the output) fail this check instead of
-    # being silently stripped.
+    # acc holds exactly num_pad bits here; comparing it unmasked catches stray high bits.
     expected_padding = (1 << num_pad) - 1
     if acc != expected_padding:
         msg = (

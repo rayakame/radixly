@@ -1,3 +1,22 @@
+# Copyright (c) 2026-present rayakame
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 """Public face of the uro14 codec; the package ``__init__`` re-exports everything here."""
 
 from __future__ import annotations
@@ -17,7 +36,7 @@ BITS_PER_CHAR = 14
 
 
 def encoded_len(num_bytes: int) -> int:
-    """Exact length of ``encode(data)``: the length prefix plus the body.
+    """Exact length of ``encode(data)``: the prefix plus the body.
 
     Parameters
     ----------
@@ -47,17 +66,14 @@ def encoded_len(num_bytes: int) -> int:
 
 
 def max_bytes(num_chars: int) -> int:
-    """Largest payload that encodes into at most ``num_chars`` characters.
+    """Largest payload that fits in ``num_chars`` characters.
 
-    The prefix eats one character, so nothing whatsoever fits in zero -- the
-    contract has no truthful integer answer there and refuses instead of
-    lying (the sibling codecs' max_bytes(0) == 0 genuinely holds; only uro14
-    has a nonempty empty).
+    Zero characters fit nothing, the prefix alone needs one, so ``max_bytes(0)`` refuses.
 
     Parameters
     ----------
     num_chars
-        The channel's limit, counted in code points, prefix included.
+        The limit, in code points, prefix included.
 
     Returns
     -------

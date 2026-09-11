@@ -1,3 +1,22 @@
+# Copyright (c) 2026-present rayakame
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 """Argument parsing, the run loop, and renderer dispatch. Default scope: complete."""
 
 from __future__ import annotations
@@ -35,6 +54,8 @@ QUICK_REFERENCE_NUMBER: typing.Final = 2_000
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class Options:
+    """The validated command line; None in a scope field means everything."""
+
     codecs: tuple[str, ...] | None
     sizes: tuple[tuple[str, int], ...] | None
     directions: tuple[str, ...]
@@ -143,6 +164,7 @@ def _validate_outputs(parser: argparse.ArgumentParser, options: Options) -> None
 
 
 def parse_options(argv: Sequence[str] | None = None) -> Options:
+    """Parse and validate argv; any contradiction is a usage error."""
     parser = _build_parser()
     args = parser.parse_args(argv)
     codecs_raw = typing.cast("str | None", args.codecs)
@@ -178,6 +200,8 @@ def parse_options(argv: Sequence[str] | None = None) -> Options:
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class RunConfig:
+    """Knobs for one measurement run; the CLI derives it from Options, tests build it directly."""
+
     mode: str = "full"  # "full" | "quick" | "ci"; recorded in the document
     codecs: tuple[str, ...] | None = None
     sizes: tuple[tuple[str, int], ...] | None = None
@@ -221,7 +245,7 @@ def _one_row(
 
 
 def ensure_measurable(env: model.Environment, *, force: bool) -> None:
-    """The founding guard: a non-optimized build is measured only on --force."""
+    """Refuse a non-optimized build unless --force asks to measure it anyway."""
     if not env.optimized and not force:
         msg = (
             "refusing to benchmark a non-optimized build (radixly._core.OPTIMIZED is False); "
@@ -231,6 +255,7 @@ def ensure_measurable(env: model.Environment, *, force: bool) -> None:
 
 
 def run(config: RunConfig | None = None) -> model.RunResult:
+    """Measure every implementation in scope and return the run as one document."""
     config = RunConfig() if config is None else config
     env = environment.capture()
     ensure_measurable(env, force=config.force)
@@ -281,14 +306,7 @@ def _write_outputs(options: Options, result: model.RunResult) -> None:
 
 
 def write_docs(result: model.RunResult, docs_dir: pathlib.Path, charts_dir: pathlib.Path) -> list[pathlib.Path]:
-    """One page fragment per codec, stale pages pruned.
-
-    The fragments are meant for MyST ``{include}``, which resolves image
-    paths against the *including* page, so relative paths would silently
-    depend on where the include happens. The charts are reached through a
-    ``charts`` link inside ``docs_dir`` and referenced by a source-root
-    absolute path (``/<docs_dir name>/charts/...``) that holds from any depth.
-    """
+    """Write one page fragment per codec and prune stale ones; charts go via a symlink and a source-root path."""
     docs_dir.mkdir(exist_ok=True)
     link = docs_dir / "charts"
     if not link.exists():
@@ -326,6 +344,7 @@ def _ci_gate(result: model.RunResult) -> int:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Parse, measure or render, write the outputs; under --ci the exit code is the verdict."""
     options = parse_options(argv)
     quick = options.quick or options.ci_mode
     repeat = QUICK_REPEAT if quick else timing.REPEAT

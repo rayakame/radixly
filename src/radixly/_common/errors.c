@@ -1,3 +1,24 @@
+/*
+ * Copyright (c) 2026-present rayakame
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <stddef.h>
@@ -16,9 +37,7 @@ typedef struct {
 static const char radixly_decode_error_doc[] =
     PyDoc_STR("Malformed or non-canonical input was rejected during decoding.\n"
               "\n"
-              "A ``ValueError`` subclass, so existing ``except ValueError`` handlers\n"
-              "keep working. Every decoder raises it with the index of the offending\n"
-              "character; the message is generated unless one is given.\n"
+              "A ``ValueError`` subclass. The message is generated unless one is given.\n"
               "\n"
               "Parameters\n"
               "----------\n"
@@ -84,9 +103,7 @@ static PyMemberDef decode_error_members[] = {
 static int
 decode_error_traverse(PyObject *self, visitproc visit, void *arg)
 {
-    /* Instances of heap types own a strong reference to their type, and the
-     * collector only learns about it here; ValueError's traverse is a
-     * static-type traverse and will never report it for us. */
+    /* Heap-type instances own their type; ValueError's static traverse would never report it. */
     Py_VISIT(Py_TYPE(self));
     return ((PyTypeObject *)PyExc_ValueError)->tp_traverse(self, visit, arg);
 }

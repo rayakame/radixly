@@ -1,5 +1,23 @@
-"""Conformance tests for the pure-Python reference, against qntm's vectors
-(plus the locally generated seven-bit-final — see the vectors README)."""
+# Copyright (c) 2026-present rayakame
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+"""Conformance against qntm's vectors, plus the local seven-bit-final vector."""
 
 from __future__ import annotations
 
@@ -22,8 +40,7 @@ if typing.TYPE_CHECKING:
 # LOOKUP_D is insertion-ordered: the 15-bit repertoire, then the 7-bit one.
 ALPHABET: str = "".join(base32768_reference.LOOKUP_D)
 
-# Everything a transport could mangle: surrogates, unassigned, controls/format,
-# private use, combining marks, separators.
+# Everything a transport could mangle: surrogates, unassigned, controls, private use, marks, separators.
 UNSAFE_CATEGORIES = frozenset({"Cc", "Cf", "Cn", "Co", "Cs", "Mc", "Me", "Mn", "Zl", "Zp", "Zs"})
 
 
@@ -53,8 +70,7 @@ def test_decode_rejects_bad_input(name: str, vector_dir: pathlib.Path) -> None:
     ids=error_cases.HOSTILE_NON_BMP,
 )
 def test_decode_rejects_astral_and_surrogate_input(string: str, position: int) -> None:
-    """Pins non-BMP rejection so the C differential has a spec: surrogates ride
-    through the reverse table, astral would index past it."""
+    """Non-BMP rejection pinned so the C differential has a spec."""
     with pytest.raises(errors_reference.DecodeError) as exc_info:
         base32768_reference.decode(string)
     assert exc_info.value.position == position
@@ -84,8 +100,7 @@ def test_decode_accepts_canonical_seven_padding_bits() -> None:
 
 
 def test_seven_bit_final_vector_pins_fresh_repertoire(vector_dir: pathlib.Path) -> None:
-    """qntm's vectors use only z = 47/63/127; seven-bit-final pins the untouched
-    'ƀ'..'Ɵ' block, and this guards the vector's own coverage."""
+    """Vectors from qntm only use z = 47/63/127; this one covers the rest of the 7-bit block."""
     encoded = (vector_dir / "pairs" / "seven-bit-final.txt").read_text(encoding="utf-8")
     num_z_bits, z = base32768_reference.LOOKUP_D[encoded[-1]]
     assert num_z_bits == 7

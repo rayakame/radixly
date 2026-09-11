@@ -11,37 +11,34 @@ line-ending = "lf"
 preview = true
 select = ["ALL"]
 ignore = [
-    # Comment and docstring rules are disabled while the library is being
-    # (re)written; comments and docs are a dedicated pass at the end.
-    "CPY", # copyright header
-    "D",   # pydocstyle
-    "DOC", # pydoclint
-    "ERA", # commented-out code
-
     "ISC003", # we prefer explicit string concatenation
     "COM812", # missing trailing comma; conflicts with the formatter, which owns trailing commas
 ]
 
 [lint.per-file-ignores]
 "**/__init__.py" = [
-    "F401", # imported but unused
     "F403", # unable to detect undefined names
 ]
 "tests/**" = [
+    "DOC",     # docstring sections vs signature; test docstrings explain intent, not parameters
+    "D101",    # undocumented class: test names carry the intent
+    "D102",    # undocumented method
+    "D103",    # undocumented function
+    "D105",    # undocumented magic method
     "S101",    # use of assert
     "PLR2004", # magic value comparison
-    "SLF001", # private memeber access
-    "PLC2701", # private name import
-    "INP001", # add __init__.py
-    "S311", # weak pseudo-random number generators
+    "SLF001",  # private member access
+    "PLC2701", # private name import: tests reach _core and _api directly
+    "S311",    # weak pseudo-random number generators: seeded payloads, not secrets
 ]
 "{benchmarks,scripts}/**" = [
+    "DOC",     # docstring sections vs signature
     "S101",    # use of assert
     "PLR2004", # magic value comparison
-    "INP001", # add __init__.py
-    "T201", # print
-    "S311", # weak pseudo-random number generators
-    "PLC2701", # private name import
+    "INP001",  # add __init__.py
+    "T201",    # print: it is a CLI
+    "S311",    # weak pseudo-random number generators: seeded payloads, not secrets
+    "PLC2701", # private name import: the benchmarks time _core directly
 ]
 "noxfile.py" = [
     "S101",    # use of assert

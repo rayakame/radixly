@@ -1,3 +1,24 @@
+/*
+ * Copyright (c) 2026-present rayakame
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include "_tables.h"
@@ -41,11 +62,9 @@ const char radixly_base32768_encode_doc[] =
               "\n"
               "Encode a bytes-like object as base32768 text.\n"
               "\n"
-              "Every character carries 15 payload bits. A leftover of 1 to 7 bits\n"
-              "ends in a short character from a second alphabet of 128, a leftover\n"
-              "of 8 to 14 in a padded 15-bit character, and none in no extra\n"
-              "character. ``n`` input bytes become ``ceil(8 * n / 15)`` BMP code\n"
-              "points from qntm's alphabets.\n"
+              "15 payload bits per character; a leftover of 1 to 7 bits ends in a short\n"
+              "character from a second alphabet of 128, 8 to 14 in a padded 15-bit one.\n"
+              "``n`` bytes become ``ceil(8 * n / 15)`` characters.\n"
               "\n"
               "Parameters\n"
               "----------\n"
@@ -137,10 +156,7 @@ const char radixly_base32768_decode_doc[] =
               "\n"
               "Decode base32768 text back to bytes.\n"
               "\n"
-              "Strict and canonical: every payload has exactly one accepted spelling.\n"
-              "An invalid character, a 7-bit character anywhere but last, padding\n"
-              "bits that are not all ones, or a final character carrying no payload\n"
-              "bits is rejected.\n"
+              "Strict and canonical: one payload, one accepted spelling.\n"
               "\n"
               "Parameters\n"
               "----------\n"

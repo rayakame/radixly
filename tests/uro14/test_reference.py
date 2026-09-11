@@ -1,3 +1,22 @@
+# Copyright (c) 2026-present rayakame
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 """Reference tests for uro14: 14 bits per CJK character behind a length prefix."""
 
 from __future__ import annotations
@@ -51,9 +70,7 @@ def test_swapped_prefix_is_a_length_lie() -> None:
 
 
 def test_round_trip_past_the_modulus() -> None:
-    """20,000 bytes: the claim wraps (20000 % 16384 = 3616) and the candidate
-    match must still pick the right payload length. Hypothesis stays small by
-    design, so this one is deterministic."""
+    """20,000 bytes: the claim wraps (20000 % 16384 = 3616); deterministic on purpose."""
     payload = random.Random(20_000).randbytes(20_000)
     assert uro14.decode(uro14.encode(payload)) == payload
 
@@ -73,8 +90,7 @@ def test_paper_pins(payload: bytes, expected: str) -> None:
 
 @pytest.mark.parametrize("bad", ["A", "踀"], ids=["ascii", "one-past-block"])
 def test_invalid_prefix_char(bad: str) -> None:
-    """Must be the invalid-character error, not length-mismatch: the one place
-    prose is worth matching."""
+    """Must be the invalid-character error, not length mismatch."""
     with pytest.raises(errors_reference.DecodeError, match="invalid character") as exc_info:
         uro14.decode(bad)
     assert exc_info.value.position == 0
@@ -90,7 +106,7 @@ def test_bad_body_char_position_counts_the_prefix() -> None:
 
 
 def test_bad_padding_in_final_body_char() -> None:
-    """The b"\\x00" pin with its 6 padding ones zeroed: U+4E3F becomes U+4E00."""
+    r"""The b"\x00" pin with its 6 padding ones zeroed: U+4E3F becomes U+4E00."""
     with pytest.raises(errors_reference.DecodeError) as exc_info:
         uro14.decode("丁一")
     assert exc_info.value.position == 1

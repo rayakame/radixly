@@ -1,3 +1,24 @@
+/*
+ * Copyright (c) 2026-present rayakame
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include "block.h"
@@ -71,9 +92,7 @@ radixly_block_decode(PyObject *arg, Py_UCS4 start, unsigned bits_per_char)
     }
 
 #if PY_VERSION_HEX < 0x030C0000
-    /* 3.11 can still meet legacy, non-ready strings from other C extensions;
-     * GET_LENGTH/KIND/DATA on one is UB. Deprecated call, compiles out on
-     * 3.12+; a 3.11 -Werror build may need a suppression. */
+    /* 3.11 may hand us legacy non-ready strings; GET_LENGTH/KIND/DATA on one is UB. Compiles out on 3.12+. */
     if (PyUnicode_READY(arg) == -1) {
         return NULL;
     }
@@ -102,8 +121,7 @@ radixly_block_decode(PyObject *arg, Py_UCS4 start, unsigned bits_per_char)
 
     for (Py_ssize_t i = 0; i < num_chars; i++) {
         Py_UCS4 code_point = PyUnicode_READ(kind, data, i);
-        /* These two comparisons are the whole reverse table: surrogates and
-         * astral characters land in the same rejection. */
+        /* Two comparisons are the whole reverse table; surrogates and astral fall out the same way. */
         if (code_point < start || code_point > max_char) {
             Py_DECREF(result);
             return radixly_raise_decode_error(i, "invalid character U+%x at index %zd", (unsigned)code_point,
@@ -120,10 +138,8 @@ radixly_block_decode(PyObject *arg, Py_UCS4 start, unsigned bits_per_char)
     }
     assert(out_i == num_bytes);
 
-    /* Canonicality (fixed decision, lockstep with tests/reference/block.py):
-     * the final character must carry at least one payload bit. Checked after
-     * the character scan although the length alone decides it: an invalid
-     * character must win the position race, matching the reference. */
+    /* Canonicality (lockstep with the reference), checked after the scan so an invalid char wins the position
+     * race. */
     if (bits_per_char <= num_pad) {
         Py_DECREF(result);
         return radixly_raise_decode_error(

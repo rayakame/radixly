@@ -1,3 +1,22 @@
+# Copyright (c) 2026-present rayakame
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 """Public face of the base32768 codec; the package ``__init__`` re-exports everything here."""
 
 from __future__ import annotations
@@ -17,7 +36,7 @@ BITS_PER_CHAR = 15
 
 
 def encoded_len(num_bytes: int) -> int:
-    """Exact length of ``encode(data)`` for a ``num_bytes``-byte payload, without encoding anything.
+    """Exact length of ``encode(data)`` for ``num_bytes`` bytes, without encoding.
 
     Parameters
     ----------
@@ -47,12 +66,12 @@ def encoded_len(num_bytes: int) -> int:
 
 
 def max_bytes(num_chars: int) -> int:
-    """Largest payload that encodes into at most ``num_chars`` characters.
+    """Largest payload that fits in ``num_chars`` characters.
 
     Parameters
     ----------
     num_chars
-        The channel's limit, counted in code points.
+        The limit, in code points.
 
     Returns
     -------
