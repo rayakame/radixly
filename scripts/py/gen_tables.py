@@ -21,7 +21,6 @@
 
 from __future__ import annotations
 
-import itertools
 import pathlib
 import typing
 
@@ -176,7 +175,8 @@ def _write_header(writer: IndentWriter, guard: str, source: str) -> None:
 
 def _write_array(writer: IndentWriter, ctype: str, name: str, values: tuple[int, ...], *, digits: int = 4) -> None:
     writer.write_line(f"static const {ctype} {name}[{len(values)}] = {{")
-    for chunk in itertools.batched(values, 14):
+    for start in range(0, len(values), 14):  # not itertools.batched: the tests load this on 3.11
+        chunk = values[start : start + 14]
         writer.write_line(", ".join(f"0x{cp:0{digits}X}" for cp in chunk) + ",", indent_depth=1)
     writer.write_line("};")
     writer.write_blank()
