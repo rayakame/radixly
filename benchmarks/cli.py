@@ -260,7 +260,8 @@ def run(config: RunConfig | None = None) -> model.RunResult:
     config = RunConfig() if config is None else config
     env = environment.capture()
     ensure_measurable(env, force=config.force)
-    competitors.install()
+    for distribution in competitors.install():
+        print(f"warning: rival {distribution} is not installed; its rows are missing from this run", file=sys.stderr)
     chosen_sizes = registry.SIZES if config.sizes is None else config.sizes
 
     measurements: list[model.Measurement] = []

@@ -93,6 +93,12 @@ def test_every_single_byte_round_trips_through_the_narrow_path() -> None:
         assert _core.base2048_decode(encoded) == payload
 
 
+@pytest.mark.parametrize("z", range(8))
+def test_short_alphabet_from_first_principles(z: int) -> None:
+    """Ten bytes leave exactly 3 bits, the low bits of the last byte, one short character each."""
+    assert _core.base2048_encode(bytes(9) + bytes([z]))[-1] == chr(ord("0") + z)
+
+
 @pytest.mark.parametrize("bad", ["text", 42], ids=["str", "int"])
 def test_encode_rejects_non_buffer(bad: str | int) -> None:
     """The exact prose is the platform's; match only the load-bearing phrase."""
@@ -146,7 +152,29 @@ def test_decode_rejects_bad_input(name: str, vector_dir: pathlib.Path) -> None:
     ids=error_cases.HOSTILE_CASES,
 )
 def test_decode_rejects_hostile_input(string: str, position: int) -> None:
-    """Both sides of the U+1100 table edge, the painted cells, surrogates and astral characters."""
+    """In-table cells the alphabet leaves invalid, both sides of the table's end, surrogates and astral characters."""
+    with pytest.raises(_core.DecodeError) as exc_info:
+        _core.base2048_decode(string)
+    assert exc_info.value.position == position
+
+
+@pytest.mark.parametrize(
+    ("string", "position"),
+    error_cases.PADDING_CASES.values(),
+    ids=error_cases.PADDING_CASES,
+)
+def test_decode_rejects_zeroed_padding(string: str, position: int) -> None:
+    with pytest.raises(_core.DecodeError) as exc_info:
+        _core.base2048_decode(string)
+    assert exc_info.value.position == position
+
+
+@pytest.mark.parametrize(
+    ("string", "position"),
+    error_cases.SHORT_CASES.values(),
+    ids=error_cases.SHORT_CASES,
+)
+def test_decode_rejects_short_character_before_the_end(string: str, position: int) -> None:
     with pytest.raises(_core.DecodeError) as exc_info:
         _core.base2048_decode(string)
     assert exc_info.value.position == position

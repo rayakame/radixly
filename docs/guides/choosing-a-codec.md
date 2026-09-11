@@ -8,7 +8,7 @@ was cut short is caught. Start from your constraint, not from the codec.
 |---|---|---|---|---|---|
 | {doc}`../codecs/base65536` | 16 | `ceil(n / 2)` | 200 bytes | 65,792 code points in 257 blocks, most of them astral | no |
 | {doc}`../codecs/base32768` | 15 | `ceil(8n / 15)` | 187 bytes | 32,768 code points across many BMP blocks | no |
-| {doc}`../codecs/base2048` | 11 | `ceil(8n / 11)` | 137 bytes | 2,048 letters and digits, all below U+1100 | no |
+| {doc}`../codecs/base2048` | 11 | `ceil(8n / 11)` | 137 bytes | 2,048 letters and numerals, all below U+1100 | no |
 | {doc}`../codecs/uro14` | 14 | `1 + ceil(8n / 14)` | 173 bytes | one CJK block, 16,384 code points | yes, below 16,384 bytes |
 | {doc}`../codecs/braille` | 8 | `n` | 100 bytes | one block, 256 Braille patterns | no |
 | {doc}`../codecs/hexagram` | 6 | `ceil(8n / 6)` | 75 bytes | one block, 64 hexagrams | partly |
@@ -23,7 +23,8 @@ That is not a weakness to work around, it is the wrong tool.
 One more question for the densest option: does the channel count code points
 or UTF-16 code units? base65536 lives mostly outside the BMP, where each
 character is two code units. A JavaScript `length`, a Java `String`, or
-anything else that counts UTF-16 will see it as no denser than base32768.
+anything else that counts UTF-16 will see it as sparser than base32768: an
+astral character carries 8 bits per code unit, half of base32768's 15.
 
 ## Does a cut-off string have to be caught?
 
@@ -38,8 +39,8 @@ length or a checksum yourself.
 
 The fewer distinct characters a codec uses, the more channels accept it
 unchanged. hexagram uses 64 symbols from one block, braille 256, uro14 one
-block of 16,384 ideographs, base2048 letters and digits from a dozen scripts,
-base32768 characters from many BMP blocks, base65536 blocks from four planes.
+block of 16,384 ideographs, base2048 letters and numerals from two dozen scripts,
+base32768 characters from many BMP blocks, base65536 blocks from three planes.
 All six avoid whitespace, control characters and combining marks, so the
 usual suspects (chat clients, databases, normalizing frameworks) pass them
 through. base2048 is the one whose output can look like ordinary text, and
@@ -47,8 +48,8 @@ base65536 the one a channel might reject for leaving the BMP.
 
 ## Speed is not the deciding factor
 
-All six sit in the same range, roughly 0.04 to 0.3 microseconds per call at
-200 bytes and hundreds of megabytes per second on large inputs, base65536 in
-the gigabytes. Pick by
+All six sit in the same range, 0.04 to 0.3 microseconds per call at 200
+bytes and one to seven gigabytes per second encoding large inputs, decoding
+from about 0.7 GB/s up. Pick by
 alphabet and truncation behavior; the numbers on each codec page are there
 to confirm that whichever you pick will not be the bottleneck.

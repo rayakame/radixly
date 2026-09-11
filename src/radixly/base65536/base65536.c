@@ -30,7 +30,7 @@
 enum {
     BLOCK_SHIFT = 8,
     MAX_CODE_POINT = 0x10FFFF,
-    REV_SIZE = (0x10FFFF >> 8) + 1, /* one cell per block a str can address */
+    REV_SIZE = (0x10FFFF >> 8) + 1, /* MAX_CODE_POINT >> BLOCK_SHIFT; literals keep the shift unsigned */
     REV_INVALID = 0xFFFF,
     REV_PAD = 0x0100, /* the 8-bit tail block; no block index reaches it */
     BMP_MAX_CHAR = 0xFFFF,
@@ -38,6 +38,8 @@ enum {
 
 /* Indexed by code point >> 8: the block index, REV_PAD, or REV_INVALID. */
 static uint16_t REV[REV_SIZE];
+_Static_assert((unsigned)RADIXLY_B65536_PAD_START <= (unsigned)MAX_CODE_POINT,
+               "the tail block must index REV");
 
 int
 radixly_base65536_exec(PyObject *Py_UNUSED(module))
@@ -46,10 +48,14 @@ radixly_base65536_exec(PyObject *Py_UNUSED(module))
         REV[i] = REV_INVALID;
     }
 
+    /* A corrupt generated header must fail the import, not write past REV. */
     for (size_t i = 0; i < RADIXLY_ARRAY_SIZE(RADIXLY_B65536_BLOCK_START); i++) {
+        if (RADIXLY_B65536_BLOCK_START[i] > MAX_CODE_POINT) {
+            PyErr_SetString(PyExc_SystemError, "base65536 block start out of range");
+            return -1;
+        }
         REV[RADIXLY_B65536_BLOCK_START[i] >> (unsigned)BLOCK_SHIFT] = (uint16_t)i;
     }
-
     REV[(unsigned)RADIXLY_B65536_PAD_START >> (unsigned)BLOCK_SHIFT] = REV_PAD;
     return 0;
 }
@@ -102,8 +108,7 @@ radixly_base65536_encode(PyObject *Py_UNUSED(self), PyObject *arg)
     const Py_ssize_t odd = view.len % 2;
     const Py_ssize_t n_chars = n_pairs + odd;
 
-    /* The second byte of a pair picks the block; blocks from FIRST_ASTRAL_BLOCK on lie above the BMP. That
-     * decides the string's kind, which must be known before anything is written. */
+    /* The string's kind must be known up front: any second byte from FIRST_ASTRAL_BLOCK on leaves the BMP. */
     int astral = 0;
     for (Py_ssize_t i = 0; i < n_pairs; i++) {
         if (data[(2 * i) + 1] >= RADIXLY_B65536_FIRST_ASTRAL_BLOCK) {

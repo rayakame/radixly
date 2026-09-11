@@ -30,9 +30,11 @@ from tests.reference import shared
 if typing.TYPE_CHECKING:
     from collections.abc import Mapping
 
+    from _typeshed import ReadableBuffer
+
 __all__ = ("BITS_PER_CHAR", "LOOKUP_D", "LOOKUP_E", "PAIR_STRINGS", "SHORT_BITS", "decode", "encode")
 
-BITS_PER_CHAR: typing.Final = 11  # Base2048 is an 11-bit encoding
+BITS_PER_CHAR: typing.Final = 11
 SHORT_BITS: typing.Final = BITS_PER_CHAR - shared.BITS_PER_BYTE  # the 3-bit tail alphabet
 
 # Alphabet data from qntm's base2048 (github.com/qntm/base2048), MIT, copyright qntm.
@@ -68,8 +70,23 @@ LOOKUP_D: typing.Final[Mapping[str, tuple[int, int]]] = types.MappingProxyType(_
 del _lookup_e, _lookup_d
 
 
-def encode(data: bytes) -> str:
-    """Encode ``data`` as a Base2048 string."""
+def _as_bytes(data: ReadableBuffer) -> bytes:
+    """Draw the C's line: any buffer is accepted, str is refused."""
+    if isinstance(data, str):
+        msg = "a bytes-like object is required, not 'str'"
+        raise TypeError(msg)
+    return bytes(memoryview(data))
+
+
+def _require_str(string: object) -> None:
+    if not isinstance(string, str):
+        msg = f"expected str, not {type(string).__name__}"
+        raise TypeError(msg)
+
+
+def encode(data: ReadableBuffer) -> str:
+    """Encode ``data`` as a Base2048 string; any buffer is accepted, ``str`` is not."""
+    data = _as_bytes(data)
     acc = 0  # bit accumulator, most significant bit first
     num_bits = 0  # how many bits currently live in acc
     out: list[str] = []
@@ -103,6 +120,7 @@ def decode(string: str) -> bytes:
         Invalid character, 3-bit character not last, no-payload final character,
         or padding not all ones; position names the culprit.
     """
+    _require_str(string)
     acc = 0
     num_bits = 0
     out = bytearray()

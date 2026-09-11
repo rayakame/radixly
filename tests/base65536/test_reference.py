@@ -78,10 +78,27 @@ def test_decode_rejects_hostile_input(string: str, position: int) -> None:
     ids=error_cases.TAIL_CASES,
 )
 def test_decode_rejects_tail_character_before_the_end(string: str, position: int) -> None:
-    """The one-byte block ends the text or fails at its own index, as in qntm's base2048 decoder."""
+    """The one-byte block ends the text or fails at its own index; qntm's endOfStreamMidStream vectors pin the same."""
     with pytest.raises(errors_reference.DecodeError) as exc_info:
         base65536_reference.decode(string)
     assert exc_info.value.position == position
+
+
+@pytest.mark.parametrize("bad", ["text", 42], ids=["str", "int"])
+def test_encode_rejects_non_buffer(bad: str | int) -> None:
+    """The oracle draws the C's line: buffers in, str out."""
+    with pytest.raises(TypeError, match="bytes-like"):
+        base65536_reference.encode(bad)  # pyright: ignore[reportArgumentType]
+
+
+def _type_id(value: object) -> str:
+    return type(value).__name__
+
+
+@pytest.mark.parametrize("bad", error_cases.NON_STR_INPUTS, ids=_type_id)
+def test_decode_rejects_non_str(bad: object) -> None:
+    with pytest.raises(TypeError, match="expected str"):
+        base65536_reference.decode(bad)  # pyright: ignore[reportArgumentType]
 
 
 def test_byte_order_quirk_is_the_wire_format() -> None:
@@ -125,10 +142,11 @@ def test_encoded_length(payload: bytes) -> None:
     assert len(base65536_reference.encode(payload)) == (len(payload) + 1) // 2
 
 
-def test_vectors_are_present(vector_pairs: tuple[pathlib.Path, ...]) -> None:
-    """Guard against an empty parametrize list silently passing the suite."""
+def test_vectors_are_present(vector_pairs: tuple[pathlib.Path, ...], vector_dir: pathlib.Path) -> None:
+    """Guard against an empty parametrize list silently passing the suite, and a bad vector nobody pinned."""
     single_bytes = [p for p in vector_pairs if p.parent.name == "single-bytes"]
     doubled_bytes = [p for p in vector_pairs if p.parent.name == "doubled-bytes"]
     assert len(single_bytes) == 256, f"expected 256 single-byte cases, got {len(single_bytes)}"
     assert len(doubled_bytes) == 256, f"expected 256 doubled-byte cases, got {len(doubled_bytes)}"
     assert len(vector_pairs) == 521  # qntm's complete pairs set
+    assert sorted(error_cases.BAD_CASES) == sorted(p.stem for p in (vector_dir / "bad").glob("*.txt"))

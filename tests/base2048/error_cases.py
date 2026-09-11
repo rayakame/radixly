@@ -23,7 +23,15 @@ from __future__ import annotations
 
 from tests.reference import base2048 as base2048_reference
 
-__all__ = ("BAD_CASES", "CANONICALITY_CASES", "HOSTILE_CASES", "NARROW_PINS", "NON_STR_INPUTS")
+__all__ = (
+    "BAD_CASES",
+    "CANONICALITY_CASES",
+    "HOSTILE_CASES",
+    "NARROW_PINS",
+    "NON_STR_INPUTS",
+    "PADDING_CASES",
+    "SHORT_CASES",
+)
 
 # qntm's bad vectors; the position is radixly's contract, pinned by the reference.
 BAD_CASES: dict[str, int] = {
@@ -40,8 +48,8 @@ _VALID_8_CHARS = base2048_reference.encode(bytes(11))  # 88 bits: 8 full 11-bit 
 
 HOSTILE_CASES: dict[str, tuple[str, int]] = {
     "ascii-outside-alphabet": ("!", 0),
-    "table-edge": ("\u10ff", 0),
-    "first-past-table": ("ᄀ", 0),
+    "first-past-table": ("\u1056", 0),
+    "twitter-line": ("ᄀ", 0),
     "bmp-ceiling": ("￿", 0),
     "astral": ("\U0001f600", 0),
     "high-surrogate": ("\ud800", 0),
@@ -56,6 +64,20 @@ _PURE_PADDING = base2048_reference.LOOKUP_E[3][7]  # '7', a 3-bit character that
 CANONICALITY_CASES: dict[str, tuple[str, int]] = {
     "lone-padding": (_PURE_PADDING, 0),
     "appended-padding": (_VALID_8_CHARS + _PURE_PADDING, 8),
+}
+
+# Padding bits that are not all ones; "88" plus "0" is b"\x00\x00" with the short character's pad bit zeroed.
+PADDING_CASES: dict[str, tuple[str, int]] = {
+    "short-final-zero-pad": ("880", 2),
+    "long-final-zero-pad": ("8", 0),
+    "long-final-zero-pad-mid": (_VALID_8_CHARS + "8", 8),
+}
+
+# A 3-bit character anywhere but last.
+SHORT_CASES: dict[str, tuple[str, int]] = {
+    "short-first": ("7" + _VALID_8_CHARS, 0),
+    "short-mid": (_VALID_8_CHARS + "3" + _VALID_8_CHARS, 8),
+    "two-shorts": ("77", 0),
 }
 
 # Single bytes 0 to 6 pad to indexes below 63, inside the repertoire's Latin-1 run: the C must hand back a

@@ -89,7 +89,7 @@ def test_decode_rejects_zero_payload_final_character(string: str, position: int)
 
 
 def test_decode_accepts_appended_padding_base() -> None:
-    """A blanket reject-every-7-bit bug would pass both canonicality cases."""
+    """The appended-padding case's base must decode on its own, or its rejection proves nothing."""
     payload = bytes(15)  # 120 bits, encodes to 8 full characters, no padding
     assert base32768_reference.decode(base32768_reference.encode(payload)) == payload
 
@@ -176,8 +176,9 @@ def test_round_trip(payload: bytes) -> None:
     assert base32768_reference.decode(base32768_reference.encode(payload)) == payload
 
 
-def test_vectors_are_present(vector_pairs: tuple[pathlib.Path, ...]) -> None:
-    """Guard against an empty parametrize list silently passing the suite."""
+def test_vectors_are_present(vector_pairs: tuple[pathlib.Path, ...], vector_dir: pathlib.Path) -> None:
+    """Guard against an empty parametrize list silently passing the suite, and a bad vector nobody pinned."""
     single_bytes = [p for p in vector_pairs if p.parent.name == "single-bytes"]
     assert len(single_bytes) == 256, f"expected 256 single-byte cases, got {len(single_bytes)}"
     assert len(vector_pairs) == 265  # qntm's 264 + the local seven-bit-final vector
+    assert sorted(error_cases.BAD_CASES) == sorted(p.stem for p in (vector_dir / "bad").glob("*.txt"))

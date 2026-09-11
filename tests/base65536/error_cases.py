@@ -46,7 +46,7 @@ HOSTILE_CASES: dict[str, tuple[str, int]] = {
     "gap-between-blocks": ("䴀", 0),
     "high-surrogate": ("\ud800", 0),
     "low-surrogate": ("\udfff", 0),
-    "unassigned-astral": ("\U0001f600", 0),
+    "astral-outside-alphabet": ("\U0001f600", 0),
     "past-last-block": ("\U00028600", 0),
     "max-code-point": ("\U0010ffff", 0),
     "astral-mid-string": (_VALID_4_CHARS + "\U0001f600" + _VALID_4_CHARS, 4),

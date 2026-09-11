@@ -78,12 +78,8 @@ def test_encode_matches_reference_megabyte() -> None:
     [(bytes([1, 109]) * 50, 2), (bytes([1, 110]), 4), (bytes([255, 109, 7]), 2), (b"", 1)],
     ids=["last-bmp-block", "first-astral-block", "bmp-with-tail", "empty"],
 )
-def test_output_kind_follows_the_second_bytes(payload: bytes, expected_kind: int) -> None:
-    """The second byte of a pair picks the block; only blocks from 110 on leave the BMP.
-
-    str equality compares kinds before bytes, so a string built in the wrong kind would already fail the
-    reference differentials; this pins the boundary explicitly.
-    """
+def test_astral_output_starts_at_block_110(payload: bytes, expected_kind: int) -> None:
+    """The second byte of a pair picks the block; blocks from 110 on leave the BMP. Equality pins the kind."""
     encoded = _core.base65536_encode(payload)
     widest = max(map(ord, encoded), default=0)
     assert (1 if widest < 0x100 else 2 if widest <= 0xFFFF else 4) == expected_kind
@@ -144,7 +140,7 @@ def test_decode_rejects_bad_input(name: str, vector_dir: pathlib.Path) -> None:
     ids=error_cases.HOSTILE_CASES,
 )
 def test_decode_rejects_hostile_input(string: str, position: int) -> None:
-    """Every unpainted cell of the block table, plus the code point ceiling guard."""
+    """Unpainted block cells on every side: below, in a gap, past the last, surrogates, the top code point."""
     with pytest.raises(_core.DecodeError) as exc_info:
         _core.base65536_decode(string)
     assert exc_info.value.position == position

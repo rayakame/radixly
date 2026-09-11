@@ -30,14 +30,14 @@
 enum {
     BITS_PER_CHAR = 11,
     SHORT_BITS = BITS_PER_CHAR - BITS_PER_BYTE,
-    MAX_CHAR = 0x10FF, /* the repertoire ends at U+1055; everything above is invalid */
+    MAX_CHAR = 0x1055, /* the last repertoire code point; the table ends with it */
     REV_INVALID = 0xFFFF,
     CEIL_PAD = BITS_PER_CHAR - 1,
     NARROW_LIMIT = 0x100,
 };
 
 static const uint16_t REV_SHORT_FLAG = 0x8000;
-static const uint32_t REV_VALUE_MASK = 0x7FFF;
+static const uint32_t REV_VALUE_MASK = 0x07FF;
 
 static uint16_t REV[MAX_CHAR + 1];
 
@@ -48,11 +48,20 @@ radixly_base2048_exec(PyObject *Py_UNUSED(module))
         REV[i] = REV_INVALID;
     }
 
+    /* A corrupt generated header must fail the import, not write past REV. */
     for (size_t i = 0; i < RADIXLY_ARRAY_SIZE(RADIXLY_B2048_FWD11); i++) {
+        if (RADIXLY_B2048_FWD11[i] > MAX_CHAR) {
+            PyErr_SetString(PyExc_SystemError, "base2048 table entry out of range");
+            return -1;
+        }
         REV[RADIXLY_B2048_FWD11[i]] = (uint16_t)i;
     }
 
     for (size_t i = 0; i < RADIXLY_ARRAY_SIZE(RADIXLY_B2048_FWD3); i++) {
+        if (RADIXLY_B2048_FWD3[i] > MAX_CHAR) {
+            PyErr_SetString(PyExc_SystemError, "base2048 table entry out of range");
+            return -1;
+        }
         REV[RADIXLY_B2048_FWD3[i]] = (uint16_t)(REV_SHORT_FLAG | i);
     }
     return 0;
@@ -118,7 +127,7 @@ radixly_base2048_encode(PyObject *Py_UNUSED(self), PyObject *arg)
     uint32_t acc = 0;
     unsigned num_bits = 0;
     Py_ssize_t out_i = 0;
-    Py_UCS2 seen = 0; /* OR of every character written; a high bit means the 2-byte kind is right */
+    Py_UCS2 seen = 0; /* OR of every character written; anything at or above U+0100 keeps the 2-byte kind */
     for (Py_ssize_t i = 0; i < view.len; i++) {
         acc = (acc << (unsigned)BITS_PER_BYTE) | data[i];
         num_bits += BITS_PER_BYTE;
@@ -153,8 +162,7 @@ radixly_base2048_encode(PyObject *Py_UNUSED(self), PyObject *arg)
     assert(out_i == n_chars);
     PyBuffer_Release(&view);
 
-    /* The repertoire dips into ASCII, so a short payload can land entirely below U+0100 (b"\x00" is "F").
-     * A str must use the narrowest kind that fits, or equality and hashing break; rebuild those rare ones. */
+    /* A str must use the narrowest kind that fits (b"\x00" is "F"), so an all-Latin-1 output is rebuilt. */
     if (seen < NARROW_LIMIT) {
         PyObject *narrow = PyUnicode_FromKindAndData(PyUnicode_2BYTE_KIND, out, n_chars);
         Py_DECREF(result);
@@ -222,10 +230,7 @@ radixly_base2048_decode(PyObject *Py_UNUSED(self), PyObject *arg)
     int kind = PyUnicode_KIND(arg);
     const void *data = PyUnicode_DATA(arg);
 
-    /* Single pass, validate while filling. Every character but the last carries 11 bits and the last 3 or 11,
-     * so floor(11n/8) overshoots the true length by at most one byte: allocate the bound, shrink at the end.
-     * Characters raise left to right as they are read; canonicality and padding lose the position race to any
-     * invalid character because they are only checked once every character has been. */
+    /* Validate while filling: floor(11n/8) overshoots the length by at most a byte, shrunk at the end. */
     const Py_ssize_t max_bytes = (BITS_PER_CHAR * num_chars) / BITS_PER_BYTE;
     PyObject *result = PyBytes_FromStringAndSize(NULL, max_bytes);
     if (result == NULL) {
@@ -290,9 +295,8 @@ radixly_base2048_decode(PyObject *Py_UNUSED(self), PyObject *arg)
     }
 
     const unsigned num_pad = bits;
-    /* Canonicality: the final character must carry at least one payload bit. Stated width-independently:
-     * reject when the final character is no wider than the padding it would have to hold. Stricter than
-     * qntm's reference JS on purpose, so decode is injective; lockstep with tests/reference/base2048.py. */
+    /* Canonicality: the final char must carry a payload bit. Stricter than qntm on purpose; lockstep with the
+     * reference. */
     if (final_width <= num_pad) {
         Py_DECREF(result);
         return radixly_raise_decode_error(

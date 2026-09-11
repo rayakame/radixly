@@ -74,6 +74,28 @@ def test_decode_rejects_hostile_input(string: str, position: int) -> None:
 
 @pytest.mark.parametrize(
     ("string", "position"),
+    error_cases.PADDING_CASES.values(),
+    ids=error_cases.PADDING_CASES,
+)
+def test_decode_rejects_zeroed_padding(string: str, position: int) -> None:
+    with pytest.raises(errors_reference.DecodeError) as exc_info:
+        base2048_reference.decode(string)
+    assert exc_info.value.position == position
+
+
+@pytest.mark.parametrize(
+    ("string", "position"),
+    error_cases.SHORT_CASES.values(),
+    ids=error_cases.SHORT_CASES,
+)
+def test_decode_rejects_short_character_before_the_end(string: str, position: int) -> None:
+    with pytest.raises(errors_reference.DecodeError) as exc_info:
+        base2048_reference.decode(string)
+    assert exc_info.value.position == position
+
+
+@pytest.mark.parametrize(
+    ("string", "position"),
     error_cases.CANONICALITY_CASES.values(),
     ids=error_cases.CANONICALITY_CASES,
 )
@@ -85,9 +107,37 @@ def test_decode_rejects_zero_payload_final_character(string: str, position: int)
 
 
 def test_decode_accepts_appended_padding_base() -> None:
-    """A blanket reject-every-3-bit bug would pass both canonicality cases."""
+    """The appended-padding case's base must decode on its own, or its rejection proves nothing."""
     payload = bytes(11)  # 88 bits, encodes to 8 full characters, no padding
     assert base2048_reference.decode(base2048_reference.encode(payload)) == payload
+
+
+def test_decode_accepts_canonical_seven_padding_bits() -> None:
+    """Six bytes leave 4 bits: an 11-bit final character with 7 padding bits is the widest canonical padding."""
+    assert base2048_reference.decode(base2048_reference.encode(bytes(6))) == bytes(6)
+
+
+@pytest.mark.parametrize("z", range(8))
+def test_short_alphabet_from_first_principles(z: int) -> None:
+    """Ten bytes leave exactly 3 bits, the low bits of the last byte; the vectors only ever hit one of the eight."""
+    assert base2048_reference.encode(bytes(9) + bytes([z]))[-1] == chr(ord("0") + z)
+
+
+@pytest.mark.parametrize("bad", ["text", 42], ids=["str", "int"])
+def test_encode_rejects_non_buffer(bad: str | int) -> None:
+    """The oracle draws the C's line: buffers in, str out."""
+    with pytest.raises(TypeError, match="bytes-like"):
+        base2048_reference.encode(bad)  # pyright: ignore[reportArgumentType]
+
+
+def _type_id(value: object) -> str:
+    return type(value).__name__
+
+
+@pytest.mark.parametrize("bad", error_cases.NON_STR_INPUTS, ids=_type_id)
+def test_decode_rejects_non_str(bad: object) -> None:
+    with pytest.raises(TypeError, match="expected str"):
+        base2048_reference.decode(bad)  # pyright: ignore[reportArgumentType]
 
 
 def test_decode_accepts_canonical_short_final_character() -> None:
@@ -98,7 +148,7 @@ def test_decode_accepts_canonical_short_final_character() -> None:
 
 @pytest.mark.parametrize(("payload", "expected"), list(error_cases.NARROW_PINS.items()), ids=repr)
 def test_narrow_pins(payload: bytes, expected: str) -> None:
-    """Single bytes 0 to 6 pad to an index under 63, which is still inside the ASCII run of the repertoire."""
+    """Single bytes 0 to 6 pad to an index under 63, inside the repertoire's Latin-1 run, the strings the C pins."""
     assert base2048_reference.encode(payload) == expected
 
 
@@ -137,8 +187,9 @@ def test_round_trip(payload: bytes) -> None:
     assert base2048_reference.decode(base2048_reference.encode(payload)) == payload
 
 
-def test_vectors_are_present(vector_pairs: tuple[pathlib.Path, ...]) -> None:
-    """Guard against an empty parametrize list silently passing the suite."""
+def test_vectors_are_present(vector_pairs: tuple[pathlib.Path, ...], vector_dir: pathlib.Path) -> None:
+    """Guard against an empty parametrize list silently passing the suite, and a bad vector nobody pinned."""
     single_bytes = [p for p in vector_pairs if p.parent.name == "single-bytes"]
     assert len(single_bytes) == 256, f"expected 256 single-byte cases, got {len(single_bytes)}"
     assert len(vector_pairs) == 264  # qntm's complete pairs set
+    assert sorted(error_cases.BAD_CASES) == sorted(p.stem for p in (vector_dir / "bad").glob("*.txt"))

@@ -35,7 +35,7 @@ Two bytes per code point, the densest of the set. Most of its blocks are astral.
 :::{grid-item-card} base2048
 :link: codecs/base2048
 :link-type: doc
-11 bits per character, all below U+1100. Letters from a dozen scripts.
+11 bits per character, all below U+1100. Letters from two dozen scripts.
 :::
 
 :::{grid-item-card} uro14

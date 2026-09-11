@@ -80,10 +80,9 @@ BASE_65536_PAIR_STRINGS: typing.Final[tuple[str, ...]] = (
 
 
 class IndentWriter:
-    """Indent writer used for dynamically generate files."""
+    """Buffers indented lines and writes them out in one go."""
 
     def __init__(self, file_path: pathlib.Path, *, indent_char: str = " ", indent_amount: int = 4) -> None:
-        """Construct a new indent writer object."""
         self.file_path: pathlib.Path = file_path
         self.lines: list[tuple[str, int]] = []
         self.indent_char: str = indent_char
@@ -105,6 +104,12 @@ class IndentWriter:
                 file.write(indent + line[0])
 
 
+def _check(condition: bool, message: str) -> None:  # ruff: ignore[boolean-type-hint-positional-argument]
+    """Raise on a failed check; assert would vanish under -O."""
+    if not condition:
+        raise ValueError(message)
+
+
 def _expand(pair_string: str) -> tuple[int, ...]:
     """Flatten inclusive code point ranges, two characters per range."""
     repertoire: list[int] = []
@@ -123,34 +128,36 @@ def _verify_bit_tables(lookup_e: dict[int, tuple[int, ...]], *, min_char: int, m
     """Every width holds exactly 2**width distinct code points, disjoint across widths and inside the C bounds."""
     seen: set[int] = set()
     for width, repertoire in lookup_e.items():
-        assert len(repertoire) == 1 << width, (
-            f"{width}-bit repertoire has {len(repertoire)} code points, expected {1 << width}"
+        _check(
+            len(repertoire) == 1 << width,
+            f"{width}-bit repertoire has {len(repertoire)} code points, expected {1 << width}",
         )
-        assert len(set(repertoire)) == len(repertoire), f"{width}-bit repertoire contains duplicate code points"
+        _check(len(set(repertoire)) == len(repertoire), f"{width}-bit repertoire contains duplicate code points")
         overlap = seen & set(repertoire)
-        assert not overlap, f"repertoires overlap: {sorted(hex(cp) for cp in overlap)}"
+        _check(not overlap, f"repertoires overlap: {sorted(hex(cp) for cp in overlap)}")
         seen.update(repertoire)
         for cp in repertoire:
-            assert min_char <= cp <= max_char, f"code point U+{cp:04X} outside [U+{min_char:04X}, U+{max_char:04X}]"
+            _check(min_char <= cp <= max_char, f"code point U+{cp:04X} outside [U+{min_char:04X}, U+{max_char:04X}]")
 
 
 def _build_base65536_tables() -> tuple[tuple[int, ...], int]:
     """Block starts of the 16-bit repertoire, in order, and the start of the 8-bit tail block."""
     full, tail = (_expand(pair_string) for pair_string in BASE_65536_PAIR_STRINGS)
-    assert len(full) == 1 << 16, f"16-bit repertoire has {len(full)} code points, expected 65536"
-    assert len(tail) == 1 << BITS_PER_BYTE, f"8-bit repertoire has {len(tail)} code points, expected 256"
+    _check(len(full) == 1 << 16, f"16-bit repertoire has {len(full)} code points, expected 65536")
+    _check(len(tail) == 1 << BITS_PER_BYTE, f"8-bit repertoire has {len(tail)} code points, expected 256")
     starts = full[::BASE_65536_BLOCK_SIZE]
     for k, start in enumerate(starts):
-        assert start % BASE_65536_BLOCK_SIZE == 0, f"block {k} starts at U+{start:05X}, not 256-aligned"
+        _check(start % BASE_65536_BLOCK_SIZE == 0, f"block {k} starts at U+{start:05X}, not 256-aligned")
         block = full[k * BASE_65536_BLOCK_SIZE : (k + 1) * BASE_65536_BLOCK_SIZE]
-        assert block == tuple(range(start, start + BASE_65536_BLOCK_SIZE)), f"block {k} is not contiguous"
-    assert starts == tuple(sorted(starts)), "blocks must ascend so the first astral index splits the table"
-    assert tail[0] % BASE_65536_BLOCK_SIZE == 0, f"tail block starts at U+{tail[0]:04X}, not 256-aligned"
-    assert tail == tuple(range(tail[0], tail[0] + BASE_65536_BLOCK_SIZE)), "tail block is not contiguous"
-    assert not set(full) & set(tail), "tail block overlaps the 16-bit repertoire"
+        _check(block == tuple(range(start, start + BASE_65536_BLOCK_SIZE)), f"block {k} is not contiguous")
+    _check(len(set(starts)) == len(starts), "two blocks share a start; decoding one of them would be ambiguous")
+    _check(starts == tuple(sorted(starts)), "blocks must ascend so the first astral index splits the table")
+    _check(tail[0] % BASE_65536_BLOCK_SIZE == 0, f"tail block starts at U+{tail[0]:04X}, not 256-aligned")
+    _check(tail == tuple(range(tail[0], tail[0] + BASE_65536_BLOCK_SIZE)), "tail block is not contiguous")
+    _check(not set(full) & set(tail), "tail block overlaps the 16-bit repertoire")
     for cp in (*full, *tail):
-        assert cp <= 0x10FFFF, f"code point U+{cp:06X} beyond Unicode"
-        assert not 0xD800 <= cp <= 0xDFFF, f"surrogate U+{cp:04X} in the repertoire"
+        _check(cp <= 0x10FFFF, f"code point U+{cp:06X} beyond Unicode")
+        _check(not 0xD800 <= cp <= 0xDFFF, f"surrogate U+{cp:04X} in the repertoire")
     return starts, tail[0]
 
 
@@ -175,12 +182,12 @@ def _write_array(writer: IndentWriter, ctype: str, name: str, values: tuple[int,
     writer.write_blank()
 
 
-def write_base_32768_table() -> None:
-    """Generate src/radixly/base32768/_tables.h from qntm's repertoire."""
+def write_base_32768_table(path: pathlib.Path = BASE_32768_PATH) -> None:
+    """Generate the base32768 header from qntm's repertoire."""
     lookup_e = _build_bit_tables(BASE_32768_PAIR_STRINGS, BASE_32768_BITS_PER_CHAR)
     _verify_bit_tables(lookup_e, min_char=0x100, max_char=0xFFFF)
 
-    writer = IndentWriter(BASE_32768_PATH)
+    writer = IndentWriter(path)
     _write_header(
         writer,
         "RADIXLY_BASE32768_TABLES_H",
@@ -192,13 +199,13 @@ def write_base_32768_table() -> None:
     writer.write_file()
 
 
-def write_base_2048_table() -> None:
-    """Generate src/radixly/base2048/_tables.h from qntm's repertoire."""
+def write_base_2048_table(path: pathlib.Path = BASE_2048_PATH) -> None:
+    """Generate the base2048 header from qntm's repertoire."""
     lookup_e = _build_bit_tables(BASE_2048_PAIR_STRINGS, BASE_2048_BITS_PER_CHAR)
-    # The repertoire dips into ASCII, so the C cannot assume a 2-byte string; it stays under U+1100.
-    _verify_bit_tables(lookup_e, min_char=0x20, max_char=0x10FF)
+    # Min: the repertoire dips into ASCII, which the C narrows after the fact. Max: the C table's last cell.
+    _verify_bit_tables(lookup_e, min_char=0x20, max_char=0x1055)
 
-    writer = IndentWriter(BASE_2048_PATH)
+    writer = IndentWriter(path)
     _write_header(
         writer,
         "RADIXLY_BASE2048_TABLES_H",
@@ -210,12 +217,12 @@ def write_base_2048_table() -> None:
     writer.write_file()
 
 
-def write_base_65536_table() -> None:
-    """Generate src/radixly/base65536/_tables.h from qntm's block layout."""
+def write_base_65536_table(path: pathlib.Path = BASE_65536_PATH) -> None:
+    """Generate the base65536 header from qntm's block layout."""
     starts, pad_start = _build_base65536_tables()
     first_astral = next(k for k, start in enumerate(starts) if start > 0xFFFF)
 
-    writer = IndentWriter(BASE_65536_PATH)
+    writer = IndentWriter(path)
     _write_header(
         writer,
         "RADIXLY_BASE65536_TABLES_H",
