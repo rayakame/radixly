@@ -4,8 +4,7 @@
     "config:recommended",
     "helpers:pinGitHubActionDigests",
     ":semanticCommitsDisabled",
-    ":configMigration",
-    "schedule:weekly"
+    ":configMigration"
   ],
   "timezone": "Europe/Berlin",
   "labels": ["dependencies", "no-changelog"],
