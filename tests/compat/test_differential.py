@@ -130,6 +130,9 @@ def _mutated(text: str) -> st.SearchStrategy[str]:
     )
 
 
+# Even and four-aligned lengths built directly, so no example is filtered away.
+_PAIRS = st.lists(st.binary(min_size=2, max_size=2), min_size=1, max_size=20).map(b"".join)
+_QUADS = st.lists(st.binary(min_size=4, max_size=4), min_size=1, max_size=10).map(b"".join)
 # Built per example, as Hypothesis hashes sampled values and a released memoryview refuses that.
 _HOSTILE_OBJECTS = st.sampled_from(
     [_released, _RaisingBuffer, lambda: decimal.Decimal(1), lambda: 42, lambda: None]
@@ -149,8 +152,8 @@ _DECODE_INPUTS = st.one_of(
     _ENCODED_LIKE.map(lambda text: bytearray(text.encode("latin-1"))),
     _ENCODED_LIKE.map(lambda text: memoryview(text.encode("latin-1"))),
     st.binary(max_size=40).map(lambda data: memoryview(data)[::2]),
-    st.binary(min_size=2, max_size=40).filter(lambda data: len(data) % 2 == 0).map(_two_dimensional),
-    st.binary(min_size=4, max_size=40).filter(lambda data: len(data) % 4 == 0).map(lambda d: memoryview(d).cast("I")),
+    _PAIRS.map(_two_dimensional),
+    _QUADS.map(lambda data: memoryview(data).cast("I")),
     st.text(max_size=8),
     _HOSTILE_OBJECTS,
 )
@@ -159,8 +162,8 @@ _ENCODE_INPUTS = st.one_of(
     st.binary(max_size=40).map(bytearray),
     st.binary(max_size=40).map(memoryview),
     st.binary(max_size=40).map(lambda data: memoryview(data)[::2]),
-    st.binary(min_size=2, max_size=40).filter(lambda data: len(data) % 2 == 0).map(_two_dimensional),
-    st.binary(min_size=4, max_size=40).filter(lambda data: len(data) % 4 == 0).map(lambda d: memoryview(d).cast("I")),
+    _PAIRS.map(_two_dimensional),
+    _QUADS.map(lambda data: memoryview(data).cast("I")),
     _HOSTILE_OBJECTS,
     st.sampled_from(["text", ""]),
 )
@@ -214,15 +217,64 @@ def test_wrong_argument_shapes_match(name: str) -> None:
         ((b"", b"", b"", b""), {}),
         ((b"",), {"nope": 1}),
         ((b"",), {"s": b""}),
+        ((b"", b"", b"", b""), {"nope": 1}),  # the unknown keyword is judged before the positional count
+        ((b"", b"", b"", b""), {"s": b""}),  # so is the duplicate
+        ((b"", b"", b""), {"casefold": True}),  # decoders: multiple values for casefold, not too many positionals
+        ((), {"casefold": True}),  # decoders: s is missing once the keyword is bound
+        ((b"",), {"casefol": True}),  # 3.13 and later suggest the nearest name; the port carries the suffix too
+        ((b"",), {"Casefold": True}),
+        ((b"",), {"map1": "L"}),
+        ((b"",), {"mapp01": "L"}),
+        ((b"",), {"S": b""}),
+        ((b"",), {"s_": b""}),
     ]
+    if name != "b32decode":
+        shapes.append(((b"",), {"map01": "L"}))  # only b32decode takes map01
     for args, kwargs in shapes:
         _assert_same(name, *args, **kwargs)
         assert _outcome(_ours(name), *args, **kwargs)[0] is TypeError, (name, args, kwargs)
+    assert _outcome(compat.b32decode, b"", map01="L") == (_Ok, b"")
+
+
+class _ClassLiar:
+    """An object whose __class__ is not its type; the stdlib names the former."""
+
+    @property
+    def __class__(self) -> type[int]:  # pyright: ignore[reportIncompatibleMethodOverride, reportImplicitOverride]
+        return int
+
+
+def _context_shape(function: Callable[..., object], *args: object) -> tuple[type, type, bool]:
+    try:
+        function(*args)
+    except Exception as error:  # ruff: ignore[blind-except] -- the exception chain is the subject
+        return (type(error), type(error.__context__), error.__suppress_context__)
+    message = "expected an exception"
+    raise AssertionError(message)
+
+
+def test_non_ascii_str_carries_the_stdlib_context() -> None:
+    """The stdlib raises the ValueError inside `except UnicodeEncodeError`, so the traceback shows both."""
+    for name in ("b16decode", "b32decode", "b32hexdecode"):
+        ours = _context_shape(_ours(name), "\xe9")
+        assert ours == _context_shape(_theirs(name), "\xe9") == (ValueError, UnicodeEncodeError, False)
+    assert _outcome(compat.b32decode, "", map01="\xe9")[0] is ValueError
 
 
 @pytest.mark.parametrize(
     "make",
-    [lambda: 42, list, tuple, lambda: 3.5, lambda: None, str, lambda: decimal.Decimal(1), _released, _RaisingBuffer],
+    [
+        lambda: 42,
+        list,
+        tuple,
+        lambda: 3.5,
+        lambda: None,
+        str,
+        lambda: decimal.Decimal(1),
+        _released,
+        _RaisingBuffer,
+        _ClassLiar,
+    ],
 )
 def test_non_buffer_inputs_match(make: Callable[[], object]) -> None:
     for name in PORTED:
@@ -267,9 +319,11 @@ def test_flag_is_looked_at_where_the_stdlib_looks() -> None:
 
 
 def test_stdlib_quirks_are_kept() -> None:
-    """Nonzero pad bits pass, seven data characters pass, a strided view is copied: the stdlib's calls, not ours."""
+    """Nonzero pad bits pass and a strided view is copied: the stdlib's calls, not ours."""
     assert compat.b32decode("IF======") == base64.b32decode("IF======") == b"A"
     assert compat.b32decode("IEAAAAA=") == base64.b32decode("IEAAAAA=") == b"A\x00\x00\x00"
     assert compat.b16decode(memoryview(b"AABBCCDD")[::2]) == b"\xab\xcd"
+    assert compat.b32decode(memoryview(b"MxFxRxGxGx=x=x=x")[::2]) == base64.b32decode(b"MFRGG===") == b"abc"
+    assert compat.b32hexdecode(memoryview(b"Cx4x=x=x=x=x=x=x")[::2]) == base64.b32hexdecode(b"C4======") == b"a"
     assert compat.b32encode(memoryview(b"abcdef")[::2]) == base64.b32encode(b"ace")
     assert compat.b32decode("AAAAAAA1", map01="=") == base64.b32decode("AAAAAAA1", map01="=") == b"\x00\x00\x00\x00"

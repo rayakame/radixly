@@ -17,7 +17,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-"""base32hex, RFC 4648 section 7: the alphabet 0-9 then A-V, so encoded order is byte order."""
+"""base32hex, RFC 4648 section 7: the alphabet 0-9 then A-V, so unpadded text sorts in byte order."""
 
 from __future__ import annotations
 

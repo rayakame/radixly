@@ -403,7 +403,7 @@ map01_byte(PyObject *map01, unsigned char *byte)
     return -1;
 }
 
-/* One table standing in for the stdlib's translate() then upper(): 0 and 1 mapped, then the case folded. */
+/* The stdlib's translate() as one table, 0 and 1 mapped; its upper() is the caller's rev_fold table. */
 static int
 stdlib_translation(PyObject *map01, unsigned char *translate)
 {

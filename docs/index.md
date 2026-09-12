@@ -39,7 +39,7 @@ Letters and digits only, RFC 4648. For case-insensitive channels.
 :::{grid-item-card} base32hex
 :link: codecs/base32hex
 :link-type: doc
-base32 whose encoded strings sort like their payloads.
+base32 whose alphabet sorts like the bytes.
 :::
 
 :::{grid-item-card} base32768

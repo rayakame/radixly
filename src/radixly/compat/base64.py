@@ -20,6 +20,7 @@
 """A drop-in for the standard library's ``base64``: the same names, arguments, results and errors.
 
 The functions radixly has ported run in C; the others are the standard library's own until their port lands.
+The surface is ``base64.__all__``; undocumented module attributes such as ``MAXLINESIZE`` are not carried over.
 """
 
 from __future__ import annotations
@@ -71,8 +72,7 @@ __all__ = [
 ]
 
 if sys.version_info >= (3, 13):
-    # z85 joined the standard library in 3.13; until radixly's own port lands, older interpreters have none.
-    # The checker's floor is 3.11, so it sees this branch as unreachable.
+    # z85 joined the standard library in 3.13, below the checker's 3.11 floor, so it reads as unreachable.
     from base64 import z85decode  # pyright: ignore[reportUnreachable]
     from base64 import z85encode
 

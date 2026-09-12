@@ -4,17 +4,18 @@ base32 with the alphabet `0` to `9` then `A` to `V`, RFC 4648 section 7,
 decoded strictly.
 
 Same groups, same padding, same 5 bits per character as {doc}`base32`;
-only the alphabet differs. Its digits come first, so encoded strings sort in
-the same order as the bytes they encode, which is why NSEC3, the DNSSEC
-record that has to sort hashed names, uses it (RFC 5155). The price is that
-`0`, `1`, `8` and `9` are back in the alphabet. The characters are the
+only the alphabet differs. Its digits come first, so payloads of one length
+encode to strings that sort in byte order, as does unpadded text of any
+length; the pad character sorts between `9` and `A`, so padded strings of
+different lengths do not. NSEC3 (RFC 5155) uses this alphabet without
+padding. The price is that `0`, `1`, `8` and `9` are back in the alphabet. The characters are the
 standard library's `b32hexencode` output, returned as `str`; the decoder is
 strict in the same way as base32's.
 
 ## When to use it
 
-100 characters hold 60 bytes. Pick it over base32 when sorted encoded
-strings must sort like their payloads, in a database index or a sorted
+100 characters hold 60 bytes. Pick it over base32 when encoded strings of
+one length must sort like their payloads, in a database index or a sorted
 directory listing. Pick base32 when humans read the text.
 
 ## Truncation behavior
@@ -31,6 +32,10 @@ library's functions, `casefold` included, onto this codec's C. See
 {doc}`../compat`.
 
 ## Benchmarks
+
+The rows marked `stdlib base64` time the standard library's `b32hexencode`
+and `b32hexdecode`, pure Python, with the encoder's `bytes` result decoded
+to `str` for a like comparison.
 
 ```{include} ../benchmarks/base32hex.md
 ```

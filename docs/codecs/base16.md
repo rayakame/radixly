@@ -6,9 +6,9 @@ section 8.
 The plainest binary-to-text encoding, in its strict form. Byte `0xAB`
 becomes `AB`, nothing is padded, and `n` bytes become `2 * n` characters.
 The characters are the standard library's `b16encode` output, returned as
-`str`; the decoder is stricter than `b16decode`: lowercase digits,
-whitespace and an odd digit count are errors, so one payload has exactly one
-accepted spelling.
+`str`; the decoder rejects what `b16decode` rejects (lowercase digits,
+whitespace, an odd digit count), reports the position, and has no
+`casefold`, so one payload has exactly one accepted spelling.
 
 ## When to use it
 

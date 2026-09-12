@@ -3,6 +3,7 @@ target-version = "py311"
 
 # CPython's own base64 suite, vendored byte for byte under the PSF license; neither linted nor reformatted.
 exclude = ["tests/compat/test_stdlib_base64.py"]
+force-exclude = true
 
 [format]
 docstring-code-format = true

@@ -8,18 +8,21 @@ full group, so `n` bytes become `8 * ceil(n / 5)` characters and the text
 length is always a multiple of eight. The alphabet leaves out the digits
 `0`, `1`, `8` and `9`; the first three are easily mistaken for `O`, `I` and
 `B`. The characters are the standard library's `b32encode` output, returned
-as `str`. The decoder takes the strict reading of the RFC: characters outside the alphabet,
-lowercase letters, padding in the wrong place or amount, and pad bits that
+as `str`. The decoder takes the strict reading of the RFC: characters
+outside the alphabet, lowercase letters, padding in the wrong place or
+amount, and pad bits that
 are not zero are all errors, so one payload has exactly one accepted
 spelling.
 
 ## When to use it
 
-100 characters hold 60 bytes. base32 is the codec for channels that are
-case-insensitive or hostile to punctuation: DNS labels, file names on
-case-folding file systems, codes read out loud or typed from paper. The
-alphabet is plain ASCII letters and digits, nothing else. Text that comes
-back lowercased has to be uppercased before `decode`, or go through
+100 characters hold 60 bytes. base32 is the codec for case-insensitive
+channels: file names on case-folding file systems, codes read out loud or
+typed from paper. The alphabet is plain ASCII letters and digits; the `=`
+padding on a tail that is not a multiple of five bytes is the one
+punctuation character, so DNS labels and other punctuation-hostile channels
+need the padding stripped. Text that comes back lowercased has to be
+uppercased before `decode`, or go through
 `radixly.compat.base64.b32decode` with `casefold=True`.
 
 It does not save bytes: as UTF-8 each character costs one, so the text is

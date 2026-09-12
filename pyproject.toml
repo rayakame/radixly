@@ -1,7 +1,7 @@
 [project]
 name = "radixly"
 dynamic = ["version"]
-description = "Fast binary-to-text codecs for Python: base32768, base65536, base2048, uro14, braille and hexagram in C"
+description = "Fast binary-to-text codecs for Python: base32768, base65536, base2048, uro14, braille, hexagram, base16 and base32 in C, with a base64 drop-in"
 readme = "README.md"
 authors = [
     { name = "rayakame", email = "github.android206@passmail.net" }
@@ -10,7 +10,7 @@ requires-python = ">=3.11"
 dependencies = []
 license = "MIT"
 license-files = ["LICENSE"]
-keywords = ["base32768", "base65536", "base2048", "uro14", "braille", "hexagram", "binary-to-text", "codec", "encoding", "unicode", "c-extension"]
+keywords = ["base32768", "base65536", "base2048", "uro14", "braille", "hexagram", "base16", "base32", "base32hex", "rfc4648", "base64", "binary-to-text", "codec", "encoding", "unicode", "c-extension"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",

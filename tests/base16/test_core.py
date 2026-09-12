@@ -135,7 +135,7 @@ def test_decode_empty_string_is_empty_payload() -> None:
     [("6869\u0100", 4), ("6869\U0001f600", 4), ("\u010068", 0), ("68\u0100" + "69" * 4, 2), ("68\U0001f600" * 3, 2)],
 )
 def test_decode_reads_every_str_kind(string: str, position: int) -> None:
-    """A 2-byte or 4-byte str takes the wide path and reports its first non-ASCII character at its index."""
+    """A 2-byte or 4-byte str takes the wide path and reports its first invalid character at its index."""
     with pytest.raises(_core.DecodeError) as exc_info:
         _core.base16_decode(string)
     assert exc_info.value.position == position

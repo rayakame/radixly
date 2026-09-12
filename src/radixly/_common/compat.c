@@ -76,6 +76,63 @@ input_from_view(radixly_compat_input *input)
     return 0;
 }
 
+/* The stdlib raises this inside `except UnicodeEncodeError`, so the traceback shows that error as context. */
+static int
+raise_non_ascii(PyObject *arg)
+{
+    PyObject *encoded = PyUnicode_AsASCIIString(arg);
+    if (encoded != NULL) {
+        Py_DECREF(encoded); /* unreachable: the caller saw a non-ASCII character */
+        PyErr_SetString(PyExc_ValueError, "string argument should contain only ASCII characters");
+        return -1;
+    }
+#if PY_VERSION_HEX >= 0x030C0000
+    PyObject *context = PyErr_GetRaisedException();
+#else
+    PyObject *type;
+    PyObject *context;
+    PyObject *traceback;
+    PyErr_Fetch(&type, &context, &traceback);
+    PyErr_NormalizeException(&type, &context, &traceback);
+    if (traceback != NULL) {
+        PyException_SetTraceback(context, traceback);
+    }
+    Py_XDECREF(traceback);
+    Py_XDECREF(type);
+#endif
+    PyObject *error =
+        PyObject_CallFunction(PyExc_ValueError, "s", "string argument should contain only ASCII characters");
+    if (error == NULL) {
+        Py_XDECREF(context);
+        return -1;
+    }
+    PyException_SetContext(error, context); /* steals context */
+#if PY_VERSION_HEX >= 0x030C0000
+    PyErr_SetRaisedException(error);
+#else
+    PyErr_Restore(Py_NewRef(Py_TYPE(error)), error, NULL);
+#endif
+    return -1;
+}
+
+/* The stdlib names s.__class__.__name__, which an object may spell differently from its type. */
+static int
+raise_not_bytes_like(PyObject *arg)
+{
+    PyObject *cls = PyObject_GetAttrString(arg, "__class__");
+    if (cls == NULL) {
+        return -1;
+    }
+    PyObject *name = PyObject_GetAttrString(cls, "__name__");
+    Py_DECREF(cls);
+    if (name == NULL) {
+        return -1;
+    }
+    PyErr_Format(PyExc_TypeError, "argument should be a bytes-like object or ASCII string, not %R", name);
+    Py_DECREF(name);
+    return -1;
+}
+
 int
 radixly_compat_decode_input(PyObject *arg, radixly_compat_input *input)
 {
@@ -89,8 +146,7 @@ radixly_compat_decode_input(PyObject *arg, radixly_compat_input *input)
         }
 #endif
         if (!PyUnicode_IS_ASCII(arg)) {
-            PyErr_SetString(PyExc_ValueError, "string argument should contain only ASCII characters");
-            return -1;
+            return raise_non_ascii(arg);
         }
         input->data = PyUnicode_1BYTE_DATA(arg);
         input->len = PyUnicode_GET_LENGTH(arg);
@@ -103,13 +159,7 @@ radixly_compat_decode_input(PyObject *arg, radixly_compat_input *input)
             return -1;
         }
         PyErr_Clear();
-        PyObject *name = PyType_GetName(Py_TYPE(arg));
-        if (name == NULL) {
-            return -1;
-        }
-        PyErr_Format(PyExc_TypeError, "argument should be a bytes-like object or ASCII string, not %R", name);
-        Py_DECREF(name);
-        return -1;
+        return raise_not_bytes_like(arg);
     }
     return input_from_view(input);
 }

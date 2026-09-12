@@ -17,7 +17,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-"""Rival implementations from PyPI, picked up when installed. A missing package only loses its rows."""
+"""Rivals from PyPI, when installed, and from the standard library. A missing package only loses its rows."""
 
 from __future__ import annotations
 

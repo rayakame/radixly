@@ -23,7 +23,7 @@
 #define RADIXLY_COMPAT_H
 #include <Python.h>
 
-/* The bytes an stdlib-shaped function reads: a view when the argument is contiguous, a private copy
+/* The bytes a stdlib-shaped function reads: a view when the argument is contiguous, a private copy
  * otherwise. */
 typedef struct {
     const unsigned char *data;

@@ -69,10 +69,13 @@ def test_alphabet_is_the_rfc_alphabet(preset: str) -> None:
 
 
 def test_base32hex_preserves_byte_order() -> None:
-    """RFC 4648 section 7: the reason the hex alphabet exists."""
+    """RFC 4648 section 7: payloads of one length, and unpadded text of any length, sort in byte order."""
     module = error_cases.PRESETS["base32hex"]
-    payloads = sorted(bytes([a, b]) for a in range(0, 256, 17) for b in range(0, 256, 51))
-    assert sorted(payloads, key=module.encode) == payloads
+    same_length = sorted(bytes([a, b]) for a in range(0, 256, 17) for b in range(0, 256, 51))
+    assert sorted(same_length, key=module.encode) == same_length
+    mixed = sorted([b"", b"\x00", b"\x00\x00", b"\x00\x80", b"\x01", b"\x01\x00\x00\x00\x00\x00", b"\xff"])
+    assert sorted(mixed, key=lambda payload: module.encode(payload).rstrip("=")) == mixed
+    assert sorted(mixed, key=module.encode) != mixed  # the pad character sorts between 9 and A
 
 
 @pytest.mark.parametrize("preset", error_cases.PRESETS)

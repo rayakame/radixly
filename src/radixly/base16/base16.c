@@ -87,21 +87,15 @@ unfill(const unsigned char *source, Py_ssize_t num_digits, unsigned char *out, c
     return -1;
 }
 
-/* The strict scan over a 2- or 4-byte str, which always holds a non-ASCII character; returns its index. */
+/* A 2- or 4-byte str always holds a character outside ASCII, so the wide path only locates the first
+ * invalid one. */
 static Py_ssize_t
-unfill_wide(int kind, const void *data, Py_ssize_t num_chars, unsigned char *out)
+first_invalid_wide(int kind, const void *data, Py_ssize_t num_chars)
 {
-    unsigned high = 0;
     for (Py_ssize_t i = 0; i < num_chars; i++) {
         const Py_UCS4 code_point = PyUnicode_READ(kind, data, i);
         if (code_point > ASCII_MAX || REV_STRICT[code_point] == REV_INVALID) {
             return i;
-        }
-        if ((i % 2) == 0) {
-            high = REV_STRICT[code_point];
-        }
-        else {
-            out[i / 2] = (unsigned char)((high << NIBBLE_SHIFT) | REV_STRICT[code_point]);
         }
     }
     return -1;
@@ -236,7 +230,12 @@ radixly_base16_decode(PyObject *Py_UNUSED(self), PyObject *arg)
         }
     }
     else {
-        bad = unfill_wide(kind, data, num_chars, out);
+        bad = first_invalid_wide(kind, data, num_chars);
+        if (bad == -1) {
+            Py_DECREF(result);
+            PyErr_SetString(PyExc_SystemError, "a non-ASCII str kind held only ASCII characters");
+            return NULL;
+        }
     }
     if (bad != -1) {
         Py_DECREF(result);

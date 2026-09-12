@@ -6,6 +6,7 @@ Passing it is what "drop-in" means here.
 
 Edits against the original, and nothing else:
 
+- A five-line comment at the top names the source, the license and these edits.
 - `import base64` became `from radixly.compat import base64`; `os` and the `test.support`
   imports are gone.
 - `LazyImportTest` and `TestMain` are removed: they test CPython's lazy imports and the
