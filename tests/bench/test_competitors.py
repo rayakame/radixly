@@ -50,6 +50,7 @@ def test_wire_compatibility_flags_are_true_to_the_packages() -> None:
     """A compatible rival encodes byte-identically to radixly; an incompatible one must say so in its label."""
     found = competitors.discover()
     payloads = [bytes(range(n)) for n in (0, 1, 2, 3, 16, 200)]
+    assert competitors.RIVALS  # an emptied list would check nothing and stay green
     for rival in competitors.RIVALS:
         (spec,) = found[rival.codec]
         ours = radixly.CODECS[rival.codec].encode

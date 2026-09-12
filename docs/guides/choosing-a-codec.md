@@ -49,6 +49,6 @@ text, and base65536 the one a channel might reject for leaving the BMP.
 ## Speed is not the deciding factor
 
 None of the six is slow: 0.04 to 0.32 microseconds per call at 200 bytes, 1.2
-to 7.2 GB/s encoding large inputs and 0.7 GB/s or more decoding them. Pick by
+to 7.2 GB/s encoding large inputs and 0.68 GB/s or more decoding them. Pick by
 alphabet and truncation behavior; the numbers on each codec page are there to
 confirm that whichever you pick will not be the bottleneck.
