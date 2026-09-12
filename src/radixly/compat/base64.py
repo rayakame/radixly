@@ -24,6 +24,7 @@ The functions radixly has ported run in C; the others are the standard library's
 
 from __future__ import annotations
 
+import sys
 from base64 import a85decode
 from base64 import a85encode
 from base64 import b64decode
@@ -38,8 +39,6 @@ from base64 import standard_b64decode
 from base64 import standard_b64encode
 from base64 import urlsafe_b64decode
 from base64 import urlsafe_b64encode
-from base64 import z85decode
-from base64 import z85encode
 
 from radixly._core import b16decode
 from radixly._core import b16encode
@@ -69,6 +68,11 @@ __all__ = [
     "standard_b64encode",
     "urlsafe_b64decode",
     "urlsafe_b64encode",
-    "z85decode",
-    "z85encode",
 ]
+
+if sys.version_info >= (3, 13):
+    # z85 joined the standard library in 3.13; until radixly's own port lands, older interpreters have none.
+    from base64 import z85decode  # pyright: ignore[reportUnreachable] -- the checker's floor is 3.11
+    from base64 import z85encode
+
+    __all__ += ["z85decode", "z85encode"]

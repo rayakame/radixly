@@ -28,7 +28,7 @@ library's own, so the module is complete at every step and only gets faster.
 | `b16encode`, `b16decode` | C |
 | `b32encode`, `b32decode`, `b32hexencode`, `b32hexdecode` | C |
 | `b64encode`, `b64decode`, `standard_b64encode`, `standard_b64decode`, `urlsafe_b64encode`, `urlsafe_b64decode` | standard library |
-| `a85encode`, `a85decode`, `b85encode`, `b85decode`, `z85encode`, `z85decode` | standard library |
+| `a85encode`, `a85decode`, `b85encode`, `b85decode`, `z85encode`, `z85decode` (3.13 and later) | standard library |
 | `encode`, `decode`, `encodebytes`, `decodebytes` | standard library |
 
 ## Strict codecs versus the drop-in

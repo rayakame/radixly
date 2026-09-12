@@ -1,7 +1,8 @@
 # Vendored from CPython 3.14, Lib/test/test_base64.py, under the Python Software Foundation License
 # (tests/compat/LICENSE-PSF.txt). Edits, listed in tests/compat/README.md: the import points at
 # radixly.compat.base64, the test.support imports and the two classes needing them are gone,
-# assertIsSubclass is spelled for older unittest. Everything else is the standard library's own suite.
+# assertIsSubclass is spelled for older unittest, the z85 tests skip where the standard library has no z85
+# (before 3.13). Everything else is the standard library's own suite.
 import unittest
 import binascii
 from array import array
@@ -546,6 +547,7 @@ class BaseXYTestCase(unittest.TestCase):
 
         self.check_other_types(base64.b85encode, b"www.python.org", b"cXxL#aCvlSZ*DGca%T")
 
+    @unittest.skipUnless(hasattr(base64, 'z85encode'), 'z85 needs Python 3.13')
     def test_z85encode(self):
         eq = self.assertEqual
 
@@ -654,6 +656,7 @@ class BaseXYTestCase(unittest.TestCase):
 
         self.check_other_types(base64.b85decode, b"cXxL#aCvlSZ*DGca%T", b"www.python.org")
 
+    @unittest.skipUnless(hasattr(base64, 'z85encode'), 'z85 needs Python 3.13')
     def test_z85decode(self):
         eq = self.assertEqual
 
@@ -770,6 +773,7 @@ class BaseXYTestCase(unittest.TestCase):
         self.assertRaises(ValueError, base64.b85decode, b"|NsC")
         self.assertRaises(ValueError, base64.b85decode, b"|NsC1")
 
+    @unittest.skipUnless(hasattr(base64, 'z85encode'), 'z85 needs Python 3.13')
     def test_z85decode_errors(self):
         illegal = list(range(33)) + list(b"\"',;_`|\\~") + list(range(128, 256))
         for c in illegal:
@@ -792,7 +796,7 @@ class BaseXYTestCase(unittest.TestCase):
             base64.b16decode,
             base64.b85decode,
             base64.a85decode,
-            base64.z85decode,
+            *([base64.z85decode] if hasattr(base64, 'z85decode') else []),
         )
         for f in decode_funcs:
             self.assertRaises(ValueError, f, "with non-ascii \xcb")

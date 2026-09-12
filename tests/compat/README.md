@@ -11,5 +11,7 @@ Edits against the original, and nothing else:
 - `LazyImportTest` and `TestMain` are removed: they test CPython's lazy imports and the
   `python -m base64` command line, neither of which the drop-in provides.
 - `assertIsSubclass` is spelled `assertTrue(issubclass(...))` so the suite also runs on 3.11.
+- The three z85 tests skip, and `test_decode_nonascii_str` leaves z85 out, where the standard
+  library has no z85 (before 3.13); the drop-in offers z85 only where the stdlib does, until its port.
 
 To re-vendor: fetch the new file, reapply the edits, run the suite.
