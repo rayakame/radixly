@@ -16,7 +16,7 @@ was cut short is caught. Start from your constraint, not from the codec.
 ## Does the channel count characters or bytes?
 
 radixly pays off when the limit is a character count: a field, an identifier,
-a filename. If the limit is in bytes, every one of these characters costs two
+a filename. If the limit is in bytes, every one of these characters costs one
 to four bytes as UTF-8 and base64 or raw binary will beat all of them. That is
 not a weakness to work around, it is the wrong tool.
 
