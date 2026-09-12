@@ -16,10 +16,12 @@ against it, with the import redirected and the few edits listed in
 standard library on random input, including the exception type and message
 on bad input. The lenient behaviors stay lenient: `b64decode` still discards
 characters outside the alphabet unless you pass `validate=True`, `b32decode`
-still accepts nonzero pad bits. The one thing not reproduced is the
+still accepts nonzero pad bits. Two things are not reproduced: the
 `__context__` of an exception the standard library raises with `from None`,
-which a traceback never shows. The strict codecs in the rest of radixly are
-a different contract, see below.
+which a traceback never shows, and the reading of a `bytearray` that a
+`casefold` or `map01` hook resizes mid-call, which the port refuses with
+`BufferError`. The strict codecs in the rest of radixly are a different
+contract, see below.
 
 ## What runs in C
 

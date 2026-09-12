@@ -7,14 +7,18 @@ was cut short is caught. Start from your constraint, not from the codec.
 | codec | bits per char | characters for `n` bytes | 100 chars hold | alphabet | catches truncation |
 |---|---|---|---|---|---|
 | {doc}`../codecs/base65536` | 16 | `ceil(n / 2)` | 200 bytes | 65,792 code points in 257 blocks, most of them astral | no |
-| {doc}`../codecs/base32768` | 15 | `ceil(8n / 15)` | 187 bytes | 32,768 code points across many BMP blocks | no |
-| {doc}`../codecs/base2048` | 11 | `ceil(8n / 11)` | 137 bytes | 2,048 letters and numerals, all below U+1100 | no |
+| {doc}`../codecs/base32768` | 15 | `ceil(8n / 15)` | 187 bytes | 32,768 code points across many BMP blocks | partly |
+| {doc}`../codecs/base2048` | 11 | `ceil(8n / 11)` | 137 bytes | 2,048 letters and numerals, all below U+1100 | partly |
 | {doc}`../codecs/uro14` | 14 | `1 + ceil(8n / 14)` | 173 bytes | one CJK block, 16,384 code points | yes, below 16,384 bytes |
 | {doc}`../codecs/braille` | 8 | `n` | 100 bytes | one block, 256 Braille patterns | no |
 | {doc}`../codecs/hexagram` | 6 | `ceil(8n / 6)` | 75 bytes | one block, 64 hexagrams | partly |
-| {doc}`../codecs/base32` | 5 | `8 * ceil(n / 5)` | 60 bytes | `A` to `Z`, `2` to `7`, `=` padding | no |
-| {doc}`../codecs/base32hex` | 5 | `8 * ceil(n / 5)` | 60 bytes | `0` to `9`, `A` to `V`, `=` padding | no |
+| {doc}`../codecs/base32` | 5 | `8 * ceil(n / 5)` | 60 bytes | `A` to `Z`, `2` to `7`, `=` padding | partly |
+| {doc}`../codecs/base32hex` | 5 | `8 * ceil(n / 5)` | 60 bytes | `0` to `9`, `A` to `V`, `=` padding | partly |
 | {doc}`../codecs/base16` | 4 | `2n` | 50 bytes | 16 uppercase hexadecimal digits | no |
+
+In the last column, *yes* means every cut below the stated size raises,
+*partly* that most cuts raise but a cut at the right place passes, and *no*
+that half or more of the cuts pass.
 
 ## Does the channel count characters or bytes?
 

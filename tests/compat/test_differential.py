@@ -60,9 +60,14 @@ def test_all_matches_the_stdlib() -> None:
     assert sorted(compat.__all__) == sorted(STDLIB_ALL)
 
 
-@pytest.mark.parametrize("name", sorted(STDLIB_ALL))
+@pytest.mark.parametrize("name", PORTED)
 def test_signatures_match_the_stdlib(name: str) -> None:
     assert inspect.signature(_ours(name)) == inspect.signature(_theirs(name))
+
+
+@pytest.mark.parametrize("name", sorted(set(STDLIB_ALL) - set(PORTED)))
+def test_unported_names_are_the_stdlib_objects(name: str) -> None:
+    assert _ours(name) is _theirs(name)
 
 
 @pytest.mark.parametrize("name", PORTED)
@@ -251,6 +256,26 @@ def _context_shape(function: Callable[..., object], *args: object) -> tuple[type
         return (type(error), type(error.__context__), error.__suppress_context__)
     message = "expected an exception"
     raise AssertionError(message)
+
+
+class _ClearingFlag:
+    """A casefold whose truth test empties the bytearray being decoded."""
+
+    def __init__(self, target: bytearray) -> None:
+        self.target: bytearray = target
+
+    def __bool__(self) -> bool:
+        self.target.clear()
+        return False
+
+
+def test_resizing_hook_is_refused_not_read() -> None:
+    """The port holds the buffer across the hooks, so a resize is a BufferError; the stdlib reads what is left."""
+    for name, encoded in (("b16decode", b"4142"), ("b32decode", b"IE======"), ("b32hexdecode", b"88======")):
+        ours = bytearray(encoded)
+        assert _outcome(_ours(name), ours, casefold=_ClearingFlag(ours))[0] is BufferError
+        theirs = bytearray(encoded)
+        assert _outcome(_theirs(name), theirs, casefold=_ClearingFlag(theirs)) == (_Ok, b"")
 
 
 def test_non_ascii_str_carries_the_stdlib_context() -> None:

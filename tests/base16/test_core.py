@@ -85,6 +85,11 @@ def test_decode_inverts_reference_encode(flavor: str, n: int) -> None:
 
 
 @given(st.binary())
+def test_encode_matches_reference(payload: bytes) -> None:
+    assert _core.base16_encode(payload) == base16_reference.encode(payload)
+
+
+@given(st.binary())
 def test_round_trip(payload: bytes) -> None:
     assert _core.base16_decode(_core.base16_encode(payload)) == payload
 

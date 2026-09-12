@@ -107,6 +107,23 @@ def test_decode_inverts_reference_encode(preset: str, flavor: str, n: int) -> No
 
 @pytest.mark.parametrize("preset", error_cases.PRESETS)
 @given(payload=st.binary())
+def test_encode_matches_reference(preset: str, payload: bytes) -> None:
+    assert C_ENCODE[preset](payload) == error_cases.PRESETS[preset].encode(payload)
+
+
+@pytest.mark.parametrize(("preset", "foreign"), [("base32", "0189"), ("base32hex", "WXYZ")])
+def test_the_other_alphabet_is_refused(preset: str, foreign: str) -> None:
+    """The two presets share one C core; a character from the other alphabet is a reverse-table mix-up."""
+    for char in foreign:
+        for string in (char * 8, "A" * 7 + char, char + "A" * 7):
+            _assert_parity(preset, string)
+            with pytest.raises(_core.DecodeError) as exc_info:
+                C_DECODE[preset](string)
+            assert exc_info.value.position == string.index(char)
+
+
+@pytest.mark.parametrize("preset", error_cases.PRESETS)
+@given(payload=st.binary())
 def test_round_trip(preset: str, payload: bytes) -> None:
     assert C_DECODE[preset](C_ENCODE[preset](payload)) == payload
 

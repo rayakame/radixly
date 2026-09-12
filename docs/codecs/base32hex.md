@@ -1,7 +1,7 @@
 # base32hex
 
-base32 with the alphabet `0` to `9` then `A` to `V`, RFC 4648 section 7,
-decoded strictly.
+5 bits per character: base32 with the alphabet `0` to `9` then `A` to `V`,
+RFC 4648 section 7, decoded strictly.
 
 Same groups, same padding, same 5 bits per character as {doc}`base32`;
 only the alphabet differs. Its digits come first, so payloads of one length
@@ -24,6 +24,18 @@ As base32: a cut inside a group of eight raises
 {class}`~radixly.DecodeError`, at the end of the text or at the first `=`
 of a cut-through padding, and a cut on a group boundary decodes to a prefix
 without an error.
+
+```python
+from radixly import base32hex
+
+payload = bytes(range(20))
+text = base32hex.encode(payload)            # 32 characters
+base32hex.decode(text[:16]) == payload[:10]  # True
+```
+
+If a shortened string must be caught, carry a length or checksum alongside
+it, or use {doc}`uro14`, whose length prefix rejects every truncation below
+its 16,384-byte window.
 
 ## Standard library
 

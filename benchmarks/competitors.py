@@ -70,21 +70,21 @@ STDLIB_RIVALS: typing.Final[tuple[StdlibRival, ...]] = (
 _PROBE: typing.Final = bytes(range(8))
 
 
-def _probe(rival: Rival, spec: registry.CompetitorSpec) -> None:
+def _probe(label: str, codec: str, spec: registry.CompetitorSpec, *, wire_compatible: bool) -> None:
     """Refuse a rival that breaks radixly's contracts on a small payload, or one whose compatibility flag lies."""
     encoded = spec.encode(_PROBE)
     if not isinstance(encoded, str):  # pyright: ignore[reportUnnecessaryIsInstance]
-        msg = f"{rival.distribution}.encode returned {type(encoded).__name__}, not str"
+        msg = f"{label}.encode returned {type(encoded).__name__}, not str"
         raise TypeError(msg)
     decoded = spec.decode(encoded)
     if not isinstance(decoded, bytes):  # pyright: ignore[reportUnnecessaryIsInstance]
-        msg = f"{rival.distribution}.decode returned {type(decoded).__name__}, not bytes"
+        msg = f"{label}.decode returned {type(decoded).__name__}, not bytes"
         raise TypeError(msg)
     if decoded != _PROBE:
-        msg = f"{rival.distribution} does not round-trip its own output"
+        msg = f"{label} does not round-trip its own output"
         raise ValueError(msg)
-    if rival.wire_compatible and encoded != radixly.CODECS[rival.codec].encode(_PROBE):
-        msg = f"{rival.distribution} is flagged wire-compatible but encodes differently from radixly"
+    if wire_compatible and encoded != radixly.CODECS[codec].encode(_PROBE):
+        msg = f"{label} is flagged wire-compatible but encodes differently from radixly"
         raise ValueError(msg)
 
 
@@ -111,16 +111,16 @@ def discover(rivals: tuple[Rival, ...] | None = None) -> dict[str, tuple[registr
         decode = typing.cast("Callable[[str], bytes]", module.decode)
         suffix = "" if rival.wire_compatible else ", other alphabet"
         spec = registry.CompetitorSpec(f"PyPI {rival.distribution} {version}{suffix}", encode, decode)
-        _probe(rival, spec)
+        _probe(rival.distribution, rival.codec, spec, wire_compatible=rival.wire_compatible)
         found[rival.codec] = (*found.get(rival.codec, ()), spec)
     return found
 
 
-def stdlib_specs(rivals: tuple[StdlibRival, ...] = STDLIB_RIVALS) -> dict[str, tuple[registry.CompetitorSpec, ...]]:
+def stdlib_specs(rivals: tuple[StdlibRival, ...] | None = None) -> dict[str, tuple[registry.CompetitorSpec, ...]]:
     """One CompetitorSpec per standard library pair, labeled with the interpreter version."""
     found: dict[str, tuple[registry.CompetitorSpec, ...]] = {}
     version = platform.python_version()
-    for rival in rivals:
+    for rival in STDLIB_RIVALS if rivals is None else rivals:
         encode = typing.cast("Callable[[bytes], bytes]", getattr(base64, rival.encode_name))
         decode = typing.cast("Callable[[str], bytes]", getattr(base64, rival.decode_name))
 
@@ -128,8 +128,8 @@ def stdlib_specs(rivals: tuple[StdlibRival, ...] = STDLIB_RIVALS) -> dict[str, t
             return encode(data).decode("ascii")
 
         spec = registry.CompetitorSpec(f"stdlib base64 {version}", encode_to_str, decode)
-        _probe(Rival(rival.codec, f"stdlib base64.{rival.encode_name}", wire_compatible=True), spec)
-        found[rival.codec] = (*found.get(rival.codec, ()), spec)
+        _probe(f"stdlib base64.{rival.encode_name}", rival.codec, spec, wire_compatible=True)
+        found[rival.codec] = (spec,)
     return found
 
 

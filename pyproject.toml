@@ -1,7 +1,7 @@
 [project]
 name = "radixly"
 dynamic = ["version"]
-description = "Fast binary-to-text codecs for Python: base32768, base65536, base2048, uro14, braille, hexagram, base16 and base32 in C, with a base64 drop-in"
+description = "Fast binary-to-text codecs for Python: base32768, base65536, base2048, uro14, braille, hexagram, base16, base32 and base32hex in C, with a drop-in for the standard library's base64"
 readme = "README.md"
 authors = [
     { name = "rayakame", email = "github.android206@passmail.net" }

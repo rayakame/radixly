@@ -24,24 +24,6 @@ family.
 ::::{grid} 2
 :gutter: 3
 
-:::{grid-item-card} base16
-:link: codecs/base16
-:link-type: doc
-Two hexadecimal digits per byte, RFC 4648. Reach over density.
-:::
-
-:::{grid-item-card} base32
-:link: codecs/base32
-:link-type: doc
-Letters and digits only, RFC 4648. For case-insensitive channels.
-:::
-
-:::{grid-item-card} base32hex
-:link: codecs/base32hex
-:link-type: doc
-base32 whose alphabet sorts like the bytes.
-:::
-
 :::{grid-item-card} base32768
 :link: codecs/base32768
 :link-type: doc
@@ -76,6 +58,24 @@ One Braille pattern per byte. Bytes as plain text.
 :link: codecs/hexagram
 :link-type: doc
 One I Ching hexagram per six bits. base64's density in a single block.
+:::
+
+:::{grid-item-card} base16
+:link: codecs/base16
+:link-type: doc
+Two hexadecimal digits per byte, RFC 4648. Reach over density.
+:::
+
+:::{grid-item-card} base32
+:link: codecs/base32
+:link-type: doc
+Letters and digits only, RFC 4648. For case-insensitive channels.
+:::
+
+:::{grid-item-card} base32hex
+:link: codecs/base32hex
+:link-type: doc
+base32 whose alphabet sorts like the bytes.
 :::
 
 ::::
