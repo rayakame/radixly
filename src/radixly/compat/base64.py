@@ -21,6 +21,8 @@
 
 The functions radixly has ported run in C; the others are the standard library's own until their port lands.
 The surface is ``base64.__all__``; undocumented module attributes such as ``MAXLINESIZE`` are not carried over.
+A ``casefold`` or ``map01`` hook that resizes the ``bytearray`` being decoded gets ``BufferError``, where the
+standard library reads the resized bytes.
 """
 
 from __future__ import annotations
