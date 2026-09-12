@@ -21,6 +21,7 @@
 
 from __future__ import annotations
 
+import base64
 import inspect
 import random
 import typing
@@ -50,8 +51,14 @@ C_DECODE: dict[str, Callable[[str], bytes]] = {
 }
 
 
+STDLIB_DECODE: dict[str, Callable[[str], bytes]] = {
+    "base32": base64.b32decode,
+    "base32hex": base64.b32hexdecode,
+}
+
+
 def _assert_parity(preset: str, string: str) -> bytes | None:
-    """C and the oracle must agree exactly; returns the payload on accept."""
+    """C and the reference must agree exactly, and what they accept the standard library reads the same way."""
     try:
         expected = error_cases.PRESETS[preset].decode(string)
     except errors_reference.DecodeError as reference_error:
@@ -59,6 +66,7 @@ def _assert_parity(preset: str, string: str) -> bytes | None:
     else:
         result = C_DECODE[preset](string)
         assert result == expected
+        assert STDLIB_DECODE[preset](string) == expected
         return result
     with pytest.raises(_core.DecodeError) as exc_info:
         C_DECODE[preset](string)
@@ -215,12 +223,52 @@ def test_every_single_character_agrees(preset: str) -> None:
 
 
 @pytest.mark.parametrize("preset", error_cases.PRESETS)
-def test_every_padded_group_shape(preset: str) -> None:
-    """All 256 first-byte values through every tail length, so every pad-bit mask meets a real payload."""
+def test_every_byte_in_every_slot_of_every_tail(preset: str) -> None:
+    """Every byte value in every slot of every tail length, C against the reference both ways."""
     module = error_cases.PRESETS[preset]
     for tail in range(1, 5):
-        for value in range(256):
-            payload = bytes([value] * tail)
-            encoded = C_ENCODE[preset](payload)
-            assert encoded == module.encode(payload)
-            assert C_DECODE[preset](encoded) == payload
+        for slot in range(tail):
+            for value in range(256):
+                payload = bytes(value if i == slot else 0x5A for i in range(tail))
+                encoded = C_ENCODE[preset](payload)
+                assert encoded == module.encode(payload)
+                assert _assert_parity(preset, encoded) == payload
+
+
+@pytest.mark.parametrize("preset", error_cases.PRESETS)
+def test_every_last_data_character_of_every_padded_shape(preset: str) -> None:
+    """Each alphabet character closing each padded shape: only the ones with zero pad bits pass, positions agree."""
+    alphabet = error_cases.PRESETS[preset].ALPHABET
+    accepted_by_shape = {2: 8, 4: 2, 5: 16, 7: 4}
+    for data_chars, expected in accepted_by_shape.items():
+        strings = [alphabet[0] * (data_chars - 1) + last + "=" * (8 - data_chars) for last in alphabet]
+        accepted = sum(1 for string in strings if _assert_parity(preset, string) is not None)
+        assert accepted == expected
+
+
+_HOSTILE_CHARS = "a=!\x00\x7f\xff\u0100\ud800\U0001f600"
+
+
+@pytest.mark.parametrize("preset", error_cases.PRESETS)
+def test_every_position_meets_every_hostile_character(preset: str) -> None:
+    """A hostile character replacing or joining each position of a padded encoding: positions agree everywhere."""
+    encoded = C_ENCODE[preset](b"radixly base32")
+    assert encoded.endswith("=")
+    for position in range(len(encoded) + 1):
+        for bad in _HOSTILE_CHARS:
+            _assert_parity(preset, encoded[:position] + bad + encoded[position:])
+            _assert_parity(preset, encoded[:position] + bad + encoded[position + 1 :])
+            _assert_parity(preset, encoded[:position] + bad)
+
+
+@pytest.mark.parametrize("preset", error_cases.PRESETS)
+def test_megabyte_hostile_tail(preset: str) -> None:
+    """Megabytes of valid groups, then one bad character: the position is the tail's, not the length's."""
+    valid = C_ENCODE[preset](random.Random(5).randbytes(5 * 2**19))
+    assert len(valid) % 8 == 0
+    for bad in ("a", "=", "\xff", "\u0100", "\U0001f600"):
+        for prefix in ("", "AA"):
+            with pytest.raises(_core.DecodeError) as exc_info:
+                C_DECODE[preset](valid + prefix + bad + "AAAAAAAA")
+            offender = 1 if bad == "=" else 0  # padding may stand there; the data character after it may not
+            assert exc_info.value.position == len(valid) + len(prefix) + offender

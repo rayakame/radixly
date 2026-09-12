@@ -38,10 +38,11 @@ ascii85, base85 and z85, each with its `radixly.compat.base64` twin.
 - uro14's truncation guarantee is windowed at 16,384 bytes; every doc says so.
 - Codec is a frozen dataclass, registry via `get_codec`/`CODECS`/`register`.
 - RFC 4648 codecs (base16, base32, base32hex, later base64) are strict: every
-  MUST of the RFC and every MAY resolved toward rejection, uppercase only, one
-  spelling per payload. `radixly.compat.base64` is the standard library bit for
-  bit, lenient paths included, and passes CPython's own `test_base64`; functions
-  not yet ported are the standard library's own, so it is a drop-in at every step.
+  MUST of the RFC and every MAY resolved toward rejection, the alphabet's own
+  case only, one spelling per payload. `radixly.compat.base64` is the standard
+  library bit for bit, lenient paths included, and passes CPython's own
+  `test_base64`; functions not yet ported are the standard library's own, so it
+  is a drop-in at every step.
 - Performance bars are the committed record
   (`benchmarks/results/i9-14900KF-performance.json`), rendered into README and
   docs; regressions need a reason, CI gates the C-vs-reference ratio.

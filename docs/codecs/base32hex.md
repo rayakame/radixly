@@ -5,10 +5,11 @@ decoded strictly.
 
 Same groups, same padding, same 5 bits per character as {doc}`base32`;
 only the alphabet differs. Its digits come first, so encoded strings sort in
-the same order as the bytes they encode, which is why DNSSEC uses it. The
-price is that `0`, `1` and `8` are back in the alphabet. radixly's encoder
-produces exactly what the standard library's `b32hexencode` does; the
-decoder is strict in the same way as base32's.
+the same order as the bytes they encode, which is why NSEC3, the DNSSEC
+record that has to sort hashed names, uses it (RFC 5155). The price is that
+`0`, `1`, `8` and `9` are back in the alphabet. The characters are the
+standard library's `b32hexencode` output, returned as `str`; the decoder is
+strict in the same way as base32's.
 
 ## When to use it
 
@@ -19,13 +20,14 @@ directory listing. Pick base32 when humans read the text.
 ## Truncation behavior
 
 As base32: a cut inside a group of eight raises
-{class}`~radixly.DecodeError` at the end of the text, a cut on a group
-boundary decodes to a prefix without an error.
+{class}`~radixly.DecodeError`, at the end of the text or at the first `=`
+of a cut-through padding, and a cut on a group boundary decodes to a prefix
+without an error.
 
 ## Standard library
 
-`radixly.compat.base64.b32hexencode` and `b32hexdecode` are the standard
-library's functions, `casefold` included, running on the same C. See
+`radixly.compat.base64.b32hexencode` and `b32hexdecode` port the standard
+library's functions, `casefold` included, onto this codec's C. See
 {doc}`../compat`.
 
 ## Benchmarks

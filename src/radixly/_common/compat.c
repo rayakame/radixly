@@ -82,6 +82,12 @@ radixly_compat_decode_input(PyObject *arg, radixly_compat_input *input)
     input->copy = NULL;
     input->has_view = 0;
     if (PyUnicode_Check(arg)) {
+#if PY_VERSION_HEX < 0x030C0000
+        /* 3.11 can still meet legacy, non-ready strings; IS_ASCII on one is UB. Compiles out on 3.12+. */
+        if (PyUnicode_READY(arg) == -1) {
+            return -1;
+        }
+#endif
         if (!PyUnicode_IS_ASCII(arg)) {
             PyErr_SetString(PyExc_ValueError, "string argument should contain only ASCII characters");
             return -1;
@@ -92,9 +98,17 @@ radixly_compat_decode_input(PyObject *arg, radixly_compat_input *input)
     }
     // NOLINTNEXTLINE(hicpp-signed-bitwise)
     if (PyObject_GetBuffer(arg, &input->view, PyBUF_FULL_RO) < 0) {
+        /* The stdlib rewords only the TypeError out of memoryview(s); anything else is the object's own. */
+        if (!PyErr_ExceptionMatches(PyExc_TypeError)) {
+            return -1;
+        }
         PyErr_Clear();
-        PyErr_Format(PyExc_TypeError, "argument should be a bytes-like object or ASCII string, not '%.200s'",
-                     Py_TYPE(arg)->tp_name);
+        PyObject *name = PyType_GetName(Py_TYPE(arg));
+        if (name == NULL) {
+            return -1;
+        }
+        PyErr_Format(PyExc_TypeError, "argument should be a bytes-like object or ASCII string, not %R", name);
+        Py_DECREF(name);
         return -1;
     }
     return input_from_view(input);
@@ -105,11 +119,14 @@ radixly_compat_buffer_input(PyObject *arg, radixly_compat_input *input)
 {
     input->copy = NULL;
     input->has_view = 0;
-    // NOLINTNEXTLINE(hicpp-signed-bitwise)
-    if (PyObject_GetBuffer(arg, &input->view, PyBUF_FULL_RO) < 0) {
-        PyErr_Clear();
+    /* memoryview(s) has its own words for an object without the protocol and passes every other error on. */
+    if (!PyObject_CheckBuffer(arg)) {
         PyErr_Format(PyExc_TypeError, "memoryview: a bytes-like object is required, not '%.200s'",
                      Py_TYPE(arg)->tp_name);
+        return -1;
+    }
+    // NOLINTNEXTLINE(hicpp-signed-bitwise)
+    if (PyObject_GetBuffer(arg, &input->view, PyBUF_FULL_RO) < 0) {
         return -1;
     }
     return input_from_view(input);

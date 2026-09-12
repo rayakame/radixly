@@ -47,7 +47,7 @@ def encode(data: bytes, alphabet: str) -> str:
     return "".join(out)
 
 
-def _read_group(group: str, base: int, rev: dict[str, int]) -> tuple[int, int]:
+def _read_group(group: str, base: int, rev: dict[str, int], codec: str) -> tuple[int, int]:
     """Read one group: its 40-bit value and the count of data characters before its padding, 8 without."""
     acc = 0
     data_chars = GROUP_CHARS
@@ -57,7 +57,7 @@ def _read_group(group: str, base: int, rev: dict[str, int]) -> tuple[int, int]:
             continue
         value = rev.get(char)
         if value is None:
-            msg = f"invalid base32 character {char!r} (U+{ord(char):04X}) at index {base + k}"
+            msg = f"invalid {codec} character {char!r} (U+{ord(char):04X}) at index {base + k}"
             raise errors.DecodeError(base + k, message=msg)
         if data_chars != GROUP_CHARS:
             msg = f"data character {char!r} at index {base + k} after padding"
@@ -82,7 +82,7 @@ def _finish_padded(acc: int, data_chars: int, pad_index: int, *, is_last: bool) 
     return (acc >> pad_bits).to_bytes(payload, "big")
 
 
-def _check_remainder(string: str, start: int, rev: dict[str, int]) -> None:
+def _check_remainder(string: str, start: int, rev: dict[str, int], codec: str) -> None:
     """Check the characters after the last full group, so an invalid one reports its own index, then raise."""
     for i in range(start, len(string)):
         char = string[i]
@@ -90,25 +90,25 @@ def _check_remainder(string: str, start: int, rev: dict[str, int]) -> None:
             msg = f"padding at index {i} in an incomplete group"
             raise errors.DecodeError(i, message=msg)
         if char not in rev:
-            msg = f"invalid base32 character {char!r} (U+{ord(char):04X}) at index {i}"
+            msg = f"invalid {codec} character {char!r} (U+{ord(char):04X}) at index {i}"
             raise errors.DecodeError(i, message=msg)
     msg = f"length {len(string)} is not a multiple of 8"
     raise errors.DecodeError(len(string), message=msg)
 
 
-def decode(string: str, alphabet: str) -> bytes:
+def decode(string: str, alphabet: str, codec: str) -> bytes:
     """Decode strictly; DecodeError with the index of the offending character, or the length when cut short."""
     rev = {char: value for value, char in enumerate(alphabet)}
     out = bytearray()
     num_groups, remainder = divmod(len(string), GROUP_CHARS)
     for g in range(num_groups):
         base = GROUP_CHARS * g
-        acc, data_chars = _read_group(string[base : base + GROUP_CHARS], base, rev)
+        acc, data_chars = _read_group(string[base : base + GROUP_CHARS], base, rev, codec)
         if data_chars == GROUP_CHARS:
             out += acc.to_bytes(GROUP_BYTES, "big")
             continue
         is_last = g == num_groups - 1 and not remainder
         out += _finish_padded(acc, data_chars, base + data_chars, is_last=is_last)
     if remainder:
-        _check_remainder(string, GROUP_CHARS * num_groups, rev)
+        _check_remainder(string, GROUP_CHARS * num_groups, rev, codec)
     return bytes(out)

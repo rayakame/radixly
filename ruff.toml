@@ -1,6 +1,9 @@
 line-length = 120
 target-version = "py311"
 
+# CPython's own base64 suite, vendored byte for byte under the PSF license; neither linted nor reformatted.
+exclude = ["tests/compat/test_stdlib_base64.py"]
+
 [format]
 docstring-code-format = true
 docstring-code-line-length = 80
@@ -18,9 +21,6 @@ ignore = [
 [lint.per-file-ignores]
 "**/__init__.py" = [
     "F403", # unable to detect undefined names
-]
-"tests/compat/test_stdlib_base64.py" = [
-    "ALL", # CPython's own suite, vendored verbatim under the PSF license; not ours to restyle
 ]
 "tests/**" = [
     "DOC",     # docstring sections vs signature; test docstrings explain intent, not parameters

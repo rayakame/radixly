@@ -23,24 +23,26 @@
 #include <Python.h>
 #include "args.h"
 
+static void
+raise_too_many(const char *function, Py_ssize_t nargs, Py_ssize_t required, Py_ssize_t max_positional)
+{
+    if (required == max_positional) {
+        PyErr_Format(PyExc_TypeError, "%s() takes %zd positional argument%s but %zd were given", function,
+                     max_positional, max_positional == 1 ? "" : "s", nargs);
+    }
+    else {
+        PyErr_Format(PyExc_TypeError, "%s() takes from %zd to %zd positional arguments but %zd were given",
+                     function, required, max_positional, nargs);
+    }
+}
+
 int
 radixly_bind_args(const char *function, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames,
                   radixly_param *params, Py_ssize_t num_params, Py_ssize_t required,
                   Py_ssize_t max_positional)
 {
-    if (nargs > max_positional) {
-        if (required == max_positional) {
-            PyErr_Format(PyExc_TypeError, "%s() takes %zd positional argument%s but %zd were given", function,
-                         max_positional, max_positional == 1 ? "" : "s", nargs);
-        }
-        else {
-            PyErr_Format(PyExc_TypeError,
-                         "%s() takes from %zd to %zd positional arguments but %zd were given", function,
-                         required, max_positional, nargs);
-        }
-        return -1;
-    }
-    for (Py_ssize_t i = 0; i < nargs; i++) {
+    /* A Python function judges the keywords before the positional count, so the drop-in does too. */
+    for (Py_ssize_t i = 0; i < Py_MIN(nargs, max_positional); i++) {
         *params[i].value = args[i];
     }
     const Py_ssize_t num_kwargs = kwnames == NULL ? 0 : PyTuple_GET_SIZE(kwnames);
@@ -64,10 +66,14 @@ radixly_bind_args(const char *function, PyObject *const *args, Py_ssize_t nargs,
         }
         *params[found].value = args[nargs + k];
     }
+    if (nargs > max_positional) {
+        raise_too_many(function, nargs, required, max_positional);
+        return -1;
+    }
     for (Py_ssize_t i = 0; i < required; i++) {
         if (*params[i].value == NULL) {
-            PyErr_Format(PyExc_TypeError, "%s() missing required argument '%s' (pos %zd)", function,
-                         params[i].name, i + 1);
+            PyErr_Format(PyExc_TypeError, "%s() missing 1 required positional argument: '%s'", function,
+                         params[i].name);
             return -1;
         }
     }

@@ -62,9 +62,20 @@ Every codec module has the same four functions; `radixly.get_codec(name)` and
 | [uro14](https://radixly.rayakame.dev/en/latest/codecs/uro14.html) | 14 | 173 bytes | one CJK block, plus a length prefix | below 16,384 bytes |
 | [braille](https://radixly.rayakame.dev/en/latest/codecs/braille.html) | 8 | 100 bytes | 256 Braille patterns | no |
 | [hexagram](https://radixly.rayakame.dev/en/latest/codecs/hexagram.html) | 6 | 75 bytes | 64 Yijing hexagrams | partly |
+| [base32](https://radixly.rayakame.dev/en/latest/codecs/base32.html) | 5 | 60 bytes | RFC 4648: `A` to `Z`, `2` to `7`, `=` padding | no |
+| [base32hex](https://radixly.rayakame.dev/en/latest/codecs/base32hex.html) | 5 | 60 bytes | RFC 4648: `0` to `9`, `A` to `V`, `=` padding | no |
+| [base16](https://radixly.rayakame.dev/en/latest/codecs/base16.html) | 4 | 50 bytes | RFC 4648: 16 uppercase hexadecimal digits | no |
 
 [Choosing a codec](https://radixly.rayakame.dev/en/latest/guides/choosing-a-codec.html) walks through the
 trade-offs.
+
+## Standard library drop-in
+
+`radixly.compat.base64` is the standard library's `base64` with the same names,
+arguments, results and errors; `b16encode`, `b16decode`, `b32encode`,
+`b32decode`, `b32hexencode` and `b32hexdecode` run in C, the rest are the
+standard library's own until ported. CPython's own `test_base64` suite runs
+against it. See [the drop-in page](https://radixly.rayakame.dev/en/latest/compat.html).
 
 ## Performance
 

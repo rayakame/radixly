@@ -26,7 +26,6 @@
 #include "_common/args.h"
 #include "_common/compat.h"
 #include "_common/errors.h"
-#include "_common/internal.h"
 
 enum {
     REV_INVALID = 0xFF,
@@ -88,7 +87,7 @@ unfill(const unsigned char *source, Py_ssize_t num_digits, unsigned char *out, c
     return -1;
 }
 
-/* The strict scan over a 2- or 4-byte str; returns the index of the first non-digit, or -1. */
+/* The strict scan over a 2- or 4-byte str, which always holds a non-ASCII character; returns its index. */
 static Py_ssize_t
 unfill_wide(int kind, const void *data, Py_ssize_t num_chars, unsigned char *out)
 {
@@ -306,12 +305,14 @@ radixly_b16decode(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t n
     if (radixly_bind_args("b16decode", args, nargs, kwnames, params, 2, 1, 2) < 0) {
         return NULL;
     }
-    const int fold = radixly_compat_truth(casefold);
-    if (fold < 0) {
-        return NULL;
-    }
     radixly_compat_input source;
     if (radixly_compat_decode_input(arg, &source) < 0) {
+        return NULL;
+    }
+    /* The stdlib reads s before it looks at casefold, so a flag that raises comes second here too. */
+    const int fold = radixly_compat_truth(casefold);
+    if (fold < 0) {
+        radixly_compat_input_release(&source);
         return NULL;
     }
     const uint8_t *rev = fold ? REV_FOLD : REV_STRICT;

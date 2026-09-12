@@ -128,7 +128,7 @@ def stdlib_specs(rivals: tuple[StdlibRival, ...] = STDLIB_RIVALS) -> dict[str, t
             return encode(data).decode("ascii")
 
         spec = registry.CompetitorSpec(f"stdlib base64 {version}", encode_to_str, decode)
-        _probe(Rival(rival.codec, "python", wire_compatible=True), spec)
+        _probe(Rival(rival.codec, f"stdlib base64.{rival.encode_name}", wire_compatible=True), spec)
         found[rival.codec] = (*found.get(rival.codec, ()), spec)
     return found
 

@@ -22,7 +22,10 @@
 from __future__ import annotations
 
 import base64
+import decimal
 import inspect
+import subprocess  # ruff: ignore[suspicious-subprocess-import] -- fixed argv, own interpreter
+import sys
 import typing
 
 import pytest
@@ -62,22 +65,28 @@ def test_signatures_match_the_stdlib(name: str) -> None:
     assert inspect.signature(_ours(name)) == inspect.signature(_theirs(name))
 
 
-@pytest.mark.parametrize("name", sorted(STDLIB_ALL))
+@pytest.mark.parametrize("name", PORTED)
 def test_keyword_calls_match_the_stdlib(name: str) -> None:
-    """Every stdlib parameter can be passed by name; the C binders must accept the same spellings."""
-    signature = inspect.signature(_theirs(name))
-    if name in {"encode", "decode"}:
-        return  # file arguments; covered by the vendored suite
-    for parameter in signature.parameters.values():
-        if parameter.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD:
-            assert parameter.name in signature.parameters
+    """Every parameter the stdlib takes by name, the port takes by name, with the same result."""
+    parameters = inspect.signature(_theirs(name)).parameters
+    assert all(p.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD for p in parameters.values())
+    encoded = {"b16": b"4142", "b32": b"IE======", "b32hex": b"88======"}
+    samples: dict[str, object] = {"s": encoded[name[:-6]], "casefold": True, "map01": "L"}
+    by_name = {parameter: samples[parameter] for parameter in parameters}
+    _assert_same(name, **by_name)
+    assert _outcome(_ours(name), **by_name)[0] is _Ok
 
 
-def _outcome(function: Callable[..., object], *args: object, **kwargs: object) -> tuple[str, object]:
+class _Ok:
+    """The marker for a call that returned; the value sits next to it."""
+
+
+def _outcome(function: Callable[..., object], *args: object, **kwargs: object) -> tuple[type, object]:
     try:
-        return ("ok", function(*args, **kwargs))
-    except Exception as error:  # ruff: ignore[blind-except] -- the exception IS the result under comparison
-        return (type(error).__qualname__, error.args)
+        return (_Ok, function(*args, **kwargs))
+    # The exception is the result under comparison.
+    except Exception as error:  # ruff: ignore[blind-except]
+        return (type(error), error.args)
 
 
 def _assert_same(name: str, *args: object, **kwargs: object) -> None:
@@ -86,28 +95,79 @@ def _assert_same(name: str, *args: object, **kwargs: object) -> None:
     assert ours == theirs
 
 
+class _RaisingFlag:
+    """A truth value that raises, to pin where in the argument order the stdlib looks at casefold."""
+
+    def __bool__(self) -> bool:
+        message = "flag looked at"
+        raise RuntimeError(message)
+
+
+class _RaisingBuffer:
+    """An exporter that fails with its own error, which the stdlib passes on instead of rewording."""
+
+    def __buffer__(self, flags: int) -> memoryview:
+        message = "no buffer today"
+        raise RuntimeError(message)
+
+
+def _released() -> memoryview:
+    view = memoryview(b"IE======")
+    view.release()
+    return view
+
+
+def _two_dimensional(data: bytes) -> memoryview:
+    return memoryview(data).cast("B", (len(data) // 2, 2))
+
+
+def _mutated(text: str) -> st.SearchStrategy[str]:
+    """One character of a valid encoding replaced by anything ASCII, so every error branch is reachable."""
+    if not text:
+        return st.just(text)
+    return st.tuples(st.integers(0, len(text) - 1), st.characters(max_codepoint=0x7F)).map(
+        lambda spot: text[: spot[0]] + spot[1] + text[spot[0] + 1 :]
+    )
+
+
+# Built per example, as Hypothesis hashes sampled values and a released memoryview refuses that.
+_HOSTILE_OBJECTS = st.sampled_from(
+    [_released, _RaisingBuffer, lambda: decimal.Decimal(1), lambda: 42, lambda: None]
+).map(lambda make: make())
 _TEXT_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567=01abcdefghijklmnopqrstuvwxyz \n\t!~\x00\xff"
-_ENCODED_LIKE = st.text(alphabet=_TEXT_CHARS, max_size=40)
+_ENCODED_LIKE: st.SearchStrategy[str] = st.one_of(  # six strategies: one_of would infer Any
+    st.text(alphabet=_TEXT_CHARS, max_size=40),
+    st.binary(max_size=25).map(lambda data: base64.b32encode(data).decode()),
+    st.binary(max_size=25).map(lambda data: base64.b32hexencode(data).decode()),
+    st.binary(max_size=20).map(lambda data: base64.b16encode(data).decode()),
+    st.binary(max_size=25).map(lambda data: base64.b32encode(data).decode()).flatmap(_mutated),
+    st.binary(max_size=20).map(lambda data: base64.b16encode(data).decode()).flatmap(_mutated),
+)
 _DECODE_INPUTS = st.one_of(
     _ENCODED_LIKE,
     _ENCODED_LIKE.map(lambda text: text.encode("latin-1")),
     _ENCODED_LIKE.map(lambda text: bytearray(text.encode("latin-1"))),
-    st.binary(max_size=40).map(memoryview),
+    _ENCODED_LIKE.map(lambda text: memoryview(text.encode("latin-1"))),
     st.binary(max_size=40).map(lambda data: memoryview(data)[::2]),
-    st.text(max_size=8),  # anything, non-ASCII included
+    st.binary(min_size=2, max_size=40).filter(lambda data: len(data) % 2 == 0).map(_two_dimensional),
+    st.binary(min_size=4, max_size=40).filter(lambda data: len(data) % 4 == 0).map(lambda d: memoryview(d).cast("I")),
+    st.text(max_size=8),
+    _HOSTILE_OBJECTS,
 )
 _ENCODE_INPUTS = st.one_of(
     st.binary(max_size=40),
     st.binary(max_size=40).map(bytearray),
     st.binary(max_size=40).map(memoryview),
     st.binary(max_size=40).map(lambda data: memoryview(data)[::2]),
-    st.binary(min_size=4, max_size=40)
-    .filter(lambda data: len(data) % 4 == 0)
-    .map(lambda data: memoryview(data).cast("I")),
+    st.binary(min_size=2, max_size=40).filter(lambda data: len(data) % 2 == 0).map(_two_dimensional),
+    st.binary(min_size=4, max_size=40).filter(lambda data: len(data) % 4 == 0).map(lambda d: memoryview(d).cast("I")),
+    _HOSTILE_OBJECTS,
+    st.sampled_from(["text", ""]),
 )
-_FLAGS = st.sampled_from([True, False, 1, 0, None, "x", ""])
-_MAP01 = st.sampled_from([None, "L", "I", b"l", b"I", "LL", "", 5, "\xe9", bytearray(b"O")])
-_ANYTHING = st.sampled_from([42, [], (), 3.5, object(), None])
+_FLAGS = st.sampled_from([True, False, 1, 0, None, "x", "", _RaisingFlag()])
+_MAP01 = st.sampled_from(
+    [None, "L", "I", b"l", b"I", "LL", "", 5, "\xe9", bytearray(b"O"), "=", b"=", bytearray(b"ab"), memoryview(b"ab")]
+)
 
 
 @settings(max_examples=2000)
@@ -148,7 +208,7 @@ def test_ported_round_trips_agree_with_the_stdlib(data: bytes) -> None:
 
 @pytest.mark.parametrize("name", ["b16encode", "b16decode", "b32encode", "b32decode", "b32hexencode", "b32hexdecode"])
 def test_wrong_argument_shapes_match(name: str) -> None:
-    """Too many, unknown and duplicate arguments raise TypeError on both sides; the stdlib text is CPython's."""
+    """Too many, missing, unknown and duplicate arguments raise the stdlib's TypeError, text included."""
     shapes: list[tuple[tuple[object, ...], dict[str, object]]] = [
         ((), {}),
         ((b"", b"", b"", b""), {}),
@@ -156,21 +216,54 @@ def test_wrong_argument_shapes_match(name: str) -> None:
         ((b"",), {"s": b""}),
     ]
     for args, kwargs in shapes:
-        ours = _outcome(_ours(name), *args, **kwargs)
-        theirs = _outcome(_theirs(name), *args, **kwargs)
-        assert ours[0] == theirs[0] == "TypeError", (name, ours, theirs)
+        _assert_same(name, *args, **kwargs)
+        assert _outcome(_ours(name), *args, **kwargs)[0] is TypeError, (name, args, kwargs)
 
 
-@pytest.mark.parametrize("value", [42, [], (), 3.5, None])
-def test_non_buffer_inputs_match(value: object) -> None:
-    for name in ("b16encode", "b32encode", "b32hexencode", "b16decode", "b32decode", "b32hexdecode"):
-        _assert_same(name, value)
+@pytest.mark.parametrize(
+    "make",
+    [lambda: 42, list, tuple, lambda: 3.5, lambda: None, str, lambda: decimal.Decimal(1), _released, _RaisingBuffer],
+)
+def test_non_buffer_inputs_match(make: Callable[[], object]) -> None:
+    for name in PORTED:
+        _assert_same(name, make())
 
 
 def test_map01_assertion_text_matches() -> None:
-    """The stdlib asserts the length and reports the repr; the port says the same."""
+    """The stdlib asserts the length and reports the repr of what its coercion left; the port says the same."""
     _assert_same("b32decode", "AAAAAAAA", map01="IL")
     _assert_same("b32decode", "AAAAAAAA", map01=b"")
+    _assert_same("b32decode", "AAAAAAAA", map01=bytearray(b"ab"))
+    _assert_same("b32decode", "AAAAAAAA", map01=memoryview(b"ab"))
+    assert _outcome(compat.b32decode, "AAAAAAAA", map01=bytearray(b"ab")) == (AssertionError, ("bytearray(b'ab')",))
+
+
+def test_map01_under_optimize_matches() -> None:
+    """Under -O the stdlib's assert is gone and maketrans raises a ValueError instead; the port follows the flag."""
+    script = (
+        "import base64, sys\n"
+        "from radixly.compat import base64 as compat\n"
+        "def run(f):\n"
+        "    try:\n"
+        "        f('AAAAAAAA', map01='ab')\n"
+        "    except Exception as error:\n"
+        "        return (type(error).__name__, error.args)\n"
+        "assert sys.flags.optimize == 1\n"
+        "expected = ('ValueError', ('maketrans arguments must have same length',))\n"
+        "assert run(base64.b32decode) == expected, run(base64.b32decode)\n"
+        "assert run(compat.b32decode) == expected, run(compat.b32decode)\n"
+    )
+    subprocess.run([sys.executable, "-O", "-c", script], check=True)  # ruff: ignore[subprocess-without-shell-equals-true] -- fixed argv, own interpreter
+
+
+def test_flag_is_looked_at_where_the_stdlib_looks() -> None:
+    """The stdlib reads s (and map01) before casefold, so a flag that raises loses to an input that raises."""
+    _assert_same("b16decode", 42, casefold=_RaisingFlag())
+    _assert_same("b16decode", b"", casefold=_RaisingFlag())
+    _assert_same("b32decode", "MFRGG=", casefold=_RaisingFlag())
+    _assert_same("b32decode", "AAAAAAAA", casefold=_RaisingFlag(), map01="LL")
+    _assert_same("b32decode", "AAAAAAAA", casefold=_RaisingFlag())
+    assert _outcome(compat.b32decode, "AAAAAAAA", casefold=_RaisingFlag()) == (RuntimeError, ("flag looked at",))
 
 
 def test_stdlib_quirks_are_kept() -> None:
@@ -179,3 +272,4 @@ def test_stdlib_quirks_are_kept() -> None:
     assert compat.b32decode("IEAAAAA=") == base64.b32decode("IEAAAAA=") == b"A\x00\x00\x00"
     assert compat.b16decode(memoryview(b"AABBCCDD")[::2]) == b"\xab\xcd"
     assert compat.b32encode(memoryview(b"abcdef")[::2]) == base64.b32encode(b"ace")
+    assert compat.b32decode("AAAAAAA1", map01="=") == base64.b32decode("AAAAAAA1", map01="=") == b"\x00\x00\x00\x00"

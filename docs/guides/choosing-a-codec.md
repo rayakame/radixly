@@ -1,6 +1,6 @@
 # Choosing a codec
 
-All six codecs turn bytes into a string and back. They differ in how many
+All nine codecs turn bytes into a string and back. They differ in how many
 characters they need, which characters they use, and whether a string that
 was cut short is caught. Start from your constraint, not from the codec.
 
@@ -12,6 +12,9 @@ was cut short is caught. Start from your constraint, not from the codec.
 | {doc}`../codecs/uro14` | 14 | `1 + ceil(8n / 14)` | 173 bytes | one CJK block, 16,384 code points | yes, below 16,384 bytes |
 | {doc}`../codecs/braille` | 8 | `n` | 100 bytes | one block, 256 Braille patterns | no |
 | {doc}`../codecs/hexagram` | 6 | `ceil(8n / 6)` | 75 bytes | one block, 64 hexagrams | partly |
+| {doc}`../codecs/base32` | 5 | `8 * ceil(n / 5)` | 60 bytes | `A` to `Z`, `2` to `7`, `=` padding | no |
+| {doc}`../codecs/base32hex` | 5 | `8 * ceil(n / 5)` | 60 bytes | `0` to `9`, `A` to `V`, `=` padding | no |
+| {doc}`../codecs/base16` | 4 | `2n` | 50 bytes | 16 uppercase hexadecimal digits | no |
 
 ## Does the channel count characters or bytes?
 
@@ -52,7 +55,6 @@ for leaving the BMP.
 
 ## Speed is not the deciding factor
 
-None of the nine is slow: 0.04 to 0.32 microseconds per call at 200 bytes, 1.2
-to 7.2 GB/s encoding large inputs and 0.68 GB/s or more decoding them. Pick by
-alphabet and truncation behavior; the numbers on each codec page are there to
-confirm that whichever you pick will not be the bottleneck.
+None of the nine is slow. Pick by alphabet and truncation behavior; the
+numbers on each codec page are there to confirm that whichever you pick will
+not be the bottleneck.

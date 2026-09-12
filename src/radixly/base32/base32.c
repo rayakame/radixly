@@ -163,24 +163,25 @@ radixly_base32_encode_with(PyObject *arg, int hex)
     return result;
 }
 
-static int
-raise_invalid(Py_ssize_t index, Py_UCS4 code_point)
-{
-    radixly_raise_decode_error(index, "invalid base32 character U+%x at index %zd", (unsigned)code_point,
-                               index);
-    return -1;
-}
-
 typedef struct {
     int kind;
     const void *data;
     const uint8_t *rev;
-} text;
+    const char *codec;
+} text_source;
 
-/* Read one group of eight into acc; data_chars is 8 without padding, else the index of the first '='.
- * Raises on a character outside the alphabet and on a data character after padding. */
 static int
-read_group(const text *source, Py_ssize_t base, uint64_t *acc, int *data_chars)
+raise_invalid(const text_source *source, Py_ssize_t index, Py_UCS4 code_point)
+{
+    radixly_raise_decode_error(index, "invalid %s character U+%x at index %zd", source->codec,
+                               (unsigned)code_point, index);
+    return -1;
+}
+
+/* Read one group of eight into acc, data_chars being 8 or the index of the first '='; raises on a bad
+ * character. */
+static int
+read_group(const text_source *source, Py_ssize_t base, uint64_t *acc, int *data_chars)
 {
     *acc = 0;
     *data_chars = GROUP_CHARS;
@@ -193,7 +194,7 @@ read_group(const text *source, Py_ssize_t base, uint64_t *acc, int *data_chars)
             continue;
         }
         if (code_point > ASCII_MAX || source->rev[code_point] == REV_INVALID) {
-            return raise_invalid(base + i, code_point);
+            return raise_invalid(source, base + i, code_point);
         }
         if (*data_chars != GROUP_CHARS) {
             radixly_raise_decode_error(base + i, "data character U+%x at index %zd after padding",
@@ -233,21 +234,21 @@ finish_padded(uint64_t acc, int data_chars, Py_ssize_t pad_index, int is_last, u
 }
 
 /* The characters after the last full group are still checked, so an invalid one reports its own index. */
-static int
-check_remainder(const text *source, Py_ssize_t start, Py_ssize_t num_chars)
+static void
+raise_for_remainder(const text_source *source, Py_ssize_t start, Py_ssize_t num_chars)
 {
     for (Py_ssize_t i = start; i < num_chars; i++) {
         const Py_UCS4 code_point = PyUnicode_READ(source->kind, source->data, i);
         if (code_point == PAD) {
             radixly_raise_decode_error(i, "padding at index %zd in an incomplete group", i);
-            return -1;
+            return;
         }
         if (code_point > ASCII_MAX || source->rev[code_point] == REV_INVALID) {
-            return raise_invalid(i, code_point);
+            raise_invalid(source, i, code_point);
+            return;
         }
     }
     radixly_raise_decode_error(num_chars, "length %zd is not a multiple of 8", num_chars);
-    return -1;
 }
 
 /* Strict RFC 4648; characters raise left to right at their own index. */
@@ -270,7 +271,8 @@ radixly_base32_decode_with(PyObject *arg, int hex)
     if (num_chars == 0) {
         return PyBytes_FromStringAndSize("", 0);
     }
-    const text source = {PyUnicode_KIND(arg), PyUnicode_DATA(arg), TABLES[hex].rev};
+    const text_source source = {PyUnicode_KIND(arg), PyUnicode_DATA(arg), TABLES[hex].rev,
+                                hex ? "base32hex" : "base32"};
     const Py_ssize_t num_groups = num_chars / GROUP_CHARS;
     const Py_ssize_t remainder = num_chars % GROUP_CHARS;
 
@@ -302,7 +304,7 @@ radixly_base32_decode_with(PyObject *arg, int hex)
     }
     if (remainder != 0) {
         Py_DECREF(result);
-        check_remainder(&source, GROUP_CHARS * num_groups, num_chars);
+        raise_for_remainder(&source, GROUP_CHARS * num_groups, num_chars);
         return NULL;
     }
     if (out_len != GROUP_BYTES * num_groups && _PyBytes_Resize(&result, out_len) < 0) {
@@ -339,7 +341,30 @@ radixly_b32encode_with(const char *function, PyObject *const *args, Py_ssize_t n
     return result;
 }
 
-/* The stdlib's map01 contract: a one-byte ASCII str or bytes-like, or AssertionError with its repr. */
+/* Under -O the stdlib's assert is gone and bytes.maketrans raises instead; the drop-in follows the flag. */
+static int
+optimize_flag(void)
+{
+    PyObject *flags = PySys_GetObject("flags"); /* borrowed */
+    if (flags == NULL) {
+        return 0;
+    }
+    PyObject *optimize = PyObject_GetAttrString(flags, "optimize");
+    if (optimize == NULL) {
+        PyErr_Clear();
+        return 0;
+    }
+    const long level = PyLong_AsLong(optimize);
+    Py_DECREF(optimize);
+    if (level == -1 && PyErr_Occurred()) {
+        PyErr_Clear();
+        return 0;
+    }
+    return level > 0;
+}
+
+/* The stdlib's map01 contract: one byte, or AssertionError showing map01 as _bytes_from_decode_data left it.
+ */
 static int
 map01_byte(PyObject *map01, unsigned char *byte)
 {
@@ -352,13 +377,24 @@ map01_byte(PyObject *map01, unsigned char *byte)
         radixly_compat_input_release(&source);
         return 0;
     }
-    PyObject *as_bytes = PyBytes_FromStringAndSize((const char *)source.data, source.len);
-    radixly_compat_input_release(&source);
-    if (as_bytes == NULL) {
+    if (optimize_flag()) {
+        radixly_compat_input_release(&source);
+        PyErr_SetString(PyExc_ValueError, "maketrans arguments must have same length");
         return -1;
     }
-    PyObject *repr = PyObject_Repr(as_bytes);
-    Py_DECREF(as_bytes);
+    PyObject *shown;
+    if (PyBytes_Check(map01) || PyByteArray_Check(map01)) {
+        shown = Py_NewRef(map01); /* bytes and bytearray pass through the stdlib's coercion untouched */
+    }
+    else {
+        shown = PyBytes_FromStringAndSize((const char *)source.data, source.len);
+    }
+    radixly_compat_input_release(&source);
+    if (shown == NULL) {
+        return -1;
+    }
+    PyObject *repr = PyObject_Repr(shown);
+    Py_DECREF(shown);
     if (repr == NULL) {
         return -1;
     }
@@ -428,10 +464,6 @@ radixly_b32decode_with(const char *function, PyObject *const *args, Py_ssize_t n
     if (radixly_bind_args(function, args, nargs, kwnames, params, num_params, 1, num_params) < 0) {
         return NULL;
     }
-    const int fold = radixly_compat_truth(casefold);
-    if (fold < 0) {
-        return NULL;
-    }
     radixly_compat_input source;
     if (radixly_compat_decode_input(arg, &source) < 0) {
         return NULL;
@@ -445,8 +477,15 @@ radixly_b32decode_with(const char *function, PyObject *const *args, Py_ssize_t n
         radixly_compat_input_release(&source);
         return NULL;
     }
+    /* The stdlib reads s and map01 before it looks at casefold, so a flag that raises comes last here too. */
+    const int fold = radixly_compat_truth(casefold);
+    if (fold < 0) {
+        radixly_compat_input_release(&source);
+        return NULL;
+    }
+    /* The stdlib strips '=' after translating, so a map01 of '=' strips the ones it made. */
     Py_ssize_t stripped = source.len;
-    while (stripped > 0 && source.data[stripped - 1] == PAD) {
+    while (stripped > 0 && translate[source.data[stripped - 1]] == PAD) {
         stripped--;
     }
     const Py_ssize_t padchars = source.len - stripped;

@@ -11,9 +11,10 @@ base64.b32decode("nbswy3dp", True)   # b'hello', casefold and all
 ```
 
 It is a drop-in in the strict sense: CPython's own `test_base64` suite runs
-against it unchanged, and the functions are also compared with the standard
-library on random input, including the exception type and message on bad
-input. The lenient behaviors stay lenient: `b64decode` still discards
+against it, with the import redirected and the few edits listed in
+`tests/compat/README.md`, and the functions are also compared with the
+standard library on random input, including the exception type and message
+on bad input. The lenient behaviors stay lenient: `b64decode` still discards
 characters outside the alphabet unless you pass `validate=True`, `b32decode`
 still accepts nonzero pad bits. The strict codecs in the rest of radixly
 are a different contract, see below.
@@ -37,7 +38,9 @@ Every RFC 4648 codec radixly registers ({doc}`codecs/base16`,
 {doc}`codecs/base32`, {doc}`codecs/base32hex`) takes the strict reading of
 the RFC: characters outside the alphabet, lowercase, wrong padding and
 nonzero pad bits are errors, so one payload has exactly one accepted
-spelling. The RFC requires the first and permits the rest; its security
-considerations explain why a decoder would want them. The drop-in keeps the
+spelling. The RFC requires rejecting characters outside the alphabet
+(section 3.3) and permits rejecting nonzero pad bits (section 3.5); its
+security considerations (section 12) explain why a decoder would want all of
+it, case included. The drop-in keeps the
 standard library's choices instead, because that is what makes it a
 drop-in. Same C underneath, two contracts on top.

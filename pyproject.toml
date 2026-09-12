@@ -166,3 +166,4 @@ test-command = "python -m pytest {project}/tests --ignore={project}/tests/bench 
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-rs"

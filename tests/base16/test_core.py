@@ -130,13 +130,27 @@ def test_decode_empty_string_is_empty_payload() -> None:
     assert _core.base16_decode("") == b""
 
 
-def test_decode_reads_every_str_kind() -> None:
-    """A 2-byte or 4-byte str holding only digits decodes like the compact ASCII one."""
-    wide = "6869" + "ሴ"
-    assert _core.base16_decode(wide[:-1]) == b"hi"  # the slice is a fresh compact str; the kind check is below
+@pytest.mark.parametrize(
+    ("string", "position"),
+    [("6869\u0100", 4), ("6869\U0001f600", 4), ("\u010068", 0), ("68\u0100" + "69" * 4, 2), ("68\U0001f600" * 3, 2)],
+)
+def test_decode_reads_every_str_kind(string: str, position: int) -> None:
+    """A 2-byte or 4-byte str takes the wide path and reports its first non-ASCII character at its index."""
     with pytest.raises(_core.DecodeError) as exc_info:
-        _core.base16_decode("6869\U0001f600")
-    assert exc_info.value.position == 4
+        _core.base16_decode(string)
+    assert exc_info.value.position == position
+    with pytest.raises(errors_reference.DecodeError) as reference_info:
+        base16_reference.decode(string)
+    assert reference_info.value.position == position
+
+
+def test_megabyte_hostile_tail() -> None:
+    """Four megabytes of valid digits, then one bad character: the position is the tail's, not the length's."""
+    valid = _core.base16_encode(random.Random(4).randbytes(2**21))
+    for bad in ("g", "=", "\xff", "\u0100", "\U0001f600"):
+        with pytest.raises(_core.DecodeError) as exc_info:
+            _core.base16_decode(valid + bad + "00")
+        assert exc_info.value.position == len(valid)
 
 
 def _type_id(value: object) -> str:

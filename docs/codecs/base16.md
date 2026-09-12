@@ -3,11 +3,12 @@
 4 bits per character: two uppercase hexadecimal digits per byte, RFC 4648
 section 8.
 
-The oldest binary-to-text encoding there is, in its strict form. Byte `0xAB`
+The plainest binary-to-text encoding, in its strict form. Byte `0xAB`
 becomes `AB`, nothing is padded, and `n` bytes become `2 * n` characters.
-The output is what the standard library's `b16encode` produces; the decoder
-is stricter than `b16decode`: lowercase digits, whitespace and an odd digit
-count are errors, so one payload has exactly one accepted spelling.
+The characters are the standard library's `b16encode` output, returned as
+`str`; the decoder is stricter than `b16decode`: lowercase digits,
+whitespace and an odd digit count are errors, so one payload has exactly one
+accepted spelling.
 
 ## When to use it
 
@@ -21,8 +22,8 @@ twice the payload.
 
 ## Truncation behavior
 
-A cut after an even number of characters decodes, without an error, to the
-first half as many bytes; a cut after an odd number raises
+A cut after `2k` characters decodes, without an error, to the first `k`
+bytes; a cut after an odd number of characters raises
 {class}`~radixly.DecodeError` at the end of the text. There is no padding,
 no length and no checksum, so half of all cuts pass, every one of them to a
 prefix.
@@ -41,13 +42,13 @@ its 16,384-byte window.
 
 ## Standard library
 
-`radixly.compat.base64.b16encode` and `b16decode` are the standard library's
-functions, the `casefold` option included, running on the same C. See
-{doc}`../compat`.
+`radixly.compat.base64.b16encode` and `b16decode` port the standard
+library's functions, the `casefold` option included, onto this codec's C.
+See {doc}`../compat`.
 
 ## Benchmarks
 
-The rows marked `stdlib` time the standard library's `b16encode` and
+The rows marked `stdlib base64` time the standard library's `b16encode` and
 `b16decode`, with the encoder's `bytes` result decoded to `str` for a like
 comparison.
 

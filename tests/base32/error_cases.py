@@ -82,6 +82,8 @@ def _invalid_cases(module: Base32Preset) -> dict[str, tuple[str, int]]:
         "astral-mid-string": (full + "\U0001f600" + zero * 7, 8),
         "invalid-after-full-group": (full + "!" + zero * 7, 8),
         "padding-before-another-group": (zero * 2 + "======" + full, 2),
+        "padding-before-a-remainder": (zero * 2 + "======" + zero * 3, 2),
+        "pad-bits-in-a-non-last-group": (zero + one + "======" + full, 2),
         "data-after-padding": (zero * 2 + "==" + zero * 4, 4),
         "one-data-character": (zero + "=======", 1),
         "three-data-characters": (zero * 3 + "=====", 3),

@@ -11,7 +11,11 @@ Edits against the original, and nothing else:
 - `LazyImportTest` and `TestMain` are removed: they test CPython's lazy imports and the
   `python -m base64` command line, neither of which the drop-in provides.
 - `assertIsSubclass` is spelled `assertTrue(issubclass(...))` so the suite also runs on 3.11.
-- The three z85 tests skip, and `test_decode_nonascii_str` leaves z85 out, where the standard
-  library has no z85 (before 3.13); the drop-in offers z85 only where the stdlib does, until its port.
+- `sys` is imported; the three z85 tests skip, and `test_decode_nonascii_str` leaves z85 out, on
+  interpreters before 3.13, where the standard library has no z85. The gate is the version, not the
+  module under test, so a drop-in that lost z85 on 3.13 fails instead of skipping.
 
-To re-vendor: fetch the new file, reapply the edits, run the suite.
+The file is excluded from ruff, so it keeps upstream's formatting byte for byte; `diff` against the
+original shows only the edits above.
+
+To re-vendor: fetch the new file, reapply the edits without reformatting, run the suite.

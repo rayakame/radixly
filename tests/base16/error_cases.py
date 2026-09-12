@@ -46,6 +46,8 @@ INVALID_CASES: dict[str, tuple[str, int]] = {
     "odd-length-invalid-wins": ("6!6", 1),
     "invalid-mid-string": ("0000!!00", 4),
     "lowercase-last": ("00000a", 5),
+    "odd-length-trailing-invalid": ("66!", 2),
+    "odd-length-trailing-latin1": ("66\xff", 2),
 }
 
 NON_STR_INPUTS: tuple[object, ...] = (b"bytes", 42)

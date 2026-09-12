@@ -36,4 +36,4 @@ def encode(data: bytes) -> str:
 
 def decode(string: str) -> bytes:
     """Decode base32 strictly."""
-    return rfc4648_32.decode(string, ALPHABET)
+    return rfc4648_32.decode(string, ALPHABET, "base32")

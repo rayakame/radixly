@@ -148,6 +148,9 @@ def test_install_puts_rivals_next_to_radixly(monkeypatch: pytest.MonkeyPatch) ->
     assert rows == [("base65536", "radixly"), ("base65536", "PyPI"), ("base2048", "radixly"), ("base2048", "PyPI")]
     rows = [(impl.codec, impl.name.split(" ")[0]) for impl in registry.implementations(["base32", "base16"])]
     assert rows == [("base32", "radixly"), ("base32", "stdlib"), ("base16", "radixly"), ("base16", "stdlib")]
+    for impl in registry.implementations(["base65536", "base32"]):
+        if impl.name != "radixly":
+            assert impl.reference_encode is None
 
 
 def test_stdlib_rivals_encode_like_radixly() -> None:
@@ -159,9 +162,6 @@ def test_stdlib_rivals_encode_like_radixly() -> None:
         assert spec.encode(payload) == radixly.CODECS[codec].encode(payload)
         assert spec.decode(spec.encode(payload)) == payload
         assert spec.name.startswith("stdlib base64 ")
-    for impl in registry.implementations(["base65536"]):
-        if impl.name != "radixly":
-            assert impl.reference_encode is None
 
 
 def test_install_reports_what_is_missing(monkeypatch: pytest.MonkeyPatch) -> None:

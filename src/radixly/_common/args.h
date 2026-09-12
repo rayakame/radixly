@@ -29,8 +29,8 @@ typedef struct {
     PyObject **value;
 } radixly_param;
 
-/* Bind (args, nargs, kwnames) to params in order: the first max_positional may come positionally, every one
- * by keyword, the first required must be present. Returns 0, or -1 with a TypeError worded like CPython's. */
+/* Bind a fastcall to params: max_positional by position, all by keyword, required present; -1 with a
+ * TypeError worded like the pure-Python function's. */
 int radixly_bind_args(const char *function, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames,
                       radixly_param *params, Py_ssize_t num_params, Py_ssize_t required,
                       Py_ssize_t max_positional);

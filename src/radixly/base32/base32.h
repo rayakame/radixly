@@ -25,7 +25,7 @@
 
 extern int radixly_base32_exec(PyObject *module);
 
-/* The shared engine: hex selects the base32hex alphabet, map01 whether the compat decoder takes that keyword.
+/* The shared engine: hex selects the base32hex alphabet and, for the compat decoder, drops the map01 keyword.
  */
 PyObject *radixly_base32_encode_with(PyObject *arg, int hex);
 PyObject *radixly_base32_decode_with(PyObject *arg, int hex);

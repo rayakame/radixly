@@ -60,6 +60,8 @@ def test_base32hex_codec_fields() -> None:
     codec = radixly.base32hex.BASE32HEX
     assert codec.encode is radixly.base32hex.encode
     assert codec.decode is radixly.base32hex.decode
+    assert codec.encoded_len is radixly.base32hex.encoded_len
+    assert codec.max_bytes is radixly.base32hex.max_bytes
     assert codec.name == "base32hex"
     assert codec.bits_per_char == 5 == radixly.base32hex.BITS_PER_CHAR
     assert radixly.get_codec("base32hex") is codec

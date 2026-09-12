@@ -72,7 +72,8 @@ __all__ = [
 
 if sys.version_info >= (3, 13):
     # z85 joined the standard library in 3.13; until radixly's own port lands, older interpreters have none.
-    from base64 import z85decode  # pyright: ignore[reportUnreachable] -- the checker's floor is 3.11
+    # The checker's floor is 3.11, so it sees this branch as unreachable.
+    from base64 import z85decode  # pyright: ignore[reportUnreachable]
     from base64 import z85encode
 
     __all__ += ["z85decode", "z85encode"]
