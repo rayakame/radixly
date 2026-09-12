@@ -21,9 +21,11 @@
 
 from __future__ import annotations
 
+import base64
 import dataclasses
 import importlib
 import importlib.metadata
+import platform
 import typing
 
 import radixly
@@ -46,6 +48,22 @@ class Rival:
 RIVALS: typing.Final[tuple[Rival, ...]] = (
     Rival("base2048", "base2048", wire_compatible=False),
     Rival("base65536", "base65536", wire_compatible=True),
+)
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class StdlibRival:
+    """A standard library pair; its bytes result is decoded to str so the contracts match radixly's."""
+
+    codec: str
+    encode_name: str
+    decode_name: str
+
+
+STDLIB_RIVALS: typing.Final[tuple[StdlibRival, ...]] = (
+    StdlibRival("base16", "b16encode", "b16decode"),
+    StdlibRival("base32", "b32encode", "b32decode"),
+    StdlibRival("base32hex", "b32hexencode", "b32hexdecode"),
 )
 
 
@@ -98,7 +116,27 @@ def discover(rivals: tuple[Rival, ...] | None = None) -> dict[str, tuple[registr
     return found
 
 
+def stdlib_specs(rivals: tuple[StdlibRival, ...] = STDLIB_RIVALS) -> dict[str, tuple[registry.CompetitorSpec, ...]]:
+    """One CompetitorSpec per standard library pair, labeled with the interpreter version."""
+    found: dict[str, tuple[registry.CompetitorSpec, ...]] = {}
+    version = platform.python_version()
+    for rival in rivals:
+        encode = typing.cast("Callable[[bytes], bytes]", getattr(base64, rival.encode_name))
+        decode = typing.cast("Callable[[str], bytes]", getattr(base64, rival.decode_name))
+
+        def encode_to_str(data: bytes, encode: Callable[[bytes], bytes] = encode) -> str:
+            return encode(data).decode("ascii")
+
+        spec = registry.CompetitorSpec(f"stdlib base64 {version}", encode_to_str, decode)
+        _probe(Rival(rival.codec, "python", wire_compatible=True), spec)
+        found[rival.codec] = (*found.get(rival.codec, ()), spec)
+    return found
+
+
 def install() -> list[Rival]:
     """Register every discovered rival; returns the rivals that are not installed. Repeat calls are harmless."""
-    registry.COMPETITORS.update(discover())
+    found = discover()
+    for codec, specs in stdlib_specs().items():
+        found[codec] = (*found.get(codec, ()), *specs)
+    registry.COMPETITORS.update(found)
     return [rival for rival in RIVALS if _import_rival(rival.distribution) is None]

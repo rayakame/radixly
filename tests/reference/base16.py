@@ -17,23 +17,33 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-"""Fast binary-to-text codecs."""
+"""base16, RFC 4648 section 8: two uppercase hexadecimal digits per byte, nothing else accepted."""
 
 from __future__ import annotations
 
-from radixly import base16 as base16
-from radixly import base32 as base32
-from radixly import base32hex as base32hex
-from radixly import base2048 as base2048
-from radixly import base32768 as base32768
-from radixly import base65536 as base65536
-from radixly import braille as braille
-from radixly import hexagram as hexagram
-from radixly import uro14 as uro14
-from radixly._about import __author__ as __author__
-from radixly._about import __copyright__ as __copyright__
-from radixly._about import __license__ as __license__
-from radixly._about import __url__ as __url__
-from radixly._about import __version__ as __version__
-from radixly._codec import *
-from radixly._core import DecodeError as DecodeError
+import typing
+
+from tests.reference import errors
+
+ALPHABET: typing.Final[str] = "0123456789ABCDEF"
+BITS_PER_CHAR: typing.Final[int] = 4
+
+
+def encode(data: bytes) -> str:
+    """Encode bytes as uppercase hexadecimal."""
+    return "".join(ALPHABET[byte >> 4] + ALPHABET[byte & 0xF] for byte in data)
+
+
+def decode(string: str) -> bytes:
+    """Decode strictly; an odd length raises at the end, after every character was checked."""
+    values: list[int] = []
+    for index, char in enumerate(string):
+        value = ALPHABET.find(char)
+        if value < 0:
+            msg = f"invalid base16 character {char!r} (U+{ord(char):04X}) at index {index}"
+            raise errors.DecodeError(index, message=msg)
+        values.append(value)
+    if len(values) % 2:
+        msg = f"odd length: {len(string)} characters, the last byte needs two digits"
+        raise errors.DecodeError(len(string), message=msg)
+    return bytes((values[i] << 4) | values[i + 1] for i in range(0, len(values), 2))

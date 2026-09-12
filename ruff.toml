@@ -19,6 +19,9 @@ ignore = [
 "**/__init__.py" = [
     "F403", # unable to detect undefined names
 ]
+"tests/compat/test_stdlib_base64.py" = [
+    "ALL", # CPython's own suite, vendored verbatim under the PSF license; not ours to restyle
+]
 "tests/**" = [
     "DOC",     # docstring sections vs signature; test docstrings explain intent, not parameters
     "D101",    # undocumented class: test names carry the intent

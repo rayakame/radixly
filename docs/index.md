@@ -15,10 +15,32 @@ committed record from the benchmark suite that ships with the repository.
 **One interface.** Every codec offers `encode`, `decode` and the size math
 to plan around a length limit, with type stubs and no dependencies.
 
+**A drop-in for the standard library.** {doc}`compat` is the `base64`
+module with the same names, arguments and errors, ported to C family by
+family.
+
 ## Codecs
 
 ::::{grid} 2
 :gutter: 3
+
+:::{grid-item-card} base16
+:link: codecs/base16
+:link-type: doc
+Two hexadecimal digits per byte, RFC 4648. Reach over density.
+:::
+
+:::{grid-item-card} base32
+:link: codecs/base32
+:link-type: doc
+Letters and digits only, RFC 4648. For case-insensitive channels.
+:::
+
+:::{grid-item-card} base32hex
+:link: codecs/base32hex
+:link-type: doc
+base32 whose encoded strings sort like their payloads.
+:::
 
 :::{grid-item-card} base32768
 :link: codecs/base32768
@@ -62,7 +84,7 @@ One I Ching hexagram per six bits. base64's density in a single block.
 
 - {doc}`guides/getting-started` installs radixly and walks through a first
   round trip.
-- {doc}`guides/choosing-a-codec` compares the six codecs side by side.
+- {doc}`guides/choosing-a-codec` compares the nine codecs side by side.
 - Source, issues and releases live on [GitHub](https://github.com/rayakame/radixly).
 
 ```{toctree}
@@ -78,12 +100,22 @@ guides/subinterpreters
 :hidden:
 :caption: Codecs
 
+codecs/base16
+codecs/base32
+codecs/base32hex
 codecs/base32768
 codecs/base65536
 codecs/base2048
 codecs/uro14
 codecs/braille
 codecs/hexagram
+```
+
+```{toctree}
+:hidden:
+:caption: Standard library
+
+compat
 ```
 
 ```{toctree}

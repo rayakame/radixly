@@ -72,7 +72,17 @@ def test_codec_is_frozen() -> None:
         radixly.base32768.BASE32768.name = "other"  # pyright: ignore[reportAttributeAccessIssue]
 
 
-EXPECTED_CODECS = ["base2048", "base32768", "base65536", "braille", "hexagram", "uro14"]
+EXPECTED_CODECS = [
+    "base16",
+    "base32",
+    "base32hex",
+    "base2048",
+    "base32768",
+    "base65536",
+    "braille",
+    "hexagram",
+    "uro14",
+]
 
 
 def test_import_is_eager() -> None:

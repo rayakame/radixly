@@ -28,27 +28,31 @@ astral character carries 8 bits per code unit against base32768's 15.
 
 ## Does a cut-off string have to be caught?
 
-Only uro14 can tell that a string is incomplete, thanks to its length prefix,
-and only for payloads under 16,384 bytes. The others decode a truncated string
-either without complaint (braille and base65536 always, base32768 and base2048
-just under a quarter of the time, hexagram about a third) or with an error that
-depends on where the cut landed. If that matters and uro14 does not fit, carry
-a length or a checksum yourself.
+Only uro14 can tell that a string is incomplete, thanks to its length
+prefix, and only for payloads under 16,384 bytes. The others decode a
+truncated string either without complaint (braille and base65536 always,
+base32768 and base2048 just under a quarter of the time, hexagram about a
+third, base16 half, base32 and base32hex one cut in eight) or with an error
+that depends on where the cut landed. If that matters and uro14 does not fit,
+carry a length or a checksum yourself.
 
 ## How narrow does the alphabet have to be?
 
 The fewer distinct characters a codec uses, the more channels accept it
-unchanged. hexagram uses 64 symbols from one block, braille 256, uro14 one
-block of 16,384 ideographs, base2048 letters and numerals from two dozen
-scripts, base32768 characters from many BMP blocks, base65536 blocks from
-three planes. All six avoid whitespace, control characters and combining
-marks, so the usual suspects (chat clients, databases, normalizing frameworks)
-pass them through. base2048 is the one whose output can look like ordinary
-text, and base65536 the one a channel might reject for leaving the BMP.
+unchanged. base16, base32 and base32hex are plain ASCII letters and digits,
+which every channel takes; base32 is the one for case-insensitive channels.
+Among the Unicode codecs, hexagram uses 64 symbols from one block, braille
+256, uro14 one block of 16,384 ideographs, base2048 letters and numerals from
+two dozen scripts, base32768 characters from many BMP blocks, base65536
+blocks from three planes. All of them avoid whitespace, control characters
+and combining marks, so the usual suspects (chat clients, databases,
+normalizing frameworks) pass them through. base2048 is the one whose output
+can look like ordinary text, and base65536 the one a channel might reject
+for leaving the BMP.
 
 ## Speed is not the deciding factor
 
-None of the six is slow: 0.04 to 0.32 microseconds per call at 200 bytes, 1.2
+None of the nine is slow: 0.04 to 0.32 microseconds per call at 200 bytes, 1.2
 to 7.2 GB/s encoding large inputs and 0.68 GB/s or more decoding them. Pick by
 alphabet and truncation behavior; the numbers on each codec page are there to
 confirm that whichever you pick will not be the bottleneck.

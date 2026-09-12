@@ -17,23 +17,23 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-"""Fast binary-to-text codecs."""
+"""base32hex, RFC 4648 section 7: the alphabet 0-9 then A-V, so encoded order is byte order."""
 
 from __future__ import annotations
 
-from radixly import base16 as base16
-from radixly import base32 as base32
-from radixly import base32hex as base32hex
-from radixly import base2048 as base2048
-from radixly import base32768 as base32768
-from radixly import base65536 as base65536
-from radixly import braille as braille
-from radixly import hexagram as hexagram
-from radixly import uro14 as uro14
-from radixly._about import __author__ as __author__
-from radixly._about import __copyright__ as __copyright__
-from radixly._about import __license__ as __license__
-from radixly._about import __url__ as __url__
-from radixly._about import __version__ as __version__
-from radixly._codec import *
-from radixly._core import DecodeError as DecodeError
+import typing
+
+from tests.reference import rfc4648_32
+
+ALPHABET: typing.Final[str] = "0123456789ABCDEFGHIJKLMNOPQRSTUV"
+BITS_PER_CHAR: typing.Final[int] = rfc4648_32.BITS_PER_CHAR
+
+
+def encode(data: bytes) -> str:
+    """Encode bytes as base32hex."""
+    return rfc4648_32.encode(data, ALPHABET)
+
+
+def decode(string: str) -> bytes:
+    """Decode base32hex strictly."""
+    return rfc4648_32.decode(string, ALPHABET)

@@ -17,23 +17,35 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-"""Fast binary-to-text codecs."""
+"""Shared rejection tables for base16: same (input, position) on both sides."""
 
 from __future__ import annotations
 
-from radixly import base16 as base16
-from radixly import base32 as base32
-from radixly import base32hex as base32hex
-from radixly import base2048 as base2048
-from radixly import base32768 as base32768
-from radixly import base65536 as base65536
-from radixly import braille as braille
-from radixly import hexagram as hexagram
-from radixly import uro14 as uro14
-from radixly._about import __author__ as __author__
-from radixly._about import __copyright__ as __copyright__
-from radixly._about import __license__ as __license__
-from radixly._about import __url__ as __url__
-from radixly._about import __version__ as __version__
-from radixly._codec import *
-from radixly._core import DecodeError as DecodeError
+__all__ = ("INVALID_CASES", "NON_STR_INPUTS", "RFC_VECTORS")
+
+# RFC 4648 section 10.
+RFC_VECTORS: dict[bytes, str] = {
+    b"": "",
+    b"f": "66",
+    b"fo": "666F",
+    b"foo": "666F6F",
+    b"foob": "666F6F62",
+    b"fooba": "666F6F6261",
+    b"foobar": "666F6F626172",
+}
+
+# Characters raise at their own index left to right; an odd length raises at the end, after every character.
+INVALID_CASES: dict[str, tuple[str, int]] = {
+    "lowercase": ("6a", 1),
+    "non-hex-letter": ("6G", 1),
+    "space": ("66 66", 2),
+    "astral": ("\U0001f600", 0),
+    "lone-surrogate": ("\ud800", 0),
+    "nul": ("\x00", 0),
+    "odd-length": ("686", 3),
+    "odd-length-invalid-wins": ("6!6", 1),
+    "invalid-mid-string": ("0000!!00", 4),
+    "lowercase-last": ("00000a", 5),
+}
+
+NON_STR_INPUTS: tuple[object, ...] = (b"bytes", 42)

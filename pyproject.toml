@@ -86,6 +86,8 @@ pyright = [
 [tool.basedpyright]
 typeCheckingMode = "recommended"
 include = ["noxfile.py", "src", "tests", "scripts", "benchmarks"]
+# CPython's own base64 suite, vendored verbatim; typed to its own standards, not ours.
+exclude = ["tests/compat/test_stdlib_base64.py"]
 # Resolve radixly from src/ so the checker sees the working tree, not the
 # installed copy; consumers get types via py.typed + the verifytypes gate.
 extraPaths = ["src"]
@@ -138,7 +140,7 @@ version = { attr = "radixly._about.__version__" }
 
 [tool.setuptools]
 ext-modules = [
-  {name = "radixly._core", sources=["src/radixly/_core.c", "src/radixly/base2048/base2048.c", "src/radixly/base32768/base32768.c", "src/radixly/base65536/base65536.c", "src/radixly/braille/braille.c", "src/radixly/hexagram/hexagram.c", "src/radixly/uro14/uro14.c", "src/radixly/_common/block.c", "src/radixly/_common/errors.c"], include-dirs=["src/radixly"], extra-compile-args=["-std=c11"]}
+  {name = "radixly._core", sources=["src/radixly/_core.c", "src/radixly/base16/base16.c", "src/radixly/base2048/base2048.c", "src/radixly/base32/base32.c", "src/radixly/base32768/base32768.c", "src/radixly/base32hex/base32hex.c", "src/radixly/base65536/base65536.c", "src/radixly/braille/braille.c", "src/radixly/hexagram/hexagram.c", "src/radixly/uro14/uro14.c", "src/radixly/_common/args.c", "src/radixly/_common/block.c", "src/radixly/_common/compat.c", "src/radixly/_common/errors.c"], include-dirs=["src/radixly"], extra-compile-args=["-std=c11"]}
 ]
 
 # Keep C sources and headers out of binary wheels for every (sub)package;
