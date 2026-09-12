@@ -31,7 +31,7 @@ astral character carries 8 bits per code unit against base32768's 15.
 Only uro14 can tell that a string is incomplete, thanks to its length prefix,
 and only for payloads under 16,384 bytes. The others decode a truncated string
 either without complaint (braille and base65536 always, base32768 and base2048
-about a quarter of the time, hexagram about a third) or with an error that
+just under a quarter of the time, hexagram about a third) or with an error that
 depends on where the cut landed. If that matters and uro14 does not fit, carry
 a length or a checksum yourself.
 

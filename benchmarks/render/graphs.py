@@ -127,7 +127,14 @@ def _implementation_colors(series: dict[tuple[str, str], list[tuple[int, float]]
         implementation = key[0]
         if implementation in colors:
             continue
-        colors[implementation] = theme.encode if implementation == "radixly" else next(ramp, theme.decode)
+        if implementation == "radixly":
+            colors[implementation] = theme.encode
+            continue
+        try:
+            colors[implementation] = next(ramp)
+        except StopIteration:
+            msg = f"the {theme.name} theme has {len(theme.competitors)} competitor colors; add one per extra rival"
+            raise ValueError(msg) from None
     return colors
 
 
@@ -147,7 +154,7 @@ def _line_chart(path: pathlib.Path, theme: Theme, data: _SweepData) -> None:
             linewidth=1.6,
             linestyle="-" if direction == "encode" else "--",
             color=colors[implementation],
-            label=f"{implementation} {direction}",
+            label=f"{implementation} ({direction})",
         )
     axes.set_xscale("log")
     if data.log_y:

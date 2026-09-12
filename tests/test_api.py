@@ -75,8 +75,13 @@ def test_codec_is_frozen() -> None:
 EXPECTED_CODECS = ["base2048", "base32768", "base65536", "braille", "hexagram", "uro14"]
 
 
-@pytest.mark.parametrize("name", EXPECTED_CODECS)
-def test_import_is_eager(name: str) -> None:
+def test_import_is_eager() -> None:
     """The only test that fails if a codec's eager import leaves __init__; in-process, pytest imports it first."""
-    code = f"import radixly; radixly.{name}.encode(b'x'); assert list(radixly.CODECS) == {EXPECTED_CODECS!r}"
+    code = (
+        "import radixly\n"
+        f"for name in {EXPECTED_CODECS!r}:\n"
+        "    getattr(radixly, name).encode(b'x')\n"
+        f"if list(radixly.CODECS) != {EXPECTED_CODECS!r}:\n"
+        "    raise SystemExit(f'registry order {list(radixly.CODECS)}')\n"
+    )
     subprocess.run([sys.executable, "-c", code], check=True)  # ruff: ignore[subprocess-without-shell-equals-true] -- fixed argv, own interpreter

@@ -34,6 +34,7 @@ enum {
     REV_INVALID = 0xFFFF,
     REV_PAD = 0x0100, /* the 8-bit tail block; no block index reaches it */
     BMP_MAX_CHAR = 0xFFFF,
+    NARROW_LIMIT = 0x100, /* below it a str would need the 1-byte kind */
 };
 
 /* Indexed by code point >> 8: the block index, REV_PAD, or REV_INVALID. */
@@ -42,20 +43,32 @@ static uint16_t REV[REV_SIZE];
 int
 radixly_base65536_exec(PyObject *Py_UNUSED(module))
 {
-    /* Compile-time pins on the generated header; Py_BUILD_ASSERT also covers MSVC's default C mode. */
+    /* Compile-time pins on the generated header; Py_BUILD_ASSERT builds in every C mode, MSVC's included. */
     Py_BUILD_ASSERT(RADIXLY_ARRAY_SIZE(RADIXLY_B65536_BLOCK_START) == 256);
-    Py_BUILD_ASSERT((unsigned)RADIXLY_B65536_PAD_START <= (unsigned)MAX_CODE_POINT);
+    Py_BUILD_ASSERT((unsigned)RADIXLY_B65536_PAD_START + BYTE_MASK <= (unsigned)BMP_MAX_CHAR);
     for (size_t i = 0; i < RADIXLY_ARRAY_SIZE(REV); i++) {
         REV[i] = REV_INVALID;
     }
 
-    /* A corrupt generated header must fail the import, not write past REV. */
+    /* A corrupt generated header must fail the import: every block 256-aligned, inside the table, used once.
+     */
     for (size_t i = 0; i < RADIXLY_ARRAY_SIZE(RADIXLY_B65536_BLOCK_START); i++) {
-        if (RADIXLY_B65536_BLOCK_START[i] > MAX_CODE_POINT) {
-            PyErr_SetString(PyExc_SystemError, "base65536 block start out of range");
+        const uint32_t start = RADIXLY_B65536_BLOCK_START[i];
+        if (start < NARROW_LIMIT || start > MAX_CODE_POINT || (start & BYTE_MASK) != 0) {
+            PyErr_Format(PyExc_SystemError,
+                         "base65536 block %zu starts at U+%X, misaligned or outside the table", i, start);
             return -1;
         }
-        REV[RADIXLY_B65536_BLOCK_START[i] >> (unsigned)BLOCK_SHIFT] = (uint16_t)i;
+        if (REV[start >> (unsigned)BLOCK_SHIFT] != REV_INVALID) {
+            PyErr_Format(PyExc_SystemError, "base65536 block %zu at U+%X collides with an earlier one", i,
+                         start);
+            return -1;
+        }
+        REV[start >> (unsigned)BLOCK_SHIFT] = (uint16_t)i;
+    }
+    if (REV[(unsigned)RADIXLY_B65536_PAD_START >> (unsigned)BLOCK_SHIFT] != REV_INVALID) {
+        PyErr_SetString(PyExc_SystemError, "base65536 tail block collides with a data block");
+        return -1;
     }
     REV[(unsigned)RADIXLY_B65536_PAD_START >> (unsigned)BLOCK_SHIFT] = REV_PAD;
     return 0;

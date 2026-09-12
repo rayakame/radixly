@@ -44,28 +44,34 @@ static uint16_t REV[MAX_CHAR + 1];
 int
 radixly_base2048_exec(PyObject *Py_UNUSED(module))
 {
-    /* Compile-time pins on the generated header: the encoder indexes these tables without a check. */
+    /* Compile-time pins on the generated header; Py_BUILD_ASSERT builds in every C mode, MSVC's included. */
     Py_BUILD_ASSERT(RADIXLY_ARRAY_SIZE(RADIXLY_B2048_FWD11) == (1U << (unsigned)BITS_PER_CHAR));
     Py_BUILD_ASSERT(RADIXLY_ARRAY_SIZE(RADIXLY_B2048_FWD3) == (1U << (unsigned)SHORT_BITS));
     for (size_t i = 0; i < RADIXLY_ARRAY_SIZE(REV); i++) {
         REV[i] = REV_INVALID;
     }
 
-    /* A corrupt generated header must fail the import, not write past REV. */
+    /* A corrupt generated header must fail the import: no entry past the table, none used twice. */
     for (size_t i = 0; i < RADIXLY_ARRAY_SIZE(RADIXLY_B2048_FWD11); i++) {
-        if (RADIXLY_B2048_FWD11[i] > MAX_CHAR) {
-            PyErr_SetString(PyExc_SystemError, "base2048 table entry out of range");
+        const uint16_t code_point = RADIXLY_B2048_FWD11[i];
+        if (code_point > MAX_CHAR || REV[code_point] != REV_INVALID) {
+            PyErr_Format(PyExc_SystemError,
+                         "base2048 11-bit entry %zu is U+%04X, past the table or a duplicate", i,
+                         (unsigned)code_point);
             return -1;
         }
-        REV[RADIXLY_B2048_FWD11[i]] = (uint16_t)i;
+        REV[code_point] = (uint16_t)i;
     }
 
     for (size_t i = 0; i < RADIXLY_ARRAY_SIZE(RADIXLY_B2048_FWD3); i++) {
-        if (RADIXLY_B2048_FWD3[i] > MAX_CHAR) {
-            PyErr_SetString(PyExc_SystemError, "base2048 table entry out of range");
+        const uint16_t code_point = RADIXLY_B2048_FWD3[i];
+        if (code_point > MAX_CHAR || REV[code_point] != REV_INVALID) {
+            PyErr_Format(PyExc_SystemError,
+                         "base2048 3-bit entry %zu is U+%04X, past the table or a duplicate", i,
+                         (unsigned)code_point);
             return -1;
         }
-        REV[RADIXLY_B2048_FWD3[i]] = (uint16_t)(REV_SHORT_FLAG | i);
+        REV[code_point] = (uint16_t)(REV_SHORT_FLAG | i);
     }
     return 0;
 }

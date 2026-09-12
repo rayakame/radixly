@@ -108,7 +108,10 @@ def reference_module(name: str) -> ReferenceCodec | None:
         sys.path.insert(0, root)
     try:
         module = importlib.import_module(f"tests.reference.{name}")
-    except ImportError:
+    except ModuleNotFoundError as error:
+        # Only a missing oracle module is "no oracle"; an import failing inside one must stay loud.
+        if error.name != f"tests.reference.{name}":
+            raise
         return None
     # Modules satisfy the protocol structurally; pyright wants the detour via object.
     return typing.cast("ReferenceCodec", typing.cast("object", module))

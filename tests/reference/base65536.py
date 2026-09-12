@@ -75,8 +75,12 @@ del _lookup_e, _lookup_d
 
 
 def _as_bytes(data: ReadableBuffer) -> bytes:
-    """Draw the C's line: any buffer is accepted, and memoryview refuses str with the same words."""
-    return bytes(memoryview(data))
+    """Draw the C's line: any contiguous buffer is accepted, str and strided views are refused."""
+    view = memoryview(data)  # refuses str with the C's words
+    if not view.c_contiguous:
+        msg = "memoryview: underlying buffer is not C-contiguous"
+        raise BufferError(msg)
+    return view.tobytes()
 
 
 def _require_str(string: object) -> None:

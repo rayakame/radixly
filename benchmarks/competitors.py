@@ -26,9 +26,11 @@ import importlib
 import importlib.metadata
 import typing
 
+import radixly
 from benchmarks import registry
 
 if typing.TYPE_CHECKING:
+    import types
     from collections.abc import Callable
 
 
@@ -50,27 +52,40 @@ RIVALS: typing.Final[tuple[Rival, ...]] = (
 _PROBE: typing.Final = bytes(range(8))
 
 
-def _probe(distribution: str, spec: registry.CompetitorSpec) -> None:
-    """Refuse a rival that cannot round-trip a small payload under radixly's contracts."""
+def _probe(rival: Rival, spec: registry.CompetitorSpec) -> None:
+    """Refuse a rival that breaks radixly's contracts on a small payload, or one whose compatibility flag lies."""
     encoded = spec.encode(_PROBE)
     if not isinstance(encoded, str):  # pyright: ignore[reportUnnecessaryIsInstance]
-        msg = f"{distribution}.encode returned {type(encoded).__name__}, not str"
+        msg = f"{rival.distribution}.encode returned {type(encoded).__name__}, not str"
         raise TypeError(msg)
-    if spec.decode(encoded) != _PROBE:
-        msg = f"{distribution} does not round-trip its own output"
+    decoded = spec.decode(encoded)
+    if not isinstance(decoded, bytes):  # pyright: ignore[reportUnnecessaryIsInstance]
+        msg = f"{rival.distribution}.decode returned {type(decoded).__name__}, not bytes"
+        raise TypeError(msg)
+    if decoded != _PROBE:
+        msg = f"{rival.distribution} does not round-trip its own output"
         raise ValueError(msg)
+    if rival.wire_compatible and encoded != radixly.CODECS[rival.codec].encode(_PROBE):
+        msg = f"{rival.distribution} is flagged wire-compatible but encodes differently from radixly"
+        raise ValueError(msg)
+
+
+def _import_rival(distribution: str) -> types.ModuleType | None:
+    """Import the rival, or return None when the distribution itself is absent; a broken install stays loud."""
+    try:
+        return importlib.import_module(distribution)
+    except ModuleNotFoundError as error:
+        if error.name != distribution:
+            raise
+        return None
 
 
 def discover(rivals: tuple[Rival, ...] | None = None) -> dict[str, tuple[registry.CompetitorSpec, ...]]:
     """One CompetitorSpec per installed rival, named after distribution and version, flagged for another alphabet."""
     found: dict[str, tuple[registry.CompetitorSpec, ...]] = {}
     for rival in RIVALS if rivals is None else rivals:
-        try:
-            module = importlib.import_module(rival.distribution)
-        except ModuleNotFoundError as error:
-            # Only the rival's own absence is skipped; a broken install of a present rival must be loud.
-            if error.name != rival.distribution:
-                raise
+        module = _import_rival(rival.distribution)
+        if module is None:
             continue
         # Outside the guard on purpose: a module without metadata is a shadowing file, not an absent package.
         version = importlib.metadata.version(rival.distribution)
@@ -78,13 +93,12 @@ def discover(rivals: tuple[Rival, ...] | None = None) -> dict[str, tuple[registr
         decode = typing.cast("Callable[[str], bytes]", module.decode)
         suffix = "" if rival.wire_compatible else ", other alphabet"
         spec = registry.CompetitorSpec(f"PyPI {rival.distribution} {version}{suffix}", encode, decode)
-        _probe(rival.distribution, spec)
+        _probe(rival, spec)
         found[rival.codec] = (*found.get(rival.codec, ()), spec)
     return found
 
 
-def install() -> list[str]:
-    """Register every discovered rival; returns the distributions that were not found. Repeat calls are harmless."""
-    found = discover()
-    registry.COMPETITORS.update(found)
-    return [rival.distribution for rival in RIVALS if rival.codec not in found]
+def install() -> list[Rival]:
+    """Register every discovered rival; returns the rivals that are not installed. Repeat calls are harmless."""
+    registry.COMPETITORS.update(discover())
+    return [rival for rival in RIVALS if _import_rival(rival.distribution) is None]

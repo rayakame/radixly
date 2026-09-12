@@ -50,7 +50,6 @@ def test_case_tables_are_nonempty() -> None:
         error_cases.CANONICALITY_CASES,
         error_cases.PADDING_CASES,
         error_cases.SHORT_CASES,
-        error_cases.NARROW_PINS,
         error_cases.NON_STR_INPUTS,
     )
     assert all(len(table) > 0 for table in tables)
@@ -88,22 +87,14 @@ def test_encode_matches_reference_megabyte() -> None:
     assert _core.base2048_encode(payload) == base2048_reference.encode(payload)
 
 
-@pytest.mark.parametrize(("payload", "expected"), list(error_cases.NARROW_PINS.items()), ids=repr)
-def test_narrow_output_is_a_canonical_str(payload: bytes, expected: str) -> None:
-    """The repertoire starts in ASCII; a str in a wider kind than its content would compare and hash unequal."""
-    encoded = _core.base2048_encode(payload)
-    assert encoded == expected
-    assert max(map(ord, encoded)) < 0x100
-    assert {encoded} == {expected}  # hashing agrees, not only equality
-    assert _core.base2048_decode(expected) == payload
-
-
 def test_every_single_byte_round_trips_through_the_narrow_path() -> None:
-    """Bytes 0 to 6 come back as 1-byte-kind strings, 7 onward as 2-byte; all must equal the oracle."""
+    """Bytes 0 to 6 come back as 1-byte-kind strings, 7 onward as 2-byte; all must equal and hash like the oracle."""
     for value in range(256):
         payload = bytes([value])
         encoded = _core.base2048_encode(payload)
-        assert encoded == base2048_reference.encode(payload)
+        expected = base2048_reference.encode(payload)
+        assert encoded == expected
+        assert {encoded} == {expected}  # a str in a wider kind than its content would hash differently
         assert (max(map(ord, encoded)) < 0x100) is (value <= 6)
         assert _core.base2048_decode(encoded) == payload
 
@@ -112,6 +103,15 @@ def test_every_single_byte_round_trips_through_the_narrow_path() -> None:
 def test_short_alphabet_from_first_principles(z: int) -> None:
     """Ten bytes leave exactly 3 bits, the low bits of the last byte, one short character each."""
     assert _core.base2048_encode(bytes(9) + bytes([z]))[-1] == chr(ord("0") + z)
+
+
+def test_encode_rejects_non_contiguous_buffer() -> None:
+    """A strided view is refused, as every codec here does; the oracle draws the same line."""
+    strided = memoryview(b"abcdef")[::2]
+    with pytest.raises(BufferError, match="contiguous"):
+        _core.base2048_encode(strided)
+    with pytest.raises(BufferError, match="contiguous"):
+        base2048_reference.encode(strided)
 
 
 @pytest.mark.parametrize("bad", ["text", 42], ids=["str", "int"])

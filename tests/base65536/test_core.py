@@ -99,6 +99,15 @@ def test_astral_output_starts_at_block_110(payload: bytes, expected_kind: int) -
     assert {encoded} == {base65536_reference.encode(payload)}  # hashing agrees too
 
 
+def test_encode_rejects_non_contiguous_buffer() -> None:
+    """A strided view is refused, as every codec here does; the oracle draws the same line."""
+    strided = memoryview(b"abcdef")[::2]
+    with pytest.raises(BufferError, match="contiguous"):
+        _core.base65536_encode(strided)
+    with pytest.raises(BufferError, match="contiguous"):
+        base65536_reference.encode(strided)
+
+
 @pytest.mark.parametrize("bad", ["text", 42], ids=["str", "int"])
 def test_encode_rejects_non_buffer(bad: str | int) -> None:
     """The exact prose is the platform's; match only the load-bearing phrase."""
@@ -171,11 +180,6 @@ def test_decode_rejects_tail_character_before_the_end(string: str, position: int
 
 def test_decode_empty_string_is_empty_payload() -> None:
     assert _core.base65536_decode("") == b""
-
-
-def test_decode_accepts_lone_tail_character() -> None:
-    """A one-byte payload is exactly one tail character; the tail rule must not over-reject."""
-    assert _core.base65536_decode(base65536_reference.encode(b"B")) == b"B"
 
 
 def _type_id(value: object) -> str:

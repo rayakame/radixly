@@ -121,6 +121,7 @@ def _expand(pair_string: str) -> tuple[int, ...]:
 
 def _build_bit_tables(pair_strings: tuple[str, ...], bits_per_char: int) -> dict[int, tuple[int, ...]]:
     """Repertoires keyed by width: the full width, then one byte narrower per extra pair string."""
+    _check(len(pair_strings) * BITS_PER_BYTE < bits_per_char + BITS_PER_BYTE, "too many pair strings for the width")
     return {bits_per_char - BITS_PER_BYTE * r: _expand(pair_string) for r, pair_string in enumerate(pair_strings)}
 
 
@@ -138,10 +139,12 @@ def _verify_bit_tables(lookup_e: dict[int, tuple[int, ...]], *, min_char: int, m
         seen.update(repertoire)
         for cp in repertoire:
             _check(min_char <= cp <= max_char, f"code point U+{cp:04X} outside [U+{min_char:04X}, U+{max_char:04X}]")
+            _check(not 0xD800 <= cp <= 0xDFFF, f"surrogate U+{cp:04X} in the repertoire")
 
 
 def _build_base65536_tables() -> tuple[tuple[int, ...], int]:
     """Block starts of the 16-bit repertoire, in order, and the start of the 8-bit tail block."""
+    _check(len(BASE_65536_PAIR_STRINGS) == 2, "base65536 needs exactly a 16-bit and an 8-bit pair string")
     full, tail = (_expand(pair_string) for pair_string in BASE_65536_PAIR_STRINGS)
     _check(len(full) == 1 << 16, f"16-bit repertoire has {len(full)} code points, expected 65536")
     _check(len(tail) == 1 << BITS_PER_BYTE, f"8-bit repertoire has {len(tail)} code points, expected 256")
@@ -155,8 +158,9 @@ def _build_base65536_tables() -> tuple[tuple[int, ...], int]:
     _check(tail[0] % BASE_65536_BLOCK_SIZE == 0, f"tail block starts at U+{tail[0]:04X}, not 256-aligned")
     _check(tail == tuple(range(tail[0], tail[0] + BASE_65536_BLOCK_SIZE)), "tail block is not contiguous")
     _check(not set(full) & set(tail), "tail block overlaps the 16-bit repertoire")
+    _check(tail[-1] <= 0xFFFF, "tail block must stay in the BMP: the 2-byte encode path writes it unchecked")
     for cp in (*full, *tail):
-        _check(cp <= 0x10FFFF, f"code point U+{cp:06X} beyond Unicode")
+        _check(0x100 <= cp <= 0x10FFFF, f"code point U+{cp:06X} outside [U+0100, U+10FFFF], a kind the C never builds")
         _check(not 0xD800 <= cp <= 0xDFFF, f"surrogate U+{cp:04X} in the repertoire")
     return starts, tail[0]
 
@@ -203,8 +207,8 @@ def write_base_32768_table(path: pathlib.Path = BASE_32768_PATH) -> None:
 def write_base_2048_table(path: pathlib.Path = BASE_2048_PATH) -> None:
     """Generate the base2048 header from qntm's repertoire."""
     lookup_e = _build_bit_tables(BASE_2048_PAIR_STRINGS, BASE_2048_BITS_PER_CHAR)
-    # Min: the repertoire dips into ASCII, which the C narrows after the fact. Max: the C table's last cell.
-    _verify_bit_tables(lookup_e, min_char=0x20, max_char=0x1055)
+    # Min: the tail alphabet starts at '0'; the C narrows such ASCII output after the fact. Max: the C table's end.
+    _verify_bit_tables(lookup_e, min_char=0x30, max_char=0x1055)
 
     writer = IndentWriter(path)
     _write_header(
