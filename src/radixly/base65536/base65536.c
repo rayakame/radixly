@@ -45,7 +45,8 @@ radixly_base65536_exec(PyObject *Py_UNUSED(module))
 {
     /* Compile-time pins on the generated header; Py_BUILD_ASSERT builds in every C mode, MSVC's included. */
     Py_BUILD_ASSERT(RADIXLY_ARRAY_SIZE(RADIXLY_B65536_BLOCK_START) == 256);
-    Py_BUILD_ASSERT((unsigned)RADIXLY_B65536_PAD_START + BYTE_MASK <= (unsigned)BMP_MAX_CHAR);
+    Py_BUILD_ASSERT((unsigned)RADIXLY_B65536_PAD_START + 0xFFU <=
+                    (unsigned)BMP_MAX_CHAR); /* MSVC: literals only */
     for (size_t i = 0; i < RADIXLY_ARRAY_SIZE(REV); i++) {
         REV[i] = REV_INVALID;
     }
