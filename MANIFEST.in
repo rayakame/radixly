@@ -11,5 +11,7 @@ recursive-include src/radixly *.h
 # wheels via package-data — decided M9).
 recursive-include src/radixly *.pyi
 include src/radixly/py.typed
+# The table generator rides along so the sdist's suite can pin the committed headers to it.
+graft scripts
 prune changes
 global-exclude __pycache__ *.py[cod]

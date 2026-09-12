@@ -97,7 +97,7 @@ decode_error_init(PyObject *self, PyObject *args, PyObject *kwargs)
 static PyMemberDef decode_error_members[] = {
     {"position", Py_T_PYSSIZET, offsetof(RadixlyDecodeErrorObject, position), Py_READONLY,
      PyDoc_STR("Index of the offending character in the input.")},
-    {NULL},
+    {NULL, 0, 0, 0, NULL},
 };
 
 static int
@@ -133,7 +133,7 @@ static PyGetSetDef decode_error_getset[] = {
      PyDoc_STR(
          "Human-readable description of the failure, or None if the exception was built without arguments."),
      NULL},
-    {NULL},
+    {NULL, NULL, NULL, NULL, NULL},
 };
 
 static PyObject *

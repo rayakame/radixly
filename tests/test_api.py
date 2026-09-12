@@ -72,7 +72,16 @@ def test_codec_is_frozen() -> None:
         radixly.base32768.BASE32768.name = "other"  # pyright: ignore[reportAttributeAccessIssue]
 
 
+EXPECTED_CODECS = ["base2048", "base32768", "base65536", "braille", "hexagram", "uro14"]
+
+
 def test_import_is_eager() -> None:
-    """The only test that fails if the eager base32768 import leaves __init__."""
-    code = "import radixly; radixly.base32768.encode(b'x'); assert radixly.CODECS"
+    """The only test that fails if a codec's eager import leaves __init__; in-process, pytest imports it first."""
+    code = (
+        "import radixly\n"
+        f"for name in {EXPECTED_CODECS!r}:\n"
+        "    getattr(radixly, name).encode(b'x')\n"
+        f"if list(radixly.CODECS) != {EXPECTED_CODECS!r}:\n"
+        "    raise SystemExit(f'registry order {list(radixly.CODECS)}')\n"
+    )
     subprocess.run([sys.executable, "-c", code], check=True)  # ruff: ignore[subprocess-without-shell-equals-true] -- fixed argv, own interpreter

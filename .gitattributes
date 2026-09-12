@@ -4,3 +4,5 @@
 # them on checkout. The .txt vectors' no-trailing-newline property is
 # load-bearing too.
 tests/vectors/** binary
+# Generated headers are pinned byte for byte against the generator, which writes LF on every platform.
+src/radixly/*/_tables.h text eol=lf

@@ -31,6 +31,7 @@ import typing
 
 from benchmarks import baseline
 from benchmarks import ci
+from benchmarks import competitors
 from benchmarks import environment
 from benchmarks import model
 from benchmarks import payloads
@@ -259,6 +260,9 @@ def run(config: RunConfig | None = None) -> model.RunResult:
     config = RunConfig() if config is None else config
     env = environment.capture()
     ensure_measurable(env, force=config.force)
+    for rival in competitors.install():
+        if config.codecs is None or rival.codec in config.codecs:
+            print(f"warning: rival {rival.distribution} is not installed; its rows are missing", file=sys.stderr)
     chosen_sizes = registry.SIZES if config.sizes is None else config.sizes
 
     measurements: list[model.Measurement] = []
@@ -332,6 +336,8 @@ def _ci_gate(result: model.RunResult) -> int:
     """Gate the run, write the step summary; the exit code is the verdict."""
     summary = markdown.table(result)
     failures = ci.check_gates(result, ci.load_gates(ci.GATES_PATH))
+    # A record without its rival rows must not pass quietly; the lock pins every rival.
+    failures.extend(f"rival {rival.distribution} is not installed" for rival in competitors.install())
     if failures:
         summary += "\n**Gate failures:**\n\n" + "\n".join(f"- {failure}" for failure in failures) + "\n"
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")

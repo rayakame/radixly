@@ -21,16 +21,21 @@
 
 from __future__ import annotations
 
-import itertools
 import pathlib
 import typing
 
 CURRENT_PATH: typing.Final[pathlib.Path] = pathlib.Path(__file__).resolve()
 REPO_ROOT: typing.Final[pathlib.Path] = CURRENT_PATH.parent.parent.parent
 CURRENT_RELATIVE_PATH: typing.Final[pathlib.Path] = CURRENT_PATH.relative_to(REPO_ROOT)
-# Base32768
-BASE_32768_PATH: typing.Final[pathlib.Path] = REPO_ROOT / "src" / "radixly" / "base32768" / "_tables.h"
+PACKAGE_ROOT: typing.Final[pathlib.Path] = REPO_ROOT / "src" / "radixly"
+BITS_PER_BYTE: typing.Final = 8
+
+BASE_32768_PATH: typing.Final[pathlib.Path] = PACKAGE_ROOT / "base32768" / "_tables.h"
 BASE_32768_BITS_PER_CHAR: typing.Final = 15
+BASE_2048_PATH: typing.Final[pathlib.Path] = PACKAGE_ROOT / "base2048" / "_tables.h"
+BASE_2048_BITS_PER_CHAR: typing.Final = 11
+BASE_65536_PATH: typing.Final[pathlib.Path] = PACKAGE_ROOT / "base65536" / "_tables.h"
+BASE_65536_BLOCK_SIZE: typing.Final = 256
 
 # The same MIT block every source file carries, so regeneration keeps it.
 _LICENSE_HEADER: typing.Final[tuple[str, ...]] = (
@@ -56,112 +61,190 @@ _LICENSE_HEADER: typing.Final[tuple[str, ...]] = (
     " * SOFTWARE.",
     " */",
 )
-BASE_32768_BITS_PER_BYTE: typing.Final = 8
 # Alphabet data from qntm's base32768 (github.com/qntm/base32768), MIT, copyright qntm.
 BASE_32768_PAIR_STRINGS: typing.Final[tuple[str, ...]] = (
     "ҠҿԀԟڀڿݠޟ߀ߟကဟႠႿᄀᅟᆀᆟᇠሿበቿዠዿጠጿᎠᏟᐠᙟᚠᛟកសᠠᡟᣀᣟᦀᦟ᧠᧿ᨠᨿᯀᯟᰀᰟᴀᴟ⇠⇿⋀⋟⍀⏟␀␟─❟➀➿⠀⥿⦠⦿⨠⩟⪀⪿⫠⭟ⰀⰟⲀⳟⴀⴟⵀⵟ⺠⻟㇀㇟㐀䶟䷀龿ꀀꑿ꒠꒿ꔀꗿꙀꙟꚠꛟ꜀ꝟꞀꞟꡀꡟ",
     "ƀƟɀʟ",
 )
+# Alphabet data from qntm's base2048 (github.com/qntm/base2048), MIT, copyright qntm.
+BASE_2048_PAIR_STRINGS: typing.Final[tuple[str, ...]] = (
+    "89AZazÆÆÐÐØØÞßææððøøþþĐđĦħııĸĸŁłŊŋŒœŦŧƀƟƢƮƱǃǝǝǤǥǶǷȜȝȠȥȴʯͰͳͶͷͻͽͿͿΑΡΣΩαωϏϏϗϯϳϳϷϸϺϿЂЂЄІЈЋЏИКикяђђєіјћџѵѸҁҊӀӃӏӔӕӘәӠӡӨөӶӷӺԯԱՖաֆאתװײؠءاؿفي٠٩ٮٯٱٴٹڿہہۃےەەۮۼۿۿܐܐܒܯݍޥޱޱ߀ߪࠀࠕࡀࡘࡠࡪࢠࢴࢶࢽऄनपरलळवहऽऽॐॐॠॡ०९ॲঀঅঌএঐওনপরললশহঽঽৎৎৠৡ০ৱ৴৹ৼৼਅਊਏਐਓਨਪਰਲਲਵਵਸਹੜੜ੦੯ੲੴઅઍએઑઓનપરલળવહઽઽૐૐૠૡ૦૯ૹૹଅଌଏଐଓନପରଲଳଵହଽଽୟୡ୦୯ୱ୷ஃஃஅஊஎஐஒஓககஙசஜஜஞடணதநபமஹௐௐ௦௲అఌఎఐఒనపహఽఽౘౚౠౡ౦౯౸౾ಀಀಅಌಎಐಒನಪಳವಹಽಽೞೞೠೡ೦೯ೱೲഅഌഎഐഒഺഽഽൎൎൔൖ൘ൡ൦൸ൺൿඅඖකනඳරලලවෆ෦෯กะาาเๅ๐๙ກຂຄຄງຈຊຊຍຍດທນຟມຣລລວວສຫອະາາຽຽເໄ໐໙ໞໟༀༀ༠༳ཀགངཇཉཌཎདནབམཛཝཨཪཬྈྌကဥဧဪဿ၉ၐၕ",  # ruff: ignore[ambiguous-unicode-character-string]
+    "07",
+)
+# Block data from qntm's base65536 (github.com/qntm/base65536), MIT, copyright qntm.
+BASE_65536_PAIR_STRINGS: typing.Final[tuple[str, ...]] = (
+    "㐀䳿一黿ꄀꏿꔀꗿ𐘀𐛿𒀀𒋿𓀀𓏿𔐀𔗿𖠀𖧿𠀀𨗿",
+    "ᔀᗿ",
+)
 
 
 class IndentWriter:
-    """Indent writer used for dynamically generate files."""
+    """Buffers indented lines and writes them out in one go."""
 
     def __init__(self, file_path: pathlib.Path, *, indent_char: str = " ", indent_amount: int = 4) -> None:
-        """Construct a new indent writer object."""
         self.file_path: pathlib.Path = file_path
         self.lines: list[tuple[str, int]] = []
         self.indent_char: str = indent_char
         self.indent_amount: int = indent_amount
 
     def write_line(self, text: str, indent_depth: int = 0) -> None:
-        """Write a line with a new line character at the end to the buffer."""
+        """Buffer one line."""
         self.lines.append((text + "\n", indent_depth))
 
     def write_blank(self) -> None:
-        """Write a blank empty line to the buffer."""
+        """Buffer a blank line."""
         self.lines.append(("\n", 0))
 
     def write_file(self) -> None:
-        """Write content to file."""
+        """Write the buffered lines to the file."""
         with self.file_path.open("w", encoding="utf-8", newline="\n") as file:
             for line in self.lines:
                 indent: str = (self.indent_char * self.indent_amount) * line[1]
                 file.write(indent + line[0])
 
 
-def _build_base32768_tables() -> dict[int, tuple[int, ...]]:
-    lookup_e: dict[int, tuple[int, ...]] = {}
-
-    for r, pair_string in enumerate(BASE_32768_PAIR_STRINGS):
-        repertoire: list[int] = []
-        for i in range(0, len(pair_string), 2):
-            first, last = ord(pair_string[i]), ord(pair_string[i + 1])
-            repertoire.extend(cp for cp in range(first, last + 1))
-
-        num_z_bits = BASE_32768_BITS_PER_CHAR - BASE_32768_BITS_PER_BYTE * r
-        lookup_e[num_z_bits] = tuple(repertoire)
-
-    _verify_base32768_tables(lookup_e)
-    return lookup_e
+def _check(condition: bool, message: str) -> None:  # ruff: ignore[boolean-type-hint-positional-argument]
+    """Raise on a failed check; assert would vanish under -O."""
+    if not condition:
+        raise ValueError(message)
 
 
-def _verify_base32768_tables(lookup_e: dict[int, tuple[int, ...]]) -> None:
-    overlap = set(lookup_e[BASE_32768_BITS_PER_CHAR]) & set(lookup_e[BASE_32768_BITS_PER_CHAR - 8])
-    assert len(overlap) == 0, f"repertoires overlap: {sorted(hex(cp) for cp in overlap)}"
-
-    assert len(lookup_e[BASE_32768_BITS_PER_CHAR]) == 32768, (
-        f"15-bit repertoire has {len(lookup_e[BASE_32768_BITS_PER_CHAR])} code points, expected 32768"
-    )
-    assert len(lookup_e[BASE_32768_BITS_PER_CHAR]) == len(set(lookup_e[BASE_32768_BITS_PER_CHAR])), (
-        f"15-bit repertoire contains {32768 - len(set(lookup_e[BASE_32768_BITS_PER_CHAR]))} duplicate code points"
-    )
-
-    assert len(lookup_e[BASE_32768_BITS_PER_CHAR - 8]) == 128, (
-        f"7-bit repertoire has {len(lookup_e[BASE_32768_BITS_PER_CHAR - 8])} code points, expected 128"
-    )
-    assert len(lookup_e[BASE_32768_BITS_PER_CHAR - 8]) == len(set(lookup_e[BASE_32768_BITS_PER_CHAR - 8])), (
-        f"7-bit repertoire contains {128 - len(set(lookup_e[BASE_32768_BITS_PER_CHAR - 8]))} duplicate code points"
-    )
-    for codepoints in lookup_e.values():
-        for cp in codepoints:
-            assert cp <= 0xFFFF, f"code point U+{cp:04X} outside uint16/canonical range [0x100, 0xFFFF]"
-            assert cp >= 0x100, f"code point U+{cp:04X} outside uint16/canonical range [0x100, 0xFFFF]"
+def _expand(pair_string: str) -> tuple[int, ...]:
+    """Flatten inclusive code point ranges, two characters per range."""
+    _check(len(pair_string) % 2 == 0, f"pair string has {len(pair_string)} characters, not an even number")
+    repertoire: list[int] = []
+    for i in range(0, len(pair_string), 2):
+        first, last = ord(pair_string[i]), ord(pair_string[i + 1])
+        repertoire.extend(range(first, last + 1))
+    return tuple(repertoire)
 
 
-def write_base_32768_table() -> None:
-    """Generate src/radixly/base32768/_tables.h from qntm's block layout."""
-    lookup_e = _build_base32768_tables()
+def _build_bit_tables(pair_strings: tuple[str, ...], bits_per_char: int) -> dict[int, tuple[int, ...]]:
+    """Repertoires keyed by width: the full width, then one byte narrower per extra pair string."""
+    _check(len(pair_strings) * BITS_PER_BYTE < bits_per_char + BITS_PER_BYTE, "too many pair strings for the width")
+    return {bits_per_char - BITS_PER_BYTE * r: _expand(pair_string) for r, pair_string in enumerate(pair_strings)}
 
-    writer = IndentWriter(BASE_32768_PATH)
+
+def _verify_bit_tables(lookup_e: dict[int, tuple[int, ...]], *, min_char: int, max_char: int) -> None:
+    """Every width holds exactly 2**width distinct code points, disjoint across widths and inside the C bounds."""
+    seen: set[int] = set()
+    for width, repertoire in lookup_e.items():
+        _check(
+            len(repertoire) == 1 << width,
+            f"{width}-bit repertoire has {len(repertoire)} code points, expected {1 << width}",
+        )
+        _check(len(set(repertoire)) == len(repertoire), f"{width}-bit repertoire contains duplicate code points")
+        overlap = seen & set(repertoire)
+        _check(not overlap, f"repertoires overlap: {sorted(hex(cp) for cp in overlap)}")
+        seen.update(repertoire)
+        for cp in repertoire:
+            _check(min_char <= cp <= max_char, f"code point U+{cp:04X} outside [U+{min_char:04X}, U+{max_char:04X}]")
+            _check(not 0xD800 <= cp <= 0xDFFF, f"surrogate U+{cp:04X} in the repertoire")
+
+
+def _build_base65536_tables() -> tuple[tuple[int, ...], int]:
+    """Block starts of the 16-bit repertoire, in order, and the start of the 8-bit tail block."""
+    _check(len(BASE_65536_PAIR_STRINGS) == 2, "base65536 needs exactly a 16-bit and an 8-bit pair string")
+    full, tail = (_expand(pair_string) for pair_string in BASE_65536_PAIR_STRINGS)
+    _check(len(full) == 1 << 16, f"16-bit repertoire has {len(full)} code points, expected 65536")
+    _check(len(tail) == 1 << BITS_PER_BYTE, f"8-bit repertoire has {len(tail)} code points, expected 256")
+    starts = full[::BASE_65536_BLOCK_SIZE]
+    for k, start in enumerate(starts):
+        _check(start % BASE_65536_BLOCK_SIZE == 0, f"block {k} starts at U+{start:05X}, not 256-aligned")
+        block = full[k * BASE_65536_BLOCK_SIZE : (k + 1) * BASE_65536_BLOCK_SIZE]
+        _check(block == tuple(range(start, start + BASE_65536_BLOCK_SIZE)), f"block {k} is not contiguous")
+    _check(len(set(starts)) == len(starts), "two blocks share a start; decoding one of them would be ambiguous")
+    _check(starts == tuple(sorted(starts)), "blocks must ascend so the first astral index splits the table")
+    _check(tail[0] % BASE_65536_BLOCK_SIZE == 0, f"tail block starts at U+{tail[0]:04X}, not 256-aligned")
+    _check(tail == tuple(range(tail[0], tail[0] + BASE_65536_BLOCK_SIZE)), "tail block is not contiguous")
+    _check(not set(full) & set(tail), "tail block overlaps the 16-bit repertoire")
+    _check(tail[-1] <= 0xFFFF, "tail block must stay in the BMP: the 2-byte encode path writes it unchecked")
+    for cp in (*full, *tail):
+        _check(0x100 <= cp <= 0x10FFFF, f"code point U+{cp:06X} outside [U+0100, U+10FFFF], a kind the C never builds")
+        _check(not 0xD800 <= cp <= 0xDFFF, f"surrogate U+{cp:04X} in the repertoire")
+    return starts, tail[0]
+
+
+def _write_header(writer: IndentWriter, guard: str, source: str) -> None:
     for line in _LICENSE_HEADER:
         writer.write_line(line)
     writer.write_line("//")
-    writer.write_line(f"// Auto generated by {CURRENT_RELATIVE_PATH}")
-    writer.write_line(
-        "// Alphabet data copied from qntm's base32768 (github.com/qntm/base32768), MIT licensed, copyright qntm."
-    )
+    writer.write_line(f"// Auto generated by {CURRENT_RELATIVE_PATH.as_posix()}")  # the same text on Windows
+    writer.write_line(f"// {source}")
     writer.write_line("//")
-    writer.write_line("#ifndef RADIXLY_BASE32768_TABLES_H")
-    writer.write_line("#define RADIXLY_BASE32768_TABLES_H")
+    writer.write_line(f"#ifndef {guard}")
+    writer.write_line(f"#define {guard}")
     writer.write_line("#include <stdint.h>")
     writer.write_blank()
 
-    writer.write_line("static const uint16_t RADIXLY_B32768_FWD15[32768] = {")
-    for chunk in itertools.batched(lookup_e[BASE_32768_BITS_PER_CHAR], 14):
-        writer.write_line(", ".join(f"0x{cp:04X}" for cp in chunk) + ",", indent_depth=1)
+
+def _write_array(writer: IndentWriter, ctype: str, name: str, values: tuple[int, ...], *, digits: int = 4) -> None:
+    writer.write_line(f"static const {ctype} {name}[{len(values)}] = {{")
+    for start in range(0, len(values), 14):  # not itertools.batched: the tests load this on 3.11
+        chunk = values[start : start + 14]
+        writer.write_line(", ".join(f"0x{cp:0{digits}X}" for cp in chunk) + ",", indent_depth=1)
     writer.write_line("};")
     writer.write_blank()
 
-    writer.write_line("static const uint16_t RADIXLY_B32768_FWD7[128] = {")
-    for chunk in itertools.batched(lookup_e[BASE_32768_BITS_PER_CHAR - 8], 14):
-        writer.write_line(", ".join(f"0x{cp:04X}" for cp in chunk) + ",", indent_depth=1)
+
+def write_base_32768_table(path: pathlib.Path = BASE_32768_PATH) -> None:
+    """Generate the base32768 header from qntm's repertoire."""
+    lookup_e = _build_bit_tables(BASE_32768_PAIR_STRINGS, BASE_32768_BITS_PER_CHAR)
+    _verify_bit_tables(lookup_e, min_char=0x100, max_char=0xFFFF)
+
+    writer = IndentWriter(path)
+    _write_header(
+        writer,
+        "RADIXLY_BASE32768_TABLES_H",
+        "Alphabet data copied from qntm's base32768 (github.com/qntm/base32768), MIT licensed, copyright qntm.",
+    )
+    _write_array(writer, "uint16_t", "RADIXLY_B32768_FWD15", lookup_e[BASE_32768_BITS_PER_CHAR])
+    _write_array(writer, "uint16_t", "RADIXLY_B32768_FWD7", lookup_e[BASE_32768_BITS_PER_CHAR - BITS_PER_BYTE])
+    writer.write_line("#endif")
+    writer.write_file()
+
+
+def write_base_2048_table(path: pathlib.Path = BASE_2048_PATH) -> None:
+    """Generate the base2048 header from qntm's repertoire."""
+    lookup_e = _build_bit_tables(BASE_2048_PAIR_STRINGS, BASE_2048_BITS_PER_CHAR)
+    # Min: the tail alphabet starts at '0'; the C narrows such ASCII output after the fact. Max: the C table's end.
+    _verify_bit_tables(lookup_e, min_char=0x30, max_char=0x1055)
+
+    writer = IndentWriter(path)
+    _write_header(
+        writer,
+        "RADIXLY_BASE2048_TABLES_H",
+        "Alphabet data copied from qntm's base2048 (github.com/qntm/base2048), MIT licensed, copyright qntm.",
+    )
+    _write_array(writer, "uint16_t", "RADIXLY_B2048_FWD11", lookup_e[BASE_2048_BITS_PER_CHAR])
+    _write_array(writer, "uint16_t", "RADIXLY_B2048_FWD3", lookup_e[BASE_2048_BITS_PER_CHAR - BITS_PER_BYTE])
+    writer.write_line("#endif")
+    writer.write_file()
+
+
+def write_base_65536_table(path: pathlib.Path = BASE_65536_PATH) -> None:
+    """Generate the base65536 header from qntm's block layout."""
+    starts, pad_start = _build_base65536_tables()
+    _check(starts[-1] > 0xFFFF, "no astral block: the C decides the string kind by the first astral index")
+    first_astral = next(k for k, start in enumerate(starts) if start > 0xFFFF)
+
+    writer = IndentWriter(path)
+    _write_header(
+        writer,
+        "RADIXLY_BASE65536_TABLES_H",
+        "Block data copied from qntm's base65536 (github.com/qntm/base65536), MIT licensed, copyright qntm.",
+    )
+    writer.write_line("enum {")
+    writer.write_line(f"RADIXLY_B65536_PAD_START = 0x{pad_start:04X},", indent_depth=1)
+    writer.write_line(f"RADIXLY_B65536_FIRST_ASTRAL_BLOCK = {first_astral},", indent_depth=1)
     writer.write_line("};")
     writer.write_blank()
-
+    _write_array(writer, "uint32_t", "RADIXLY_B65536_BLOCK_START", starts, digits=5)
     writer.write_line("#endif")
     writer.write_file()
 
 
 if __name__ == "__main__":
     write_base_32768_table()
+    write_base_2048_table()
+    write_base_65536_table()

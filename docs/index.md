@@ -26,6 +26,18 @@ to plan around a length limit, with type stubs and no dependencies.
 15 bits per character from qntm's alphabet of 32,768 BMP code points.
 :::
 
+:::{grid-item-card} base65536
+:link: codecs/base65536
+:link-type: doc
+Two bytes per code point, the densest of the set. Most of its blocks are astral.
+:::
+
+:::{grid-item-card} base2048
+:link: codecs/base2048
+:link-type: doc
+11 bits per character, all below U+1100. Letters and numerals from two dozen scripts.
+:::
+
 :::{grid-item-card} uro14
 :link: codecs/uro14
 :link-type: doc
@@ -50,7 +62,7 @@ One I Ching hexagram per six bits. base64's density in a single block.
 
 - {doc}`guides/getting-started` installs radixly and walks through a first
   round trip.
-- {doc}`guides/choosing-a-codec` compares the four codecs side by side.
+- {doc}`guides/choosing-a-codec` compares the six codecs side by side.
 - Source, issues and releases live on [GitHub](https://github.com/rayakame/radixly).
 
 ```{toctree}
@@ -67,6 +79,8 @@ guides/subinterpreters
 :caption: Codecs
 
 codecs/base32768
+codecs/base65536
+codecs/base2048
 codecs/uro14
 codecs/braille
 codecs/hexagram

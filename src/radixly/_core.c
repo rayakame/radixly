@@ -21,15 +21,21 @@
  */
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
+#include "base2048/base2048.h"
 #include "base32768/base32768.h"
+#include "base65536/base65536.h"
 #include "braille/braille.h"
 #include "hexagram/hexagram.h"
 #include "uro14/uro14.h"
 #include "_common/errors.h"
 
 static PyMethodDef radixly_methods[] = {
+    {"base2048_encode", radixly_base2048_encode, METH_O, radixly_base2048_encode_doc},
+    {"base2048_decode", radixly_base2048_decode, METH_O, radixly_base2048_decode_doc},
     {"base32768_encode", radixly_base32768_encode, METH_O, radixly_base32768_encode_doc},
     {"base32768_decode", radixly_base32768_decode, METH_O, radixly_base32768_decode_doc},
+    {"base65536_encode", radixly_base65536_encode, METH_O, radixly_base65536_encode_doc},
+    {"base65536_decode", radixly_base65536_decode, METH_O, radixly_base65536_decode_doc},
     {"braille_encode", radixly_braille_encode, METH_O, radixly_braille_encode_doc},
     {"braille_decode", radixly_braille_decode, METH_O, radixly_braille_decode_doc},
     {"hexagram_encode", radixly_hexagram_encode, METH_O, radixly_hexagram_encode_doc},
@@ -72,7 +78,9 @@ static PyModuleDef_Slot radixly_execs[] = {
 #endif
     {Py_mod_exec, (void *)radixly_meta_exec},
     {Py_mod_exec, (void *)radixly_errors_exec},
+    {Py_mod_exec, (void *)radixly_base2048_exec},
     {Py_mod_exec, (void *)radixly_base32768_exec},
+    {Py_mod_exec, (void *)radixly_base65536_exec},
     {0, NULL},
 };
 

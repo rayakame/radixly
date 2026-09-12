@@ -21,7 +21,9 @@
 
 from __future__ import annotations
 
+from radixly import base2048 as base2048
 from radixly import base32768 as base32768
+from radixly import base65536 as base65536
 from radixly import braille as braille
 from radixly import hexagram as hexagram
 from radixly import uro14 as uro14

@@ -19,9 +19,10 @@
 
 radixly: fast binary-to-text codecs for Python, hand-written C extension
 (`radixly._core`), CPython 3.11+, no pure-Python fallback shipped. Codecs:
-base32768 (qntm's spec, 15 bits/char), uro14 (own design, 14 bits/char from
-U+4E00 with a length prefix), braille (8), hexagram (6). Post-1.0 candidates:
-base65536, base2048, base91, Z85.
+base32768 (qntm's spec, 15 bits/char), base65536 (qntm, 16 bits/char, mostly
+astral), base2048 (qntm, 11 bits/char below U+1100), uro14 (own design, 14
+bits/char from U+4E00 with a length prefix), braille (8), hexagram (6).
+Candidates: base91, Z85.
 
 ## Fixed decisions
 

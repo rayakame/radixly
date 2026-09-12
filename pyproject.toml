@@ -1,7 +1,7 @@
 [project]
 name = "radixly"
 dynamic = ["version"]
-description = "Fast binary-to-text codecs for Python: base32768, uro14, braille and hexagram in C"
+description = "Fast binary-to-text codecs for Python: base32768, base65536, base2048, uro14, braille and hexagram in C"
 readme = "README.md"
 authors = [
     { name = "rayakame", email = "github.android206@passmail.net" }
@@ -10,7 +10,7 @@ requires-python = ">=3.11"
 dependencies = []
 license = "MIT"
 license-files = ["LICENSE"]
-keywords = ["base32768", "binary-to-text", "codec", "encoding", "unicode", "c-extension"]
+keywords = ["base32768", "base65536", "base2048", "uro14", "braille", "hexagram", "binary-to-text", "codec", "encoding", "unicode", "c-extension"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
@@ -48,6 +48,8 @@ dev = [
     { include-group = "ruff" },
 ]
 bench = [
+    "base2048>=0.1.3",
+    "base65536>=0.1.1",
     "matplotlib>=3.10",
 ]
 clang = [
@@ -136,7 +138,7 @@ version = { attr = "radixly._about.__version__" }
 
 [tool.setuptools]
 ext-modules = [
-  {name = "radixly._core", sources=["src/radixly/_core.c", "src/radixly/base32768/base32768.c", "src/radixly/braille/braille.c", "src/radixly/hexagram/hexagram.c", "src/radixly/uro14/uro14.c", "src/radixly/_common/block.c", "src/radixly/_common/errors.c"], include-dirs=["src/radixly"], extra-compile-args=["-std=c11"]}
+  {name = "radixly._core", sources=["src/radixly/_core.c", "src/radixly/base2048/base2048.c", "src/radixly/base32768/base32768.c", "src/radixly/base65536/base65536.c", "src/radixly/braille/braille.c", "src/radixly/hexagram/hexagram.c", "src/radixly/uro14/uro14.c", "src/radixly/_common/block.c", "src/radixly/_common/errors.c"], include-dirs=["src/radixly"], extra-compile-args=["-std=c11"]}
 ]
 
 # Keep C sources and headers out of binary wheels for every (sub)package;
