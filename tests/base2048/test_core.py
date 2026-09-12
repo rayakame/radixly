@@ -88,13 +88,11 @@ def test_encode_matches_reference_megabyte() -> None:
 
 
 def test_every_single_byte_round_trips_through_the_narrow_path() -> None:
-    """Bytes 0 to 6 come back as 1-byte-kind strings, 7 onward as 2-byte; all must equal and hash like the oracle."""
+    """Bytes 0 to 6 come back as 1-byte-kind strings, 7 onward as 2-byte; str equality compares kinds first."""
     for value in range(256):
         payload = bytes([value])
         encoded = _core.base2048_encode(payload)
-        expected = base2048_reference.encode(payload)
-        assert encoded == expected
-        assert {encoded} == {expected}  # a str in a wider kind than its content would hash differently
+        assert encoded == base2048_reference.encode(payload)
         assert (max(map(ord, encoded)) < 0x100) is (value <= 6)
         assert _core.base2048_decode(encoded) == payload
 
