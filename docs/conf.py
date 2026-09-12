@@ -101,6 +101,7 @@ html_theme_options = {
     "source_repository": radixly.__url__,
     "source_branch": "main",
     "source_directory": "docs/",
+    "top_of_page_buttons": ["view"],  # the edit button stays off
 }
 
 # Link previews (Discord, Slack, X) read these tags; the card is a PNG because embeds do not render SVG.
