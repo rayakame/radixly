@@ -69,7 +69,7 @@ Two hexadecimal digits per byte, RFC 4648. Reach over density.
 :::{grid-item-card} base32
 :link: codecs/base32
 :link-type: doc
-Letters and digits only, RFC 4648. For case-insensitive channels.
+Letters and digits only, RFC 4648. The alphabet for case-insensitive channels.
 :::
 
 :::{grid-item-card} base32hex

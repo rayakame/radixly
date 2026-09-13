@@ -79,6 +79,7 @@ def test_case_tables_are_nonempty() -> None:
     assert len(error_cases.INVALID_KINDS) > 0
     assert all(len(vectors) > 0 for vectors in error_cases.RFC_VECTORS.values())
     assert len(PAYLOAD_FLAVORS) > 0
+    assert len(error_cases.NON_STR_INPUTS) > 0
 
 
 @pytest.mark.parametrize("preset", error_cases.PRESETS)

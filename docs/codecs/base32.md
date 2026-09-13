@@ -21,7 +21,9 @@ channels: file names on case-folding file systems, codes read out loud or
 typed from paper. The alphabet is plain ASCII letters and digits; the `=`
 padding on a tail that is not a multiple of five bytes is the one
 punctuation character, so DNS labels and other punctuation-hostile channels
-need the padding stripped. Text that comes back lowercased has to be
+need the padding stripped for transport and restored to whole groups of
+eight before `decode`, which rejects a short group. Text that comes back
+lowercased has to be
 uppercased before `decode`, or go through
 `radixly.compat.base64.b32decode` with `casefold=True`.
 

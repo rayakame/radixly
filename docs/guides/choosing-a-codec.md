@@ -47,8 +47,9 @@ carry a length or a checksum yourself.
 
 The fewer distinct characters a codec uses, the more channels accept it
 unchanged. base16 is plain ASCII letters and digits, which every channel
-takes; base32 and base32hex add `=` padding on most lengths, and base32 is
-the one for case-insensitive channels.
+takes; base32 and base32hex add `=` padding on most lengths, and base32's
+alphabet is the one that survives a case-insensitive channel, as long as the
+text is uppercased again before it reaches `decode`.
 Among the Unicode codecs, hexagram uses 64 symbols from one block, braille
 256, uro14 one block of 16,384 ideographs, base2048 letters and numerals from
 two dozen scripts, base32768 characters from many BMP blocks, base65536
