@@ -54,12 +54,18 @@ class DecodeError(ValueError):
             msg = f"DecodeError.__setstate__() state must be str or a 2-tuple, not {name}"
             raise TypeError(msg)
         args, namespace = pair
-        if isinstance(args, tuple):
+        if args is not None and not isinstance(args, tuple):
+            msg = "DecodeError.__setstate__() args must be a tuple"
+            raise TypeError(msg)
+        if namespace is not None and not isinstance(namespace, dict):
+            msg = "DecodeError.__setstate__() the instance dict must be a dict"
+            raise TypeError(msg)
+        if args is not None:
             # Two stores where the C has one: _message feeds the property, args feeds str().
             values = typing.cast("tuple[object, ...]", args)
             self.args = values
             self._message = str(values[0]) if values else self._message
-        if isinstance(namespace, dict):
+        if namespace is not None:
             self.__dict__.update(typing.cast("dict[str, object]", namespace))
 
     @property

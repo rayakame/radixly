@@ -66,12 +66,12 @@ def test_decode_error_reduce_matches_the_reference() -> None:
     assert shape(_core.DecodeError(3, message="m")) == shape(errors_reference.DecodeError(3, message="m"))
 
 
-def test_decode_error_setstate_rejects_a_bad_pair() -> None:
-    """Pickle state is attacker-controlled; the two-slot form must check both slots."""
-    with pytest.raises(TypeError, match="args must be a tuple"):
-        _core.DecodeError(0).__setstate__(("nope", None))  # pyright: ignore[reportArgumentType]
-    with pytest.raises(TypeError, match="instance dict must be a dict"):
-        _core.DecodeError(0).__setstate__((None, "nope"))  # pyright: ignore[reportArgumentType]
+@pytest.mark.parametrize("factory", [_core.DecodeError, errors_reference.DecodeError])
+def test_decode_error_setstate_rejects_a_bad_pair(factory: type[ValueError]) -> None:
+    """Pickle state is attacker-controlled; both slots are checked, and the reference says the same."""
+    for state, pattern in ((("nope", None), "args must be a tuple"), ((None, "nope"), "instance dict must be a dict")):
+        with pytest.raises(TypeError, match=pattern):
+            factory(0).__setstate__(state)  # pyright: ignore[reportArgumentType]
 
 
 def test_get_codec_returns_the_registered_object() -> None:

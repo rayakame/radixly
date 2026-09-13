@@ -59,7 +59,7 @@ def _assert_parity(string: str) -> bytes | None:
 
 
 def test_case_tables_are_nonempty() -> None:
-    """An emptied table would collect zero cases and stay green."""
+    """An emptied table would collect zero cases and stay green, here and in test_reference.py."""
     tables = (PAYLOAD_FLAVORS, error_cases.RFC_VECTORS, error_cases.INVALID_CASES, error_cases.NON_STR_INPUTS)
     assert all(len(table) > 0 for table in tables)
 
