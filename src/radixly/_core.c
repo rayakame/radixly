@@ -67,6 +67,14 @@ static PyMethodDef radixly_methods[] = {
 static int
 radixly_meta_exec(PyObject *module)
 {
+#if PY_VERSION_HEX < 0x030C0000
+    /* 3.12 refuses this through the slot below; on 3.11 the static globals need the guard here. */
+    if (PyInterpreterState_Get() != PyInterpreterState_Main()) {
+        PyErr_SetString(PyExc_ImportError,
+                        "module radixly._core does not support loading in subinterpreters");
+        return -1;
+    }
+#endif
 /* Benchmark self-certification. GCC/Clang set __OPTIMIZE__; MSVC has none, so NDEBUG stands in (release sets
  * it). */
 #if defined(__OPTIMIZE__) || (defined(_MSC_VER) && defined(NDEBUG))
@@ -91,7 +99,7 @@ radixly_meta_exec(PyObject *module)
 }
 
 static PyModuleDef_Slot radixly_execs[] = {
-/* Static globals make this module single-interpreter only; 3.11 cannot refuse (see README). */
+/* Static globals make this module single-interpreter only; 3.11 refuses in radixly_meta_exec instead. */
 #if PY_VERSION_HEX >= 0x030C0000
     {Py_mod_multiple_interpreters, Py_MOD_MULTIPLE_INTERPRETERS_NOT_SUPPORTED},
 #endif

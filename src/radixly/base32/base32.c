@@ -424,7 +424,7 @@ stdlib_translation(PyObject *map01, unsigned char *translate)
 /* The stdlib's group loop: every quantum decoded and checked before the padding count is judged. */
 static PyObject *
 stdlib_decode_groups(const radixly_compat_input *source, Py_ssize_t stripped, const unsigned char *translate,
-                     const uint8_t *rev, uint64_t *last_acc)
+                     const uint8_t *rev, int fold, uint64_t *last_acc)
 {
     const Py_ssize_t num_groups = (stripped + GROUP_CHARS - 1) / GROUP_CHARS;
     PyObject *result = PyBytes_FromStringAndSize(NULL, GROUP_BYTES * num_groups);
@@ -438,10 +438,15 @@ stdlib_decode_groups(const radixly_compat_input *source, Py_ssize_t stripped, co
         const Py_ssize_t chars = Py_MIN(GROUP_CHARS, stripped - base);
         acc = 0;
         for (Py_ssize_t i = 0; i < chars; i++) {
-            const uint8_t value = rev[translate[source->data[base + i]]];
+            const unsigned char mapped = translate[source->data[base + i]];
+            const uint8_t value = rev[mapped];
             if (value == REV_INVALID) {
                 Py_DECREF(result);
-                return radixly_binascii_error("Non-base32 digit found");
+                /* The stdlib fails in `b32rev[c]` and hides that KeyError with `from None`; c is upper by
+                 * then. */
+                const unsigned key = fold != 0 ? (unsigned)Py_TOUPPER(mapped) : (unsigned)mapped;
+                return radixly_binascii_error_from("Non-base32 digit found",
+                                                   PyObject_CallFunction(PyExc_KeyError, "I", key));
             }
             acc = (acc << BITS_PER_CHAR) | value;
         }
@@ -491,7 +496,7 @@ radixly_b32decode_with(const char *function, PyObject *const *args, Py_ssize_t n
     const Py_ssize_t padchars = source.len - stripped;
     uint64_t last_acc = 0;
     PyObject *result = stdlib_decode_groups(&source, stripped, translate,
-                                            fold ? TABLES[hex].rev_fold : TABLES[hex].rev, &last_acc);
+                                            fold ? TABLES[hex].rev_fold : TABLES[hex].rev, fold, &last_acc);
     radixly_compat_input_release(&source);
     if (result == NULL) {
         return NULL;

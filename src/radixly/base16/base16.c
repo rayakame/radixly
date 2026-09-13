@@ -269,7 +269,8 @@ radixly_b16encode(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t n
     if (PyObject_GetBuffer(arg, &view, PyBUF_SIMPLE) == -1) {
         return NULL;
     }
-    if (view.len > PY_SSIZE_T_MAX / 2) {
+    if (view.len >
+        (PY_SSIZE_T_MAX / 2) - 1) { /* hexlify's own bound, one length tighter than PyUnicode_New's */
         PyBuffer_Release(&view);
         return PyErr_NoMemory();
     }

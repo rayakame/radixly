@@ -60,7 +60,7 @@ def test_alphabet_is_the_rfc_alphabet() -> None:
 
 
 def test_lowercase_is_one_more_spelling_the_codec_refuses() -> None:
-    """RFC 4648 leaves case to the decoder; the strict codec keeps one spelling per payload."""
+    """RFC 4648 section 3.3 rejects characters outside the alphabet and table 5 is uppercase; one spelling."""
     with pytest.raises(errors_reference.DecodeError):
         base16_reference.decode("ff")
     assert base16_reference.decode("FF") == b"\xff"

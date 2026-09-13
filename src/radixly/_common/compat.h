@@ -38,6 +38,9 @@ int radixly_compat_exec(PyObject *module);
 /* binascii.Error(message); always returns NULL. */
 PyObject *radixly_binascii_error(const char *message);
 
+/* binascii.Error mit context dahinter, im Traceback verborgen, wie `raise ... from None`. Stiehlt context. */
+PyObject *radixly_binascii_error_from(const char *message, PyObject *context);
+
 /* The stdlib's _bytes_from_decode_data: an ASCII str, or anything memoryview accepts, copied when strided. */
 int radixly_compat_decode_input(PyObject *arg, radixly_compat_input *input);
 

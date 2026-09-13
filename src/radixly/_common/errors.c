@@ -140,25 +140,55 @@ static PyObject *
 decode_error_reduce(PyObject *self, PyObject *Py_UNUSED(ignored))
 {
     const Py_ssize_t position = ((RadixlyDecodeErrorObject *)self)->position;
-    PyObject *msg = decode_error_get_message(self, NULL);
-    PyObject *result = Py_BuildValue("(O(n)O)", Py_TYPE(self), position, msg);
-    Py_DECREF(msg);
-    return result;
-}
-
-static PyObject *
-decode_error_setstate(PyObject *self, PyObject *state)
-{
-    if (PyUnicode_Check(state) == 0) {
-        PyErr_Format(PyExc_TypeError, "DecodeError.__setstate__() state must be str, not %.200s",
-                     Py_TYPE(state)->tp_name);
+    const PyBaseExceptionObject *base = (const PyBaseExceptionObject *)self;
+    /* args and __dict__ both travel, so add_note and user attributes survive pickle and copy. */
+    PyObject *state = Py_BuildValue("(OO)", base->args != NULL ? base->args : Py_None,
+                                    base->dict != NULL ? base->dict : Py_None);
+    if (state == NULL) {
         return NULL;
     }
+    return Py_BuildValue("(O(n)N)", Py_TYPE(self), position, state);
+}
+
+/* Accept the plain message string that releases before 1.1 wrote, so old pickles stay readable. */
+static PyObject *
+setstate_from_message(PyObject *self, PyObject *state)
+{
     PyObject *packed = PyTuple_Pack(1, state);
     if (packed == NULL) {
         return NULL;
     }
     Py_XSETREF(((PyBaseExceptionObject *)self)->args, packed);
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+decode_error_setstate(PyObject *self, PyObject *state)
+{
+    if (PyUnicode_Check(state) != 0) {
+        return setstate_from_message(self, state);
+    }
+    if (PyTuple_Check(state) == 0 || PyTuple_GET_SIZE(state) != 2) {
+        PyErr_Format(PyExc_TypeError, "DecodeError.__setstate__() state must be str or a 2-tuple, not %.200s",
+                     Py_TYPE(state)->tp_name);
+        return NULL;
+    }
+    PyObject *args = PyTuple_GET_ITEM(state, 0);
+    PyObject *dict = PyTuple_GET_ITEM(state, 1);
+    if (args != Py_None && PyTuple_Check(args) == 0) {
+        PyErr_SetString(PyExc_TypeError, "DecodeError.__setstate__() args must be a tuple");
+        return NULL;
+    }
+    if (dict != Py_None && PyDict_Check(dict) == 0) {
+        PyErr_SetString(PyExc_TypeError, "DecodeError.__setstate__() the instance dict must be a dict");
+        return NULL;
+    }
+    if (args != Py_None) {
+        Py_XSETREF(((PyBaseExceptionObject *)self)->args, Py_NewRef(args));
+    }
+    if (dict != Py_None) {
+        Py_XSETREF(((PyBaseExceptionObject *)self)->dict, Py_NewRef(dict));
+    }
     Py_RETURN_NONE;
 }
 

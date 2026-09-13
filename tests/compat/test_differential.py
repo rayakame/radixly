@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import base64
 import decimal
+import functools
 import inspect
 import subprocess  # ruff: ignore[suspicious-subprocess-import] -- fixed argv, own interpreter
 import sys
@@ -249,6 +250,71 @@ class _ClassLiar:
         return int
 
 
+# Subclassing str is the subject here, so UserString is not a substitute.
+@typing.final
+class _OwnEncode(str):  # ruff: ignore[subclass-builtin]
+    """A str subclass whose encode the stdlib uses and the port must not skip."""
+
+    __slots__ = ()
+
+    # pyright wants @override, which needs 3.12; the project floor is 3.11.
+    def encode(self, *_args: object, **_kwargs: object) -> bytes:  # ruff: ignore[no-self-use]  # pyright: ignore[reportImplicitOverride]
+        return b"4142"
+
+
+@typing.final
+class _RaisingEncode(str):  # ruff: ignore[subclass-builtin]
+    """A str subclass whose encode fails with something other than UnicodeEncodeError."""
+
+    __slots__ = ()
+
+    # pyright wants @override, which needs 3.12; the project floor is 3.11.
+    def encode(self, *_args: object, **_kwargs: object) -> bytes:  # ruff: ignore[no-self-use]  # pyright: ignore[reportImplicitOverride]
+        message = "no encode today"
+        raise RuntimeError(message)
+
+
+class _StrProxy:
+    """A lazy proxy that reports str as its class, the shape werkzeug and django ship."""
+
+    def __init__(self, value: str) -> None:
+        self._value: str = value
+
+    @property
+    def __class__(self) -> type[str]:  # pyright: ignore[reportIncompatibleMethodOverride, reportImplicitOverride]
+        return str
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._value, name)  # pyright: ignore[reportAny]
+
+
+@typing.final
+class _BareStrClaim:
+    """Claims str as its class and has nothing else; the stdlib trips over the missing encode."""
+
+    # Lying about __class__ is the point of this class, so the checker's objection is the behaviour.
+    __class__: type = str  # pyright: ignore[reportIncompatibleMethodOverride]
+
+
+@pytest.mark.parametrize(
+    "make",
+    [
+        lambda: _OwnEncode("ZZZZZZZZ"),
+        lambda: _OwnEncode("MZXW6YTB"),
+        lambda: _RaisingEncode("4142"),
+        lambda: _StrProxy("4142"),
+        lambda: _StrProxy("MZXW6YTB"),
+        _BareStrClaim,
+        lambda: _OwnEncode("\xe9"),
+    ],
+)
+def test_str_like_inputs_go_through_encode(make: Callable[[], object]) -> None:
+    """The stdlib dispatches on isinstance(s, str) and uses s.encode, so a subclass or proxy decides the bytes."""
+    for name in ("b16decode", "b32decode", "b32hexdecode"):
+        _assert_same(name, make())
+    _assert_same("b32decode", "AAAAAAAA", map01=make())
+
+
 def _context_shape(function: Callable[..., object], *args: object) -> tuple[type, type, bool]:
     try:
         function(*args)
@@ -276,6 +342,70 @@ def test_resizing_hook_is_refused_not_read() -> None:
         assert _outcome(_ours(name), ours, casefold=_ClearingFlag(ours))[0] is BufferError
         theirs = bytearray(encoded)
         assert _outcome(_theirs(name), theirs, casefold=_ClearingFlag(theirs)) == (_Ok, b"")
+
+
+def _raise_ambient() -> None:
+    message = "ambient failure"
+    raise ValueError(message)
+
+
+def _chain_shape(call: Callable[[], object]) -> tuple[type, type, bool]:
+    """Return the exception chain as a traceback would show it, from inside a live except block."""
+    try:
+        try:
+            _raise_ambient()
+        except ValueError:
+            call()
+    except Exception as error:  # ruff: ignore[blind-except] -- the exception chain is the subject
+        return (type(error), type(error.__context__), error.__suppress_context__)
+    message = "expected an exception"
+    raise AssertionError(message)
+
+
+@pytest.mark.parametrize(
+    ("name", "args", "kwargs"),
+    [
+        ("b32decode", (b"!!!!!!!!",), {}),
+        ("b32hexdecode", (b"!!!!!!!!",), {}),
+        ("b32decode", (b"mmmmmmm!",), {"casefold": True}),
+        ("b32decode", (b"01111111",), {"map01": b"9"}),
+        ("b32decode", (b"AAA",), {}),
+        ("b16decode", (b"ZZ",), {}),
+        ("b16decode", (b"414",), {}),
+        ("b16decode", (42,), {}),
+        ("b32encode", (42,), {}),
+        ("b16encode", (42,), {}),
+    ],
+)
+def test_exception_chains_match(name: str, args: tuple[object, ...], kwargs: dict[str, object]) -> None:
+    """Where the stdlib writes `raise ... from None`, the port must hide its context too, or tracebacks differ."""
+    ours = _chain_shape(functools.partial(_ours(name), *args, **kwargs))
+    theirs = _chain_shape(functools.partial(_theirs(name), *args, **kwargs))
+    assert ours == theirs, (name, args, kwargs)
+
+
+class _MutatingFlag:
+    """A casefold whose truth test rewrites the bytearray without changing its length."""
+
+    def __init__(self, target: bytearray) -> None:
+        self.target: bytearray = target
+
+    def __bool__(self) -> bool:
+        self.target[:] = b"AAAAAAAA"
+        return False
+
+
+def test_map01_snapshots_where_the_stdlib_snapshots() -> None:
+    """With map01 the stdlib decodes its translate() copy, so a hook's later edit reaches only the port."""
+    ours = bytearray(b"MZXW6YTB")
+    theirs = bytearray(b"MZXW6YTB")
+    assert _ours("b32decode")(ours, casefold=_MutatingFlag(ours), map01=b"I") == b"\x00\x00\x00\x00\x00"
+    assert _theirs("b32decode")(theirs, casefold=_MutatingFlag(theirs), map01=b"I") == b"fooba"
+    # Without map01 the stdlib reads the live bytearray too, and both sides agree again.
+    for name in ("b16decode", "b32decode", "b32hexdecode"):
+        mine = bytearray(b"MZXW6YTB")
+        yours = bytearray(b"MZXW6YTB")
+        assert _ours(name)(mine, casefold=_MutatingFlag(mine)) == _theirs(name)(yours, casefold=_MutatingFlag(yours))
 
 
 def test_non_ascii_str_carries_the_stdlib_context() -> None:
@@ -312,7 +442,11 @@ def test_map01_assertion_text_matches() -> None:
     _assert_same("b32decode", "AAAAAAAA", map01=b"")
     _assert_same("b32decode", "AAAAAAAA", map01=bytearray(b"ab"))
     _assert_same("b32decode", "AAAAAAAA", map01=memoryview(b"ab"))
-    assert _outcome(compat.b32decode, "AAAAAAAA", map01=bytearray(b"ab")) == (AssertionError, ("bytearray(b'ab')",))
+    if not sys.flags.optimize:  # -O strips the stdlib's assert, and maketrans raises instead
+        assert _outcome(compat.b32decode, "AAAAAAAA", map01=bytearray(b"ab")) == (
+            AssertionError,
+            ("bytearray(b'ab')",),
+        )
 
 
 def test_map01_under_optimize_matches() -> None:
@@ -325,10 +459,12 @@ def test_map01_under_optimize_matches() -> None:
         "        f('AAAAAAAA', map01='ab')\n"
         "    except Exception as error:\n"
         "        return (type(error).__name__, error.args)\n"
-        "assert sys.flags.optimize == 1\n"
+        # Not assert: -O strips those from this script too, and the test could never fail.
+        # Not == 1: PYTHONOPTIMIZE in the environment raises the child's level past the -O we pass.
+        "if sys.flags.optimize < 1: raise SystemExit('optimize %r' % sys.flags.optimize)\n"
         "expected = ('ValueError', ('maketrans arguments must have same length',))\n"
-        "assert run(base64.b32decode) == expected, run(base64.b32decode)\n"
-        "assert run(compat.b32decode) == expected, run(compat.b32decode)\n"
+        "if run(base64.b32decode) != expected: raise SystemExit('stdlib: %r' % (run(base64.b32decode),))\n"
+        "if run(compat.b32decode) != expected: raise SystemExit('port: %r' % (run(compat.b32decode),))\n"
     )
     subprocess.run([sys.executable, "-O", "-c", script], check=True)  # ruff: ignore[subprocess-without-shell-equals-true] -- fixed argv, own interpreter
 

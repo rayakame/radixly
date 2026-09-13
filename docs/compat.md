@@ -16,12 +16,19 @@ against it, with the import redirected and the few edits listed in
 standard library on random input, including the exception type and message
 on bad input. The lenient behaviors stay lenient: `b64decode` still discards
 characters outside the alphabet unless you pass `validate=True`, `b32decode`
-still accepts nonzero pad bits. Two things are not reproduced: the
-`__context__` of an exception the standard library raises with `from None`,
-which a traceback never shows, and the reading of a `bytearray` that a
-`casefold` or `map01` hook resizes mid-call, which the port refuses with
-`BufferError`. The strict codecs in the rest of radixly are a different
-contract, see below.
+still accepts nonzero pad bits. Even the exception chains match: where the
+standard library writes `raise ... from None`, the port hides its own context
+too, so tracebacks read the same.
+
+One gap is left, and it takes a hook to reach. A `casefold` or `map01` object
+whose `__bool__` edits the `bytearray` being decoded is seen by the port while
+the call is still running: a resize gets `BufferError`, and under `map01` even
+a same-length edit is read, because the standard library is by then decoding
+the copy its `translate` made. Holding the buffer instead of copying it up
+front is what makes the port allocation-free, and refusing a resize is the
+safe direction.
+
+The strict codecs in the rest of radixly are a different contract, see below.
 
 ## What runs in C
 

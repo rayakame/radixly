@@ -43,11 +43,72 @@ radixly_compat_exec(PyObject *Py_UNUSED(module))
     return 0;
 }
 
+/* The exception currently raised, as a new reference, with the error state cleared. */
+static PyObject *
+take_raised(void)
+{
+#if PY_VERSION_HEX >= 0x030C0000
+    return PyErr_GetRaisedException();
+#else
+    PyObject *type;
+    PyObject *value;
+    PyObject *traceback;
+    PyErr_Fetch(&type, &value, &traceback);
+    PyErr_NormalizeException(&type, &value, &traceback);
+    if (traceback != NULL) {
+        PyException_SetTraceback(value, traceback);
+    }
+    Py_XDECREF(traceback);
+    Py_XDECREF(type);
+    return value;
+#endif
+}
+
+/* Raise error with context behind it; suppress hides it, the way `raise ... from None` does. Steals both. */
+static int
+raise_with_context(PyObject *error, PyObject *context, int suppress)
+{
+    if (error == NULL) {
+        Py_XDECREF(context);
+        return -1;
+    }
+    PyException_SetContext(error, context); /* steals context */
+    if (suppress != 0 && PyObject_SetAttrString(error, "__suppress_context__", Py_True) < 0) {
+        Py_DECREF(error);
+        return -1;
+    }
+#if PY_VERSION_HEX >= 0x030C0000
+    PyErr_SetRaisedException(error);
+#else
+    PyErr_Restore(Py_NewRef(Py_TYPE(error)), error, NULL);
+#endif
+    return -1;
+}
+
 PyObject *
 radixly_binascii_error(const char *message)
 {
-    assert(binascii_error != NULL);
+    if (binascii_error == NULL) {
+        PyErr_SetString(PyExc_SystemError, "radixly._core was not initialised");
+        return NULL;
+    }
     PyErr_SetString(binascii_error, message);
+    return NULL;
+}
+
+PyObject *
+radixly_binascii_error_from(const char *message, PyObject *context)
+{
+    if (context == NULL) {
+        return NULL; /* the caller's own failure is already set */
+    }
+    if (binascii_error == NULL) {
+        Py_DECREF(context);
+        PyErr_SetString(PyExc_SystemError, "radixly._core was not initialised");
+        return NULL;
+    }
+    PyObject *error = PyObject_CallFunction(binascii_error, "s", message);
+    raise_with_context(error, context, 1);
     return NULL;
 }
 
@@ -86,51 +147,60 @@ raise_non_ascii(PyObject *arg)
         PyErr_SetString(PyExc_ValueError, "string argument should contain only ASCII characters");
         return -1;
     }
-#if PY_VERSION_HEX >= 0x030C0000
-    PyObject *context = PyErr_GetRaisedException();
-#else
-    PyObject *type;
-    PyObject *context;
-    PyObject *traceback;
-    PyErr_Fetch(&type, &context, &traceback);
-    PyErr_NormalizeException(&type, &context, &traceback);
-    if (traceback != NULL) {
-        PyException_SetTraceback(context, traceback);
-    }
-    Py_XDECREF(traceback);
-    Py_XDECREF(type);
-#endif
+    PyObject *context = take_raised();
     PyObject *error =
         PyObject_CallFunction(PyExc_ValueError, "s", "string argument should contain only ASCII characters");
-    if (error == NULL) {
-        Py_XDECREF(context);
-        return -1;
-    }
-    PyException_SetContext(error, context); /* steals context */
-#if PY_VERSION_HEX >= 0x030C0000
-    PyErr_SetRaisedException(error);
-#else
-    PyErr_Restore(Py_NewRef(Py_TYPE(error)), error, NULL);
-#endif
-    return -1;
+    return raise_with_context(error, context, 0);
 }
 
-/* The stdlib names s.__class__.__name__, which an object may spell differently from its type. */
+/* The stdlib's `s.encode('ascii')`, for anything that is a str without being exactly one. */
 static int
-raise_not_bytes_like(PyObject *arg)
+input_from_encode(PyObject *arg, radixly_compat_input *input)
+{
+    PyObject *encoded = PyObject_CallMethod(arg, "encode", "s", "ascii");
+    if (encoded == NULL) {
+        if (!PyErr_ExceptionMatches(PyExc_UnicodeEncodeError)) {
+            return -1; /* the stdlib converts only UnicodeEncodeError */
+        }
+        PyObject *context = take_raised();
+        PyObject *error = PyObject_CallFunction(PyExc_ValueError, "s",
+                                                "string argument should contain only ASCII characters");
+        return raise_with_context(error, context, 0);
+    }
+    // NOLINTNEXTLINE(hicpp-signed-bitwise)
+    const int failed = PyObject_GetBuffer(encoded, &input->view, PyBUF_FULL_RO) < 0;
+    Py_DECREF(encoded); /* the view holds its own reference */
+    if (failed) {
+        return -1;
+    }
+    return input_from_view(input);
+}
+
+/* The stdlib names s.__class__.__name__ and writes `from None`, so context stays hidden. Steals context. */
+static int
+raise_not_bytes_like(PyObject *arg, PyObject *context)
 {
     PyObject *cls = PyObject_GetAttrString(arg, "__class__");
     if (cls == NULL) {
+        Py_XDECREF(context);
         return -1;
     }
     PyObject *name = PyObject_GetAttrString(cls, "__name__");
     Py_DECREF(cls);
     if (name == NULL) {
+        Py_XDECREF(context);
         return -1;
     }
-    PyErr_Format(PyExc_TypeError, "argument should be a bytes-like object or ASCII string, not %R", name);
+    PyObject *message =
+        PyUnicode_FromFormat("argument should be a bytes-like object or ASCII string, not %R", name);
     Py_DECREF(name);
-    return -1;
+    if (message == NULL) {
+        Py_XDECREF(context);
+        return -1;
+    }
+    PyObject *error = PyObject_CallOneArg(PyExc_TypeError, message);
+    Py_DECREF(message);
+    return raise_with_context(error, context, 1);
 }
 
 int
@@ -138,7 +208,7 @@ radixly_compat_decode_input(PyObject *arg, radixly_compat_input *input)
 {
     input->copy = NULL;
     input->has_view = 0;
-    if (PyUnicode_Check(arg)) {
+    if (PyUnicode_CheckExact(arg)) {
 #if PY_VERSION_HEX < 0x030C0000
         /* 3.11 can still meet legacy, non-ready strings; IS_ASCII on one is UB. Compiles out on 3.12+. */
         if (PyUnicode_READY(arg) == -1) {
@@ -152,14 +222,24 @@ radixly_compat_decode_input(PyObject *arg, radixly_compat_input *input)
         input->len = PyUnicode_GET_LENGTH(arg);
         return 0;
     }
+    /* The stdlib dispatches on isinstance(s, str), so a subclass's own encode and a proxy's __class__ decide.
+     * bytes and bytearray answer first: they are the common case and can never be a str. */
+    if (!PyBytes_CheckExact(arg) && !PyByteArray_CheckExact(arg)) {
+        const int is_str = PyObject_IsInstance(arg, (PyObject *)&PyUnicode_Type);
+        if (is_str < 0) {
+            return -1;
+        }
+        if (is_str != 0) {
+            return input_from_encode(arg, input);
+        }
+    }
     // NOLINTNEXTLINE(hicpp-signed-bitwise)
     if (PyObject_GetBuffer(arg, &input->view, PyBUF_FULL_RO) < 0) {
         /* The stdlib rewords only the TypeError out of memoryview(s); anything else is the object's own. */
         if (!PyErr_ExceptionMatches(PyExc_TypeError)) {
             return -1;
         }
-        PyErr_Clear();
-        return raise_not_bytes_like(arg);
+        return raise_not_bytes_like(arg, take_raised());
     }
     return input_from_view(input);
 }
