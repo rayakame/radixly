@@ -277,3 +277,68 @@ radixly_compat_truth(PyObject *arg)
 {
     return arg == NULL ? 0 : PyObject_IsTrue(arg);
 }
+
+PyObject *
+radixly_binascii_error_format(const char *format, ...)
+{
+    if (binascii_error == NULL) {
+        PyErr_SetString(PyExc_SystemError, "radixly._core was not initialised");
+        return NULL;
+    }
+    va_list args;
+    va_start(args, format);
+    PyErr_FormatV(binascii_error, format, args);
+    va_end(args);
+    return NULL;
+}
+
+int
+radixly_compat_optimized(void)
+{
+    PyObject *flags = PySys_GetObject("flags"); /* borrowed */
+    if (flags == NULL) {
+        return 0;
+    }
+    PyObject *optimize = PyObject_GetAttrString(flags, "optimize");
+    if (optimize == NULL) {
+        PyErr_Clear();
+        return 0;
+    }
+    const long level = PyLong_AsLong(optimize);
+    Py_DECREF(optimize);
+    if (level == -1 && PyErr_Occurred()) {
+        PyErr_Clear();
+        return 0;
+    }
+    return level > 0;
+}
+
+int
+radixly_compat_check_length(PyObject *arg, const radixly_compat_input *input, Py_ssize_t expected)
+{
+    if (input->len == expected) {
+        return 0;
+    }
+    if (radixly_compat_optimized()) {
+        PyErr_SetString(PyExc_ValueError, "maketrans arguments must have same length");
+        return -1;
+    }
+    PyObject *shown;
+    if (PyBytes_Check(arg) || PyByteArray_Check(arg)) {
+        shown = Py_NewRef(arg); /* bytes and bytearray pass through the stdlib's coercion untouched */
+    }
+    else {
+        shown = PyBytes_FromStringAndSize((const char *)input->data, input->len);
+    }
+    if (shown == NULL) {
+        return -1;
+    }
+    PyObject *repr = PyObject_Repr(shown);
+    Py_DECREF(shown);
+    if (repr == NULL) {
+        return -1;
+    }
+    PyErr_SetObject(PyExc_AssertionError, repr);
+    Py_DECREF(repr);
+    return -1;
+}

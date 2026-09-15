@@ -45,6 +45,6 @@ def test_docstring_examples_run(name: str) -> None:
 def test_the_examples_are_still_there() -> None:
     """Vanished examples would leave the run above with nothing to do and still pass."""
     counts = {name: doctest.testmod(importlib.import_module(name), verbose=False).attempted for name in MODULE_NAMES}
-    assert counts["radixly._core"] >= 49
+    assert counts["radixly._core"] >= 59
     # braille's face carries no example yet; every other module must keep its own.
     assert [name for name, count in counts.items() if count == 0] == ["radixly.braille._api"]

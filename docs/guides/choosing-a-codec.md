@@ -1,6 +1,6 @@
 # Choosing a codec
 
-All nine codecs turn bytes into a string and back. They differ in how many
+All eleven codecs turn bytes into a string and back. They differ in how many
 characters they need, which characters they use, and whether a string that
 was cut short is caught. Start from your constraint, not from the codec.
 
@@ -12,6 +12,8 @@ was cut short is caught. Start from your constraint, not from the codec.
 | {doc}`../codecs/uro14` | 14 | `1 + ceil(8n / 14)` | 173 bytes | one CJK block, 16,384 code points | yes, below 16,384 bytes |
 | {doc}`../codecs/braille` | 8 | `n` | 100 bytes | one block, 256 Braille patterns | no |
 | {doc}`../codecs/hexagram` | 6 | `ceil(8n / 6)` | 75 bytes | one block, 64 hexagrams | partly |
+| {doc}`../codecs/base64` | 6 | `4 * ceil(n / 3)` | 75 bytes | `A` to `Z`, `a` to `z`, `0` to `9`, `+`, `/`, `=` padding | partly |
+| {doc}`../codecs/base64url` | 6 | `4 * ceil(n / 3)` | 75 bytes | `A` to `Z`, `a` to `z`, `0` to `9`, `-`, `_`, `=` padding | partly |
 | {doc}`../codecs/base32` | 5 | `8 * ceil(n / 5)` | 60 bytes | `A` to `Z`, `2` to `7`, `=` padding | partly |
 | {doc}`../codecs/base32hex` | 5 | `8 * ceil(n / 5)` | 60 bytes | `0` to `9`, `A` to `V`, `=` padding | partly |
 | {doc}`../codecs/base16` | 4 | `2n` | 50 bytes | 16 uppercase hexadecimal digits | no |
@@ -39,7 +41,8 @@ Only uro14 can tell that a string is incomplete, thanks to its length
 prefix, and only for payloads under 16,384 bytes. The others decode a
 truncated string either without complaint (braille and base65536 always,
 base32768 and base2048 just under a quarter of the time, hexagram about a
-third, base16 half, base32 and base32hex one cut in eight) or with an error
+third, base16 half, base64 and base64url one cut in four, base32 and
+base32hex one cut in eight) or with an error
 that depends on where the cut landed. If that matters and uro14 does not fit,
 carry a length or a checksum yourself.
 
@@ -49,7 +52,9 @@ The fewer distinct characters a codec uses, the more channels accept it
 unchanged. base16 is plain ASCII letters and digits, which every channel
 takes; base32 and base32hex add `=` padding on most lengths, and base32's
 alphabet is the one that survives a case-insensitive channel, as long as the
-text is uppercased again before it reaches `decode`.
+text is uppercased again before it reaches `decode`. base64 adds `+` and
+`/` to the letters and digits, and base64url trades those two for `-` and
+`_`, which URLs and file names take unchanged.
 Among the Unicode codecs, hexagram uses 64 symbols from one block, braille
 256, uro14 one block of 16,384 ideographs, base2048 letters and numerals from
 two dozen scripts, base32768 characters from many BMP blocks, base65536
@@ -61,6 +66,6 @@ for leaving the BMP.
 
 ## Speed is not the deciding factor
 
-None of the nine is slow. Pick by alphabet and truncation behavior; the
+None of the eleven is slow. Pick by alphabet and truncation behavior; the
 numbers on each codec page are there to confirm that whichever you pick will
 not be the bottleneck.

@@ -114,6 +114,8 @@ EXPECTED_CODECS = [
     "base16",
     "base32",
     "base32hex",
+    "base64",
+    "base64url",
     "base2048",
     "base32768",
     "base65536",

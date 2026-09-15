@@ -64,6 +64,8 @@ STDLIB_RIVALS: typing.Final[tuple[StdlibRival, ...]] = (
     StdlibRival("base16", "b16encode", "b16decode"),
     StdlibRival("base32", "b32encode", "b32decode"),
     StdlibRival("base32hex", "b32hexencode", "b32hexdecode"),
+    StdlibRival("base64", "b64encode", "b64decode"),
+    StdlibRival("base64url", "urlsafe_b64encode", "urlsafe_b64decode"),
 )
 
 

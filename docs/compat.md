@@ -28,6 +28,12 @@ the copy its `translate` made. Holding the buffer instead of copying it up
 front is what makes the port allocation-free, and refusing a resize is the
 safe direction.
 
+`b64decode` is `binascii.a2b_base64` underneath in the standard library, and
+that function's treatment of stray padding changed in CPython 3.12.4 and
+again in 3.13.13 and 3.14.4. The port carries all three readings and picks
+the one matching the running interpreter at import, so the drop-in agrees
+with the `base64` next to it on every patch release.
+
 The strict codecs in the rest of radixly are a different contract, see below.
 
 ## What runs in C
@@ -39,19 +45,19 @@ library's own, so the module is complete at every step and only gets faster.
 |---|---|
 | `b16encode`, `b16decode` | C |
 | `b32encode`, `b32decode`, `b32hexencode`, `b32hexdecode` | C |
-| `b64encode`, `b64decode`, `standard_b64encode`, `standard_b64decode`, `urlsafe_b64encode`, `urlsafe_b64decode` | standard library |
+| `b64encode`, `b64decode`, `standard_b64encode`, `standard_b64decode`, `urlsafe_b64encode`, `urlsafe_b64decode` | C |
 | `a85encode`, `a85decode`, `b85encode`, `b85decode`, `z85encode`, `z85decode` (3.13 and later) | standard library |
 | `encode`, `decode`, `encodebytes`, `decodebytes` | standard library |
 
 ## Strict codecs versus the drop-in
 
 Every RFC 4648 codec radixly registers ({doc}`codecs/base16`,
-{doc}`codecs/base32`, {doc}`codecs/base32hex`) takes the strict reading of
-the RFC: characters outside the alphabet, lowercase, wrong padding and
-nonzero pad bits are errors, so one payload has exactly one accepted
-spelling. The RFC requires rejecting characters outside the alphabet
-(section 3.3) and permits rejecting nonzero pad bits (section 3.5); its
-security considerations (section 12) explain why a decoder would want all of
-it, case included. The drop-in keeps the
-standard library's choices instead, because that is what makes it a
-drop-in. Same C underneath, two contracts on top.
+{doc}`codecs/base32`, {doc}`codecs/base32hex`, {doc}`codecs/base64`,
+{doc}`codecs/base64url`) takes the strict reading of the RFC: characters
+outside the alphabet, the wrong case, wrong padding and nonzero pad bits are
+errors, so one payload has exactly one accepted spelling. The RFC requires
+rejecting characters outside the alphabet (section 3.3) and permits
+rejecting nonzero pad bits (section 3.5); its security considerations
+(section 12) explain why a decoder would want all of it, case included. The
+drop-in keeps the standard library's choices instead, because that is what
+makes it a drop-in. Same C underneath, two contracts on top.
