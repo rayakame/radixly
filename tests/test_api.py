@@ -21,19 +21,57 @@
 
 from __future__ import annotations
 
+import copy
 import dataclasses
+import pickle  # ruff: ignore[suspicious-pickle-import] -- tests pickle only their own objects
 import subprocess  # ruff: ignore[suspicious-subprocess-import] -- fixed argv, own interpreter
 import sys
+import typing
 
 import pytest
 
 import radixly
 from radixly import _codec
 from radixly import _core
+from tests.reference import errors as errors_reference
 
 
 def test_decode_error_is_the_core_type() -> None:
     assert radixly.DecodeError is _core.DecodeError
+
+
+@pytest.mark.parametrize("protocol", range(pickle.HIGHEST_PROTOCOL + 1))
+def test_decode_error_carries_notes_and_attributes(protocol: int) -> None:
+    """Every codec raises this type; dropping the instance dict would lose add_note without a word."""
+    original = _core.DecodeError(7, message="boom")
+    original.add_note("came from worker 3")
+    original.custom = 42  # pyright: ignore[reportAttributeAccessIssue]
+    clone = pickle.loads(pickle.dumps(original, protocol))  # ruff: ignore[suspicious-pickle-usage]  # pyright: ignore[reportAny]
+    views: tuple[_core.DecodeError, ...] = (clone, copy.copy(original), copy.deepcopy(original))
+    for view in views:
+        assert type(view) is _core.DecodeError
+        assert (view.position, view.message, view.args) == (7, "boom", ("boom",))
+        assert view.__notes__ == ["came from worker 3"]
+        assert getattr(view, "custom", None) == 42
+
+
+def test_decode_error_reduce_matches_the_reference() -> None:
+    """The reference models the C type's pickle contract; a drift here makes every reference test a lie."""
+
+    def shape(error: BaseException) -> object:
+        error.add_note("note")
+        reduced = typing.cast("tuple[object, ...]", error.__reduce__())
+        return (reduced[1], reduced[2])
+
+    assert shape(_core.DecodeError(3, message="m")) == shape(errors_reference.DecodeError(3, message="m"))
+
+
+@pytest.mark.parametrize("factory", [_core.DecodeError, errors_reference.DecodeError])
+def test_decode_error_setstate_rejects_a_bad_pair(factory: type[ValueError]) -> None:
+    """Pickle state is attacker-controlled; both slots are checked, and the reference says the same."""
+    for state, pattern in ((("nope", None), "args must be a tuple"), ((None, "nope"), "instance dict must be a dict")):
+        with pytest.raises(TypeError, match=pattern):
+            factory(0).__setstate__(state)  # pyright: ignore[reportArgumentType]
 
 
 def test_get_codec_returns_the_registered_object() -> None:
@@ -72,7 +110,17 @@ def test_codec_is_frozen() -> None:
         radixly.base32768.BASE32768.name = "other"  # pyright: ignore[reportAttributeAccessIssue]
 
 
-EXPECTED_CODECS = ["base2048", "base32768", "base65536", "braille", "hexagram", "uro14"]
+EXPECTED_CODECS = [
+    "base16",
+    "base32",
+    "base32hex",
+    "base2048",
+    "base32768",
+    "base65536",
+    "braille",
+    "hexagram",
+    "uro14",
+]
 
 
 def test_import_is_eager() -> None:

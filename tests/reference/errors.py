@@ -38,14 +38,35 @@ class DecodeError(ValueError):
             self._message = f"Decode Error at position {position}"
         super().__init__(self._message)
 
-    def __reduce__(self) -> tuple[type[DecodeError], tuple[int], str]:  # pyright: ignore[reportImplicitOverride]
-        return (type(self), (self._position,), self._message)
+    def __reduce__(self) -> tuple[type[DecodeError], tuple[int], tuple[object, object]]:  # pyright: ignore[reportImplicitOverride]
+        # args and __dict__ both travel, so add_note and user attributes survive pickle and copy.
+        return (type(self), (self._position,), (self.args, self.__dict__))
 
-    # State is only the message, narrower than BaseException's; typing.override needs 3.12, hence the ignores.
-    def __setstate__(self, state: str) -> None:  # pyright: ignore[reportImplicitOverride, reportIncompatibleMethodOverride]
-        # Two stores where the C has one: _message feeds the property, args feeds str().
-        self._message = state
-        self.args = (state,)
+    # State is a pair where BaseException has a plain dict; typing.override needs 3.12, hence the ignores.
+    def __setstate__(self, state: object) -> None:  # pyright: ignore[reportImplicitOverride]
+        if isinstance(state, str):  # pickles written before the state carried args and __dict__
+            self._message = state
+            self.args = (state,)
+            return
+        name = type(state).__name__
+        pair = typing.cast("tuple[object, ...] | None", state if isinstance(state, tuple) else None)
+        if pair is None or len(pair) != 2:
+            msg = f"DecodeError.__setstate__() state must be str or a 2-tuple, not {name}"
+            raise TypeError(msg)
+        args, namespace = pair
+        if args is not None and not isinstance(args, tuple):
+            msg = "DecodeError.__setstate__() args must be a tuple"
+            raise TypeError(msg)
+        if namespace is not None and not isinstance(namespace, dict):
+            msg = "DecodeError.__setstate__() the instance dict must be a dict"
+            raise TypeError(msg)
+        if args is not None:
+            # Two stores where the C has one: _message feeds the property, args feeds str().
+            values = typing.cast("tuple[object, ...]", args)
+            self.args = values
+            self._message = str(values[0]) if values else self._message
+        if namespace is not None:
+            self.__dict__.update(typing.cast("dict[str, object]", namespace))
 
     @property
     def message(self) -> str:

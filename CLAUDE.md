@@ -21,8 +21,9 @@ radixly: fast binary-to-text codecs for Python, hand-written C extension
 (`radixly._core`), CPython 3.11+, no pure-Python fallback shipped. Codecs:
 base32768 (qntm's spec, 15 bits/char), base65536 (qntm, 16 bits/char, mostly
 astral), base2048 (qntm, 11 bits/char below U+1100), uro14 (own design, 14
-bits/char from U+4E00 with a length prefix), braille (8), hexagram (6).
-Candidates: base91, Z85.
+bits/char from U+4E00 with a length prefix), braille (8), hexagram (6),
+base16, base32 and base32hex (RFC 4648, strict). Next: the base64 family, then
+ascii85, base85 and z85, each with its `radixly.compat.base64` twin.
 
 ## Fixed decisions
 
@@ -36,6 +37,12 @@ Candidates: base91, Z85.
   ValueError with `position`; `message` is keyword-only.
 - uro14's truncation guarantee is windowed at 16,384 bytes; every doc says so.
 - Codec is a frozen dataclass, registry via `get_codec`/`CODECS`/`register`.
+- RFC 4648 codecs (base16, base32, base32hex, later base64) are strict: every
+  MUST of the RFC and every MAY resolved toward rejection, the alphabet's own
+  case only, one spelling per payload. `radixly.compat.base64` is the standard
+  library bit for bit, lenient paths included, and passes CPython's own
+  `test_base64`; functions not yet ported are the standard library's own, so it
+  is a drop-in at every step.
 - Performance bars are the committed record
   (`benchmarks/results/i9-14900KF-performance.json`), rendered into README and
   docs; regressions need a reason, CI gates the C-vs-reference ratio.

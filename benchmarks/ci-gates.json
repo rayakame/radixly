@@ -1,7 +1,10 @@
 {
-  "note": "Ratio floors for CI, derived from the record runs (2026-08-29; base2048 and base65536 added 2026-09-11) (roughly half the measured ratios): slack on purpose, to catch structural regressions, never wobble.",
+  "note": "Ratio floors for CI, derived from the record runs (2026-08-29; base2048 and base65536 added 2026-09-11, the RFC 4648 codecs 2026-09-12) (roughly half the measured ratios): slack on purpose, to catch structural regressions, never wobble.",
   "ratio_floors": {
+    "base16": { "encode": 45, "decode": 60 },
     "base2048": { "encode": 50, "decode": 45 },
+    "base32": { "encode": 160, "decode": 80 },
+    "base32hex": { "encode": 160, "decode": 80 },
     "base32768": { "encode": 55, "decode": 50 },
     "base65536": { "encode": 90, "decode": 80 },
     "braille": { "encode": 45, "decode": 35 },

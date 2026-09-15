@@ -126,7 +126,7 @@ class CompetitorSpec:
     decode: Callable[[str], bytes]
 
 
-# codec name -> its rivals. Empty until base64 exists (stdlib, pybase64).
+# codec name -> its rivals, filled by benchmarks.competitors.install().
 COMPETITORS: dict[str, tuple[CompetitorSpec, ...]] = {}
 
 
