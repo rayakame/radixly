@@ -26,6 +26,7 @@ import binascii
 import decimal
 import functools
 import inspect
+import random
 import subprocess  # ruff: ignore[suspicious-subprocess-import] -- fixed argv, own interpreter
 import sys
 import typing
@@ -305,6 +306,23 @@ def test_ported_round_trips_agree_with_the_stdlib(data: bytes) -> None:
         assert encoded == _theirs(encoder)(data)
         assert _ours(decoder)(encoded) == data
         assert _theirs(decoder)(encoded) == data
+
+
+def test_ported_pairs_agree_on_a_megabyte() -> None:
+    """Multi-MB input through every ported pair: the resize path of the lenient decoders, and a MIME-shaped text."""
+    payload = random.Random(2**20).randbytes(2**20)
+    for encoder, decoder in _PAIRS_PORTED:
+        encoded = _theirs(encoder)(payload)
+        assert _ours(encoder)(payload) == encoded
+        assert _ours(decoder)(encoded) == payload
+    wrapped = base64.encodebytes(payload)  # 76-character lines, the shape b64decode discards newlines from
+    assert wrapped.count(b"\n") > 10_000
+    _assert_same("b64decode", wrapped)
+    _assert_same("b64decode", wrapped, validate=True)
+    _assert_same("standard_b64decode", wrapped)
+    _assert_same("urlsafe_b64decode", wrapped)
+    _assert_same("b64decode", b"=" * 2**20 + base64.b64encode(payload))
+    _assert_same("b64decode", base64.b64encode(payload) + b"=" * 2**20)
 
 
 @pytest.mark.parametrize("name", PORTED)

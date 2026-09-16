@@ -25,7 +25,8 @@ Two gaps are left, and both take code that breaks its own contract to reach. The
 decodes where the standard library may already have copied it, so a ``casefold``, ``map01``, ``altchars`` or
 ``validate`` hook that resizes that buffer during the call gets ``BufferError``, and a same-length edit is read.
 And an object that claims to be ``bytes`` without being one, or a ``str`` subclass whose ``encode`` returns
-something that is not a buffer, is judged by what it is, so the exception can differ from the standard library's.
+anything other than ``bytes`` or ``bytearray``, is judged by the buffer it offers rather than by the methods the
+standard library would call on it, so the outcome can differ from the standard library's.
 """
 
 from __future__ import annotations

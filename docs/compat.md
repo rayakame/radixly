@@ -28,9 +28,10 @@ have copied it (`memoryview(s).tobytes()`, or the copy `translate` made), so a
 same-length edit is read. Holding the buffer instead of copying it up front is
 what makes the port allocation-free, and refusing a resize is the safe
 direction. And an object that claims to be `bytes` without being one, or a
-`str` subclass whose `encode` returns something that is not a buffer, is judged
-by what it is rather than by what it claims, so the exception it gets can
-differ from the standard library's.
+`str` subclass whose `encode` returns anything other than `bytes` or
+`bytearray`, is judged by the buffer it offers rather than by the methods the
+standard library would call on it (`translate`, `rstrip`, or `binascii`'s own
+argument check), so the outcome can differ from the standard library's.
 
 `b64decode` is `binascii.a2b_base64` underneath in the standard library, and
 that function's treatment of stray padding changed in CPython 3.12.4 and

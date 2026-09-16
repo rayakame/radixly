@@ -573,14 +573,20 @@ a2b_stopping(const uint8_t *rev, const unsigned char *data, Py_ssize_t length, i
     return finish(&state, state.quad_pos != 0, start, written);
 }
 
+/* The stdlib's pad counter is an int that wraps under CPython's -fwrapv once the lenient reading-past loop
+ * has counted 2**31 pad bytes; unsigned arithmetic gives the same wrap without the UB. */
+static int
+wrapping_add(int first, int second)
+{
+    return (int)((unsigned)first + (unsigned)second);
+}
+
 /* A '=' in the reading-past variant: -1 with the error, 1 to leave the loop for its tail, 0 to carry on. */
 static int
 pad_reading_past(const a2b_state *state, int *pads, Py_ssize_t index, int strict)
 {
-    /* The stdlib's int wraps under CPython's -fwrapv; unsigned arithmetic gives the same wrap without the UB.
-     */
-    *pads = (int)((unsigned)*pads + 1U);
-    if (state->quad_pos >= 2 && state->quad_pos + *pads <= GROUP_CHARS) {
+    *pads = wrapping_add(*pads, 1);
+    if (state->quad_pos >= 2 && wrapping_add(state->quad_pos, *pads) <= GROUP_CHARS) {
         return 0;
     }
     if (!strict) {
@@ -621,7 +627,7 @@ a2b_reading_past(const uint8_t *rev, const unsigned char *data, Py_ssize_t lengt
             continue;
         }
         if (pads != 0 && strict) {
-            radixly_binascii_error(state.quad_pos + pads == GROUP_CHARS
+            radixly_binascii_error(wrapping_add(state.quad_pos, pads) == GROUP_CHARS
                                        ? "Excess data after padding"
                                        : "Discontinuous padding not allowed");
             return -1;
@@ -629,7 +635,8 @@ a2b_reading_past(const uint8_t *rev, const unsigned char *data, Py_ssize_t lengt
         pads = 0;
         take_char(&state, value);
     }
-    return finish(&state, state.quad_pos != 0 && state.quad_pos + pads < GROUP_CHARS, start, written);
+    return finish(&state, state.quad_pos != 0 && wrapping_add(state.quad_pos, pads) < GROUP_CHARS, start,
+                  written);
 }
 
 /* A faithful port of binascii.a2b_base64 on translated bytes: the bytes result, or NULL with binascii.Error.
