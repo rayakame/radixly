@@ -23,9 +23,9 @@ formats (JWT among them) drop the padding on the wire; put it back before
 ```python
 from radixly import base64url
 
-segment = "eyJhbGciOiJIUzI1NiJ9"                  # a JWT header, unpadded
+segment = "eyJhbGciOiJub25lIn0"                   # a JWT header, its one "=" dropped
 base64url.decode(segment + "=" * (-len(segment) % 4))
-# b'{"alg":"HS256"}'
+# b'{"alg":"none"}'
 ```
 
 If the channel is not a URL or a file name, {doc}`base64` is the one the

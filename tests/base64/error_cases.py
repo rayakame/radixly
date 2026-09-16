@@ -86,6 +86,7 @@ def _invalid_cases(module: Base64Preset, foreign: str) -> dict[str, tuple[str, i
         "other-alphabet-last": (zero * 3 + foreign[1], 3),
         "space": (zero * 2 + " " + zero, 2),
         "newline-at-end": (full + "\n", 4),
+        "newline-between-groups": (full + "\n" + full, 4),
         "astral": ("\U0001f600", 0),
         "lone-surrogate": ("\ud800", 0),
         "astral-mid-string": (full + "\U0001f600" + zero * 3, 4),

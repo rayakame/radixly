@@ -20,13 +20,17 @@ still accepts nonzero pad bits. Even the exception chains match: where the
 standard library writes `raise ... from None`, the port hides its own context
 too, so tracebacks read the same.
 
-One gap is left, and it takes a hook to reach. A `casefold` or `map01` object
-whose `__bool__` edits the `bytearray` being decoded is seen by the port while
-the call is still running: a resize gets `BufferError`, and under `map01` even
-a same-length edit is read, because the standard library is by then decoding
-the copy its `translate` made. Holding the buffer instead of copying it up
-front is what makes the port allocation-free, and refusing a resize is the
-safe direction.
+Two gaps are left, and both take code that breaks its own contract to reach.
+The port holds the buffer it decodes where the standard library may already
+have copied it (`memoryview(s).tobytes()`, or the copy `translate` made), so a
+`casefold`, `map01`, `altchars` or `validate` object whose `__bool__` or
+`encode` resizes that buffer during the call gets `BufferError`, and a
+same-length edit is read. Holding the buffer instead of copying it up front is
+what makes the port allocation-free, and refusing a resize is the safe
+direction. And an object that claims to be `bytes` without being one, or a
+`str` subclass whose `encode` returns something that is not a buffer, is judged
+by what it is rather than by what it claims, so the exception it gets can
+differ from the standard library's.
 
 `b64decode` is `binascii.a2b_base64` underneath in the standard library, and
 that function's treatment of stray padding changed in CPython 3.12.4 and

@@ -22,6 +22,7 @@
 from __future__ import annotations
 
 import base64
+import binascii
 import decimal
 import functools
 import inspect
@@ -125,6 +126,8 @@ def _assert_same(name: str, *args: object, **kwargs: object) -> None:
     ours = _outcome(_ours(name), *args, **kwargs)
     theirs = _outcome(_theirs(name), *args, **kwargs)
     assert ours == theirs
+    # bytes == bytearray, so the equality above would let a bytearray result through; the stdlib returns bytes.
+    assert type(ours[1]) is type(theirs[1])
 
 
 class _RaisingFlag:
@@ -543,6 +546,26 @@ def test_map01_snapshots_where_the_stdlib_snapshots() -> None:
         assert _ours(name)(mine, casefold=_MutatingFlag(mine)) == _theirs(name)(yours, casefold=_MutatingFlag(yours))
 
 
+def _chain(function: Callable[..., object], *args: object, **kwargs: object) -> tuple[object, ...]:
+    """Return the exception and its hidden context down to the message text, as a debugger shows them."""
+    try:
+        function(*args, **kwargs)
+    except Exception as error:  # ruff: ignore[blind-except] -- the exception chain is the subject
+        context = error.__context__
+        return (type(error), error.args, type(context), context.args if context else None, error.__suppress_context__)
+    message = "expected an exception"
+    raise AssertionError(message)
+
+
+@pytest.mark.parametrize("make", [lambda: 5, list, lambda: 3.5, lambda: decimal.Decimal(1), _ClassLiar, _RaisingBuffer])
+def test_hidden_context_carries_the_stdlib_words(make: Callable[[], object]) -> None:
+    """The stdlib's suppressed context is memoryview()'s own TypeError, or the exporter's; so is the port's."""
+    for name in ("b16decode", "b32decode", "b32hexdecode", "b64decode", "standard_b64decode", "urlsafe_b64decode"):
+        assert _chain(_ours(name), make()) == _chain(_theirs(name), make()), name
+    assert _chain(compat.b64decode, b"AAAA", altchars=make()) == _chain(base64.b64decode, b"AAAA", altchars=make())
+    assert _chain(compat.b32decode, b"AAAAAAAA", map01=make()) == _chain(base64.b32decode, b"AAAAAAAA", map01=make())
+
+
 def test_non_ascii_str_carries_the_stdlib_context() -> None:
     """The stdlib raises the ValueError inside `except UnicodeEncodeError`, so the traceback shows both."""
     for name in ("b16decode", "b32decode", "b32hexdecode", "b64decode", "standard_b64decode", "urlsafe_b64decode"):
@@ -589,6 +612,57 @@ def test_map01_assertion_text_matches() -> None:
         )
         assert _outcome(compat.b64decode, "AAAA", altchars="abc") == (AssertionError, ("b'abc'",))
         assert _outcome(compat.b64decode, "AAAA", altchars=bytearray(b"a")) == (AssertionError, ("bytearray(b'a')",))
+
+
+@typing.final
+class _TwoLong(bytes):
+    """A bytes whose __len__ says two whatever the buffer holds; the stdlib's assert believes it."""
+
+    __slots__ = ()
+
+    def __len__(self) -> int:  # pyright: ignore[reportImplicitOverride]
+        return 2
+
+
+@typing.final
+class _ThreeLong(bytes):
+    """A bytes whose __len__ says three whatever the buffer holds."""
+
+    __slots__ = ()
+
+    def __len__(self) -> int:  # pyright: ignore[reportImplicitOverride]
+        return 3
+
+
+@typing.final
+class _ByteArrayEncode(str):  # ruff: ignore[subclass-builtin]
+    """A str whose encode hands back a bytearray, which the stdlib then asserts on and reprs as such."""
+
+    __slots__ = ()
+
+    def encode(self, *_args: object, **_kwargs: object) -> bytearray:  # ruff: ignore[no-self-use]  # pyright: ignore[reportImplicitOverride, reportIncompatibleMethodOverride]
+        return bytearray(b"abc")
+
+
+def test_length_assertions_judge_the_coerced_object() -> None:
+    """The stdlib asserts len() and repr() of the coerced object; maketrans then judges the buffer."""
+    _assert_same("b64decode", b"QUJD", altchars=_TwoLong(b"-_-"))  # the assert passes, maketrans refuses
+    _assert_same("b64decode", b"QUJD", altchars=_ThreeLong(b"-_"))  # the assert fails on a fitting buffer
+    _assert_same("b64decode", b"QUJD", altchars=_TwoLong(b"-_"))
+    _assert_same("b64decode", b"QUJD", altchars=_ByteArrayEncode("x"))
+    _assert_same("b32decode", "AAAAAAAA", map01=_TwoLong(b"L"))
+    _assert_same("b32decode", "AAAAAAAA", map01=_ByteArrayEncode("x"))
+    if not sys.flags.optimize:
+        assert _outcome(compat.b64decode, b"QUJD", altchars=_ThreeLong(b"-_")) == (AssertionError, ("b'-_'",))
+        assert _outcome(compat.b64decode, b"QUJD", altchars=_ByteArrayEncode("x")) == (
+            AssertionError,
+            ("bytearray(b'abc')",),
+        )
+    assert _outcome(compat.b64decode, b"QUJD", altchars=_TwoLong(b"-_-")) == (
+        ValueError,
+        ("maketrans arguments must have same length",),
+    )
+    assert _outcome(compat.b64decode, b"QUJD", altchars=_TwoLong(b"-_")) == (_Ok, b"ABC")
 
 
 def test_b64encode_altchars_is_judged_as_the_stdlib_judges_it() -> None:
@@ -678,6 +752,51 @@ def test_stdlib_quirks_are_kept() -> None:
     assert compat.b64decode(memoryview(b"QxUxJxDx")[::2]) == base64.b64decode(b"QUJD") == b"ABC"
     # b64encode is binascii's, which takes the buffer as is: a strided view is refused, not copied.
     assert _outcome(compat.b64encode, memoryview(b"abcdef")[::2])[0] is BufferError
+
+
+# The releases where binascii.a2b_base64 changed, as sys.hexversion, and the reading each side must get.
+_A2B_VARIANT_ROWS: dict[str, tuple[int, int]] = {
+    "3.11.0": (0x030B00F0, 0),
+    "3.11.15": (0x030B0FF0, 0),
+    "3.12.0": (0x030C00F0, 0),
+    "3.12.3": (0x030C03F0, 0),
+    "3.12.4": (0x030C04F0, 1),
+    "3.12.13": (0x030C0DF0, 1),
+    "3.13.0": (0x030D00F0, 1),
+    "3.13.12": (0x030D0CF0, 1),
+    "3.13.13": (0x030D0DF0, 2),
+    "3.14.0rc1": (0x030E00C1, 1),
+    "3.14.3": (0x030E03F0, 1),
+    "3.14.4": (0x030E04F0, 2),
+    "3.15.0a1": (0x030F00A1, 2),
+}
+
+
+def _a2b_variant_of_the_stdlib() -> int:
+    """Tell the three readings apart by two inputs they judge differently."""
+
+    def outcome(data: bytes) -> str | None:
+        try:
+            binascii.a2b_base64(data, strict_mode=True)
+        except binascii.Error as error:
+            return str(error)
+        return None
+
+    if outcome(b"AAAA=") is None:
+        return 0  # the padding ended the parse before it was judged
+    return 1 if outcome(b"AA===") == "Excess data after padding" else 2
+
+
+@pytest.mark.parametrize("release", list(_A2B_VARIANT_ROWS))
+def test_a2b_variant_table(release: str) -> None:
+    """The version boundaries the C selects on, pinned as data; no CI interpreter sits on one."""
+    hexversion, variant = _A2B_VARIANT_ROWS[release]
+    assert _core.a2b_base64_variant(hexversion) == variant
+
+
+def test_a2b_variant_matches_the_running_stdlib() -> None:
+    """The table's answer for this interpreter is what its binascii actually does."""
+    assert _core.a2b_base64_variant(sys.hexversion) == _a2b_variant_of_the_stdlib()
 
 
 # Every shape a2b_base64 judges differently between CPython lines; the port must follow the running one.

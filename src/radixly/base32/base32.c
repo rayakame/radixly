@@ -350,7 +350,7 @@ map01_byte(PyObject *map01, unsigned char *byte)
     if (radixly_compat_decode_input(map01, &source) < 0) {
         return -1;
     }
-    if (radixly_compat_check_length(map01, &source, 1) < 0) {
+    if (radixly_compat_check_length(&source, 1) < 0) {
         radixly_compat_input_release(&source);
         return -1;
     }

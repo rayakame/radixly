@@ -284,7 +284,7 @@ def test_every_last_data_character_of_every_padded_shape(preset: str) -> None:
         assert accepted == expected
 
 
-_HOSTILE_CHARS = "+-=!\x00\x7f\xffĀ\ud800\U0001f600"
+_HOSTILE_CHARS = "+-=!\n\x00\x7f\xffĀ\ud800\U0001f600"
 
 
 @pytest.mark.parametrize("preset", error_cases.PRESETS)

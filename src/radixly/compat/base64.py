@@ -21,9 +21,11 @@
 
 The functions radixly has ported run in C; the others are the standard library's own until their port lands.
 The surface is ``base64.__all__``; undocumented module attributes such as ``MAXLINESIZE`` are not carried over.
-The one gap is a ``casefold`` or ``map01`` hook that edits the ``bytearray`` being decoded while the call runs:
-a resize gets ``BufferError``, and under ``map01`` even a same-length edit is read, where the standard library
-already holds the copy its ``translate`` made.
+Two gaps are left, and both take code that breaks its own contract to reach. The port holds the buffer it
+decodes where the standard library may already have copied it, so a ``casefold``, ``map01``, ``altchars`` or
+``validate`` hook that resizes that buffer during the call gets ``BufferError``, and a same-length edit is read.
+And an object that claims to be ``bytes`` without being one, or a ``str`` subclass whose ``encode`` returns
+something that is not a buffer, is judged by what it is, so the exception can differ from the standard library's.
 """
 
 from __future__ import annotations

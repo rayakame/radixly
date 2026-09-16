@@ -30,6 +30,8 @@ typedef struct {
     Py_ssize_t len;
     Py_buffer view;
     PyObject *copy;
+    PyObject *coerced; /* what the stdlib's _bytes_from_decode_data passes on as is; NULL where it makes fresh
+                          bytes */
     int has_view;
 } radixly_compat_input;
 
@@ -58,8 +60,8 @@ int radixly_compat_truth(PyObject *arg);
 /* Whether the interpreter runs with -O, where the stdlib's asserts are gone and maketrans raises instead. */
 int radixly_compat_optimized(void);
 
-/* The stdlib's `assert len(x) == expected, repr(x)` on a _bytes_from_decode_data result: 0 when the length
- * fits; -1 with AssertionError showing x as the coercion left it, or under -O with maketrans's ValueError. */
-int radixly_compat_check_length(PyObject *arg, const radixly_compat_input *input, Py_ssize_t expected);
+/* The stdlib's `assert len(x) == expected, repr(x)` on a _bytes_from_decode_data result, then maketrans's own
+ * check of the buffer: 0 when both pass; -1 with the AssertionError, or with maketrans's ValueError. */
+int radixly_compat_check_length(const radixly_compat_input *input, Py_ssize_t expected);
 
 #endif // RADIXLY_COMPAT_H

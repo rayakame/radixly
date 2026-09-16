@@ -577,7 +577,9 @@ a2b_stopping(const uint8_t *rev, const unsigned char *data, Py_ssize_t length, i
 static int
 pad_reading_past(const a2b_state *state, int *pads, Py_ssize_t index, int strict)
 {
-    (*pads)++;
+    /* The stdlib's int wraps under CPython's -fwrapv; unsigned arithmetic gives the same wrap without the UB.
+     */
+    *pads = (int)((unsigned)*pads + 1U);
     if (state->quad_pos >= 2 && state->quad_pos + *pads <= GROUP_CHARS) {
         return 0;
     }
@@ -673,7 +675,7 @@ decode_altchars(PyObject *altchars, uint8_t *rev)
     if (radixly_compat_decode_input(altchars, &pair) < 0) {
         return -1;
     }
-    if (radixly_compat_check_length(altchars, &pair, 2) < 0) {
+    if (radixly_compat_check_length(&pair, 2) < 0) {
         radixly_compat_input_release(&pair);
         return -1;
     }
@@ -751,6 +753,23 @@ radixly_b64decode_with(const char *function, PyObject *const *args, Py_ssize_t n
     radixly_compat_input_release(&source);
     Py_XDECREF(snapshot);
     return result;
+}
+
+const char radixly_a2b_base64_variant_doc[] =
+    PyDoc_STR("a2b_base64_variant($module, hexversion, /)\n"
+              "--\n"
+              "\n"
+              "Which binascii.a2b_base64 the CPython release ``hexversion`` ships, as the\n"
+              "drop-in's ``b64decode`` selects it at import: 0 stops at the padding, 1 adds\n"
+              "the excess-padding check, 2 reads past the padding. For the test suite.");
+PyObject *
+radixly_a2b_base64_variant(PyObject *Py_UNUSED(self), PyObject *arg)
+{
+    const unsigned long version = PyLong_AsUnsignedLong(arg);
+    if (version == (unsigned long)-1 && PyErr_Occurred()) {
+        return NULL;
+    }
+    return PyLong_FromLong((long)a2b_variant_for(version));
 }
 
 const char radixly_base64_encode_doc[] =

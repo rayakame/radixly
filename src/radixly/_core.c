@@ -77,6 +77,7 @@ static PyMethodDef radixly_methods[] = {
      radixly_urlsafe_b64encode_doc},
     {"urlsafe_b64decode", _PyCFunction_CAST(radixly_urlsafe_b64decode), METH_FASTCALL | METH_KEYWORDS,
      radixly_urlsafe_b64decode_doc},
+    {"a2b_base64_variant", radixly_a2b_base64_variant, METH_O, radixly_a2b_base64_variant_doc},
     {NULL, NULL, 0, NULL},
 };
 

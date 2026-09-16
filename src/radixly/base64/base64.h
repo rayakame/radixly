@@ -34,6 +34,9 @@ PyObject *radixly_b64encode_with(const char *function, PyObject *const *args, Py
 PyObject *radixly_b64decode_with(const char *function, PyObject *const *args, Py_ssize_t nargs,
                                  PyObject *kwnames, int url, int with_options);
 
+extern const char radixly_a2b_base64_variant_doc[];
+PyObject *radixly_a2b_base64_variant(PyObject *self, PyObject *arg);
+
 extern const char radixly_base64_encode_doc[];
 PyObject *radixly_base64_encode(PyObject *self, PyObject *arg);
 
