@@ -56,7 +56,9 @@ def _theirs(name: str) -> Callable[..., object]:
 
 def test_ported_set_is_what_this_release_promises() -> None:
     """The docs list what runs in C; a port that fell back to the stdlib unnoticed would still pass every test."""
-    assert PORTED == [
+    expected = [
+        "a85decode",
+        "a85encode",
         "b16decode",
         "b16encode",
         "b32decode",
@@ -65,11 +67,16 @@ def test_ported_set_is_what_this_release_promises() -> None:
         "b32hexencode",
         "b64decode",
         "b64encode",
+        "b85decode",
+        "b85encode",
         "standard_b64decode",
         "standard_b64encode",
         "urlsafe_b64decode",
         "urlsafe_b64encode",
     ]
+    if sys.version_info >= (3, 13):
+        expected += ["z85decode", "z85encode"]  # pyright: ignore[reportUnreachable]
+    assert expected == PORTED
 
 
 def test_all_matches_the_stdlib() -> None:
@@ -90,7 +97,8 @@ def test_unported_names_are_the_stdlib_objects(name: str) -> None:
 def test_keyword_calls_match_the_stdlib(name: str) -> None:
     """Every parameter the stdlib takes by name, the port takes by name, with the same result."""
     parameters = inspect.signature(_theirs(name)).parameters
-    assert all(p.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD for p in parameters.values())
+    kinds = {p.kind for p in parameters.values()}
+    assert kinds <= {inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY}
     encoded = {
         "b16": b"4142",
         "b32": b"IE======",
@@ -98,13 +106,22 @@ def test_keyword_calls_match_the_stdlib(name: str) -> None:
         "b64": b"QQ==",
         "standard_b64": b"QQ==",
         "urlsafe_b64": b"QQ==",
+        "a85": b"5l",
+        "b85": b"K>",
+        "z85": b"k@",
     }
     samples: dict[str, object] = {
         "s": encoded[name[:-6]],
+        "b": encoded[name[:-6]],
         "casefold": True,
         "map01": "L",
         "altchars": b"-_",
         "validate": True,
+        "foldspaces": True,
+        "wrapcol": 3,
+        "pad": True,
+        "adobe": False,
+        "ignorechars": b" ",
     }
     by_name = {parameter: samples[parameter] for parameter in parameters}
     _assert_same(name, **by_name)
@@ -177,6 +194,19 @@ _HOSTILE_OBJECTS = st.sampled_from(
     [_released, _RaisingBuffer, lambda: decimal.Decimal(1), lambda: 42, lambda: None]
 ).map(lambda make: make())
 _TEXT_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567=01abcdefghijklmnopqrstuvwxyz \n\t!~\x00\xff+/-_*$"
+# The 85 family: its own alphabets, the z and y shorthands, the Adobe frame, whitespace, and what is outside.
+_TEXT_CHARS_85 = (
+    "!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
+    "zy<> \t\n\r\v\x0c\x00\x7f\xff"
+)
+_ENCODED_LIKE_85: st.SearchStrategy[str] = st.one_of(
+    st.text(alphabet=_TEXT_CHARS_85, max_size=40),
+    st.binary(max_size=25).map(lambda data: base64.a85encode(data).decode()),
+    st.binary(max_size=25).map(lambda data: base64.a85encode(data, adobe=True, foldspaces=True).decode()),
+    st.binary(max_size=25).map(lambda data: base64.b85encode(data).decode()),
+    st.binary(max_size=25).map(lambda data: base64.a85encode(data).decode()).flatmap(_mutated),
+    st.binary(max_size=25).map(lambda data: base64.b85encode(data).decode()).flatmap(_mutated),
+)
 _ENCODED_LIKE: st.SearchStrategy[str] = st.one_of(  # nine strategies: one_of would infer Any
     st.text(alphabet=_TEXT_CHARS, max_size=40),
     st.binary(max_size=25).map(lambda data: base64.b32encode(data).decode()),
@@ -210,6 +240,34 @@ _ENCODE_INPUTS = st.one_of(
     st.sampled_from(["text", ""]),
 )
 _FLAGS = st.sampled_from([True, False, 1, 0, None, "x", "", _RaisingFlag()])
+_DECODE_INPUTS_85 = st.one_of(
+    _ENCODED_LIKE_85,
+    _ENCODED_LIKE_85.map(lambda text: text.encode("latin-1")),
+    _ENCODED_LIKE_85.map(lambda text: bytearray(text.encode("latin-1"))),
+    _ENCODED_LIKE_85.map(lambda text: memoryview(text.encode("latin-1"))),
+    st.binary(max_size=40).map(lambda data: memoryview(data)[::2]),
+    st.text(max_size=8),
+    _HOSTILE_OBJECTS,
+)
+_WRAPCOL = st.sampled_from([0, 1, 2, 3, 5, 76, 1000, True, False, None, "x", "", 3.0, -1, 2**70, _RaisingFlag()])
+_IGNORECHARS = st.sampled_from(
+    [
+        None,
+        b" \t\n\r\v",
+        b"",
+        b"z",
+        b"y",
+        b"u",
+        bytearray(b" "),
+        memoryview(b" \n"),
+        "x",
+        " ",
+        5,
+        [32, 10],
+        {32},
+        b"\xff",
+    ]
+)
 _MAP01 = st.sampled_from(
     [None, "L", "I", b"l", b"I", "LL", "", 5, "\xe9", bytearray(b"O"), "=", b"=", bytearray(b"ab"), memoryview(b"ab")]
 )
@@ -245,6 +303,34 @@ _ENCODE_ALTCHARS = st.sampled_from(
     _ENCODE_INPUTS,
 )
 def test_encoders_match(name: str, data: object) -> None:
+    _assert_same(name, data)
+
+
+@settings(max_examples=2000)
+@given(_ENCODE_INPUTS, _FLAGS, _WRAPCOL, _FLAGS, _FLAGS)
+def test_a85encode_matches(data: object, foldspaces: object, wrapcol: object, pad: object, adobe: object) -> None:
+    _assert_same("a85encode", data, foldspaces=foldspaces, wrapcol=wrapcol, pad=pad, adobe=adobe)
+
+
+@settings(max_examples=3000)
+@given(_DECODE_INPUTS_85, _FLAGS, _FLAGS, _IGNORECHARS)
+def test_a85decode_matches(data: object, foldspaces: object, adobe: object, ignorechars: object) -> None:
+    kwargs: dict[str, object] = {"foldspaces": foldspaces, "adobe": adobe}
+    if ignorechars is not None:
+        kwargs["ignorechars"] = ignorechars
+    _assert_same("a85decode", data, **kwargs)
+
+
+@settings(max_examples=2000)
+@given(_ENCODE_INPUTS, _FLAGS)
+def test_b85encode_matches(data: object, pad: object) -> None:
+    _assert_same("b85encode", data, pad)
+    _assert_same("b85encode", data, pad=pad)
+
+
+@settings(max_examples=2000)
+@given(st.sampled_from(sorted({"b85decode", "z85decode", "z85encode"} & set(PORTED))), _DECODE_INPUTS_85)
+def test_fixed_shape_85_functions_match(name: str, data: object) -> None:
     _assert_same(name, data)
 
 
@@ -296,6 +382,9 @@ _PAIRS_PORTED = (
     ("b64encode", "b64decode"),
     ("standard_b64encode", "standard_b64decode"),
     ("urlsafe_b64encode", "urlsafe_b64decode"),
+    ("a85encode", "a85decode"),
+    ("b85encode", "b85decode"),
+    *((("z85encode", "z85decode"),) if sys.version_info >= (3, 13) else ()),
 )
 
 
@@ -323,6 +412,14 @@ def test_ported_pairs_agree_on_a_megabyte() -> None:
     _assert_same("urlsafe_b64decode", wrapped)
     _assert_same("b64decode", b"=" * 2**20 + base64.b64encode(payload))
     _assert_same("b64decode", base64.b64encode(payload) + b"=" * 2**20)
+    zeros = bytes(2**20)
+    for kwargs in ({}, {"foldspaces": True}, {"adobe": True, "wrapcol": 76}, {"pad": True}):
+        _assert_same("a85encode", payload, **kwargs)
+        _assert_same("a85encode", zeros, **kwargs)
+    _assert_same("a85decode", base64.a85encode(payload, adobe=True, wrapcol=76), adobe=True)
+    _assert_same("a85decode", b"z" * 2**20)
+    _assert_same("a85decode", b" " * 2**20 + base64.a85encode(payload))
+    _assert_same("b85decode", b"~" * 2**20)
 
 
 @pytest.mark.parametrize("name", PORTED)
@@ -346,19 +443,45 @@ def test_wrong_argument_shapes_match(name: str) -> None:
         ((b"",), {"altchar": b"-_"}),
         ((b"",), {"Validate": True}),
         ((b"", b"", b"", b""), {"validate": True}),  # b64decode: multiple values for validate, not too many
+        ((b"", True), {"foldspaces": True}),  # a85: keyword-only, so the positional is one too many
+        ((b"",), {"foldspace": True}),
+        ((b"",), {"wrapcols": 3}),
+        ((b"",), {"ignorechar": b" "}),
     ]
-    if name != "b32decode":
-        shapes.append(((b"",), {"map01": "L"}))  # only b32decode takes map01
-    if name not in {"b64encode", "b64decode"}:
-        shapes.append(((b"",), {"altchars": b"-_"}))
-    if name != "b64decode":
-        shapes.append(((b"",), {"validate": True}))
+    # A keyword only some functions take is unexpected for every other; the same argument twice is refused by all.
+    takers = {
+        "map01": {"b32decode"},
+        "altchars": {"b64encode", "b64decode"},
+        "validate": {"b64decode"},
+        "foldspaces": {"a85encode", "a85decode"},
+        "wrapcol": {"a85encode"},
+        "pad": {"a85encode", "b85encode"},
+        "ignorechars": {"a85decode"},
+    }
+    samples: dict[str, object] = {
+        "map01": "L",
+        "altchars": b"-_",
+        "validate": True,
+        "foldspaces": True,
+        "wrapcol": 3,
+        "pad": True,
+        "ignorechars": b" ",
+    }
+    shapes += [((b"",), {keyword: samples[keyword]}) for keyword, names in takers.items() if name not in names]
+    if name in {"a85encode", "a85decode"}:
+        shapes.append(((b"", False), {}))  # the second positional is keyword-only
+    if name == "b85encode":
+        shapes.append(((b"", True, True), {}))
     for args, kwargs in shapes:
         _assert_same(name, *args, **kwargs)
         assert _outcome(_ours(name), *args, **kwargs)[0] is TypeError, (name, args, kwargs)
     assert _outcome(compat.b32decode, b"", map01="L") == (_Ok, b"")
     assert _outcome(compat.b64decode, b"", altchars=b"-_", validate=True) == (_Ok, b"")
     assert _outcome(compat.b64encode, b"", altchars=b"-_") == (_Ok, b"")
+    assert _outcome(compat.a85encode, b"", foldspaces=True, wrapcol=3, pad=True, adobe=True) == (_Ok, b"<~\n~>")
+    assert _outcome(compat.a85decode, b"", foldspaces=True, adobe=False, ignorechars=b"") == (_Ok, b"")
+    padded = True
+    assert _outcome(compat.b85encode, b"", padded) == (_Ok, b"")
 
 
 class _ClassLiar:
@@ -430,6 +553,8 @@ class _BareStrClaim:
 def test_str_like_inputs_go_through_encode(make: Callable[[], object]) -> None:
     """The stdlib dispatches on isinstance(s, str) and uses s.encode, so a subclass or proxy decides the bytes."""
     for name in ("b16decode", "b32decode", "b32hexdecode", "b64decode", "standard_b64decode", "urlsafe_b64decode"):
+        _assert_same(name, make())
+    for name in sorted({"a85decode", "b85decode", "z85decode"} & set(PORTED)):
         _assert_same(name, make())
     _assert_same("b32decode", "AAAAAAAA", map01=make())
     _assert_same("b64decode", "AAAA", altchars=make())
@@ -528,6 +653,19 @@ def _chain_shape(call: Callable[[], object]) -> tuple[type, type, bool]:
         ("standard_b64decode", ("\xe9",), {}),
         ("urlsafe_b64decode", (42,), {}),
         ("urlsafe_b64encode", ("x",), {}),
+        ("b85decode", (b"~",), {}),  # the struct.error behind the overflow, hidden
+        ("b85decode", (b"0000 0",), {}),  # the TypeError behind the bad character, hidden
+        ("b85decode", (42,), {}),
+        ("b85encode", ("x",), {}),
+        ("a85decode", (b"uuuuu",), {}),
+        ("a85decode", (b"!!z",), {}),
+        ("a85decode", (b"\x80",), {}),
+        ("a85decode", (b"abc",), {"adobe": True}),
+        ("a85decode", (b"!!",), {"ignorechars": "x", "adobe": True}),
+        ("a85decode", (b" ",), {"ignorechars": "x"}),
+        ("a85encode", (b"abc",), {"wrapcol": "x"}),
+        ("a85encode", (b"abc",), {"wrapcol": 3.0}),
+        ("a85encode", (42,), {}),
     ],
 )
 def test_exception_chains_match(name: str, args: tuple[object, ...], kwargs: dict[str, object]) -> None:
@@ -751,6 +889,25 @@ def test_flag_is_looked_at_where_the_stdlib_looks() -> None:
     _assert_same("b64decode", b"AAAA", altchars="\xe9", validate=_RaisingFlag())
     _assert_same("b64decode", b"", validate=_RaisingFlag())
     assert _outcome(compat.b64decode, b"AAAA", validate=_RaisingFlag()) == (RuntimeError, ("flag looked at",))
+    # a85encode reads foldspaces at the first word that is not zero and pad only when the tail needs padding.
+    _assert_same("a85encode", b"\0\0\0\0", foldspaces=_RaisingFlag())
+    _assert_same("a85encode", b"\0\0\0\0\1", foldspaces=_RaisingFlag())
+    _assert_same("a85encode", b"abcd", pad=_RaisingFlag())
+    _assert_same("a85encode", b"abcde", pad=_RaisingFlag())
+    _assert_same("a85encode", b"abcde", foldspaces=_RaisingFlag(), pad=_RaisingFlag())
+    _assert_same("a85encode", 42, foldspaces=_RaisingFlag(), wrapcol=_RaisingFlag(), adobe=_RaisingFlag())
+    _assert_same("a85encode", b"abc", wrapcol=_RaisingFlag(), adobe=_RaisingFlag())
+    _assert_same("a85encode", b"abc", wrapcol=_RaisingFlag())
+    _assert_same("b85encode", b"abcd", pad=_RaisingFlag())
+    _assert_same("b85encode", b"abcde", pad=_RaisingFlag())
+    # a85decode reads foldspaces at the first byte outside the alphabet that is not z, whitespace included.
+    _assert_same("a85decode", b"!!!!!", foldspaces=_RaisingFlag())
+    _assert_same("a85decode", b"!!!!! ", foldspaces=_RaisingFlag())
+    _assert_same("a85decode", b"z", foldspaces=_RaisingFlag())
+    _assert_same("a85decode", b"!!", foldspaces=_RaisingFlag(), adobe=_RaisingFlag())
+    _assert_same("a85decode", 42, foldspaces=_RaisingFlag(), adobe=_RaisingFlag())
+    assert _outcome(compat.a85decode, b"!!!!! ", foldspaces=_RaisingFlag()) == (RuntimeError, ("flag looked at",))
+    assert _outcome(compat.a85encode, b"\0\0\0\0", foldspaces=_RaisingFlag()) == (_Ok, b"z")
 
 
 def test_stdlib_quirks_are_kept() -> None:
@@ -768,6 +925,20 @@ def test_stdlib_quirks_are_kept() -> None:
     assert compat.urlsafe_b64decode(b"++//") == base64.urlsafe_b64decode(b"++//") == b"\xfb\xef\xff"
     assert compat.b64decode(b"AA=A", altchars=b"=A") == base64.b64decode(b"AA=A", altchars=b"=A") == b"\xff\xff\xbf"
     assert compat.b64decode(memoryview(b"QxUxJxDx")[::2]) == base64.b64decode(b"QUJD") == b"ABC"
+    # The 85 family pads with its largest digit, so a lone character overflows rather than decoding to nothing.
+    assert _outcome(compat.a85decode, b"u") == (ValueError, ("Ascii85 overflow",))
+    assert _outcome(base64.a85decode, b"u") == (ValueError, ("Ascii85 overflow",))
+    assert compat.a85decode(b"!!!!!!") == b"\0\0\0\0"  # one leftover character decodes to nothing
+    assert base64.a85decode(b"!!!!!!") == b"\0\0\0\0"
+    assert compat.a85decode(b"<~~>", adobe=True) == b""
+    assert compat.a85decode(b"~>", adobe=True) == b""
+    assert _outcome(compat.a85decode, b"y") == (ValueError, ("Non-Ascii85 digit found: y",))  # y is past u
+    assert compat.a85decode(b"y", foldspaces=True) == b"    "
+    assert compat.a85encode(b"", adobe=True, wrapcol=2) == b"<~\n~>"
+    assert compat.a85encode(b"\0\0\0\0\0") == b"z!!"
+    assert compat.a85encode(b"\0\0\0\0\0", pad=True) == b"zz"
+    assert compat.b85encode(b"\0") == b"00"
+    assert compat.b85decode(b"") == b""
     # b64encode is binascii's, which takes the buffer as is: a strided view is refused, not copied.
     assert _outcome(compat.b64encode, memoryview(b"abcdef")[::2])[0] is BufferError
 

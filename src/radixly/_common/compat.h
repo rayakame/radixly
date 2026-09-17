@@ -46,6 +46,16 @@ PyObject *radixly_binascii_error_from(const char *message, PyObject *context);
 /* binascii.Error(format % args), PyErr_Format style; always returns NULL. */
 PyObject *radixly_binascii_error_format(const char *format, ...);
 
+/* The exception currently raised, as a new reference, with the error state cleared. */
+PyObject *radixly_compat_take_raised(void);
+
+/* type(message) with context behind it, hidden as `raise ... from None` hides it. Steals context; returns
+ * NULL. */
+PyObject *radixly_raise_from(PyObject *type, PyObject *message, PyObject *context);
+
+/* struct.error(message), the context the stdlib's 85-family decoders leave behind an overflow. */
+PyObject *radixly_struct_error(const char *message);
+
 /* The stdlib's _bytes_from_decode_data: an ASCII str, or anything memoryview accepts, copied when strided. */
 int radixly_compat_decode_input(PyObject *arg, radixly_compat_input *input);
 

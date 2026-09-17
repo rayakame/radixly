@@ -32,15 +32,13 @@ standard library would call on it, so the outcome can differ from the standard l
 from __future__ import annotations
 
 import sys
-from base64 import a85decode
-from base64 import a85encode
-from base64 import b85decode
-from base64 import b85encode
 from base64 import decode
 from base64 import decodebytes
 from base64 import encode
 from base64 import encodebytes
 
+from radixly._core import a85decode
+from radixly._core import a85encode
 from radixly._core import b16decode
 from radixly._core import b16encode
 from radixly._core import b32decode
@@ -49,6 +47,8 @@ from radixly._core import b32hexdecode
 from radixly._core import b32hexencode
 from radixly._core import b64decode
 from radixly._core import b64encode
+from radixly._core import b85decode
+from radixly._core import b85encode
 from radixly._core import standard_b64decode
 from radixly._core import standard_b64encode
 from radixly._core import urlsafe_b64decode
@@ -79,7 +79,7 @@ __all__ = [
 
 if sys.version_info >= (3, 13):
     # z85 joined the standard library in 3.13, below the checker's 3.11 floor, so it reads as unreachable.
-    from base64 import z85decode  # pyright: ignore[reportUnreachable]
-    from base64 import z85encode
+    from radixly._core import z85decode  # pyright: ignore[reportUnreachable]
+    from radixly._core import z85encode
 
     __all__ += ["z85decode", "z85encode"]
