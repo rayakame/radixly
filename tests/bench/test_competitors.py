@@ -21,6 +21,7 @@
 
 from __future__ import annotations
 
+import binascii
 import dataclasses
 import importlib.metadata
 import sys
@@ -37,15 +38,29 @@ if typing.TYPE_CHECKING:
 
 
 def test_installed_rivals_are_discovered_and_round_trip() -> None:
-    """Both rivals ride the bench group, so both must show up, and each must round-trip its own output."""
+    """Every rival rides the bench group, so all must show up, and each must round-trip its own output."""
     found = competitors.discover()
-    assert set(found) == {"base2048", "base65536"}
+    assert set(found) == {"base2048", "base65536", "base64", "base64url"}
     for codec, specs in found.items():
         assert len(specs) == 1
         (spec,) = specs
-        assert spec.name.startswith(f"PyPI {codec} ")
+        distribution = {"base64": "pybase64", "base64url": "pybase64"}.get(codec, codec)
+        assert spec.name.startswith(f"PyPI {distribution} ")
         payload = bytes(range(200))
         assert spec.decode(spec.encode(payload)) == payload
+
+
+def test_pybase64_rows_are_held_to_the_strict_contract() -> None:
+    """pybase64 decodes with validate=True, so its rows time the same work as the strict codec, not a lenient scan."""
+    found = competitors.discover()
+    for codec in ("base64", "base64url"):
+        (spec,) = found[codec]
+        with pytest.raises(binascii.Error):
+            spec.decode("QUJD\n")
+    (spec,) = found["base64"]
+    with pytest.raises(binascii.Error):
+        spec.decode("-_8=")
+    # pybase64 1.5 still takes + and / under altchars=b"-_" (a deprecation warning today), so no pin there.
 
 
 def test_wire_compatibility_flags_are_true_to_the_packages() -> None:
@@ -148,6 +163,8 @@ def test_install_puts_rivals_next_to_radixly(monkeypatch: pytest.MonkeyPatch) ->
     assert rows == [("base65536", "radixly"), ("base65536", "PyPI"), ("base2048", "radixly"), ("base2048", "PyPI")]
     rows = [(impl.codec, impl.name.split(" ")[0]) for impl in registry.implementations(["base32", "base16"])]
     assert rows == [("base32", "radixly"), ("base32", "stdlib"), ("base16", "radixly"), ("base16", "stdlib")]
+    rows = [(impl.codec, impl.name.split(" ")[0]) for impl in registry.implementations(["base64"])]
+    assert rows == [("base64", "radixly"), ("base64", "PyPI"), ("base64", "stdlib")]
     for impl in registry.implementations(["base65536", "base32"]):
         if impl.name != "radixly":
             assert impl.reference_encode is None
