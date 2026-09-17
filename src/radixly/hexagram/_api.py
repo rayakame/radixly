@@ -31,7 +31,7 @@ __all__ = ("BITS_PER_CHAR", "HEXAGRAM", "decode", "encode", "encoded_len", "max_
 encode = hexagram_encode
 decode = hexagram_decode
 
-BITS_PER_CHAR = 6
+BITS_PER_CHAR = 6.0
 """Payload bits per character: one hexagram per six bits."""
 
 
@@ -62,7 +62,7 @@ def encoded_len(num_bytes: int) -> int:
     if num_bytes < 0:
         msg = f"num_bytes must be >= 0, got {num_bytes}"
         raise ValueError(msg)
-    return (8 * num_bytes + 5) // BITS_PER_CHAR
+    return (8 * num_bytes + 5) // 6
 
 
 def max_bytes(num_chars: int) -> int:
@@ -92,7 +92,7 @@ def max_bytes(num_chars: int) -> int:
     if num_chars < 0:
         msg = f"num_chars must be >= 0, got {num_chars}"
         raise ValueError(msg)
-    return BITS_PER_CHAR * num_chars // 8
+    return 6 * num_chars // 8
 
 
 HEXAGRAM = Codec(

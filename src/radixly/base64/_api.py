@@ -31,7 +31,7 @@ __all__ = ("BASE64", "BITS_PER_CHAR", "decode", "encode", "encoded_len", "max_by
 encode = base64_encode
 decode = base64_decode
 
-BITS_PER_CHAR = 6
+BITS_PER_CHAR = 6.0
 """Payload bits per character; a final group is padded with ``=`` to four characters."""
 
 

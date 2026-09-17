@@ -31,7 +31,7 @@ __all__ = ("BITS_PER_CHAR", "URO14", "decode", "encode", "encoded_len", "max_byt
 encode = uro14_encode
 decode = uro14_decode
 
-BITS_PER_CHAR = 14
+BITS_PER_CHAR = 14.0
 """Payload bits carried by one body character; the length prefix is one character on top."""
 
 
@@ -62,7 +62,7 @@ def encoded_len(num_bytes: int) -> int:
     if num_bytes < 0:
         msg = f"num_bytes must be >= 0, got {num_bytes}"
         raise ValueError(msg)
-    return 1 + (8 * num_bytes + 13) // BITS_PER_CHAR
+    return 1 + (8 * num_bytes + 13) // 14
 
 
 def max_bytes(num_chars: int) -> int:
@@ -97,7 +97,7 @@ def max_bytes(num_chars: int) -> int:
     if num_chars == 0:
         msg = "no payload fits in 0 characters: the length prefix needs one"
         raise ValueError(msg)
-    return BITS_PER_CHAR * (num_chars - 1) // 8
+    return 14 * (num_chars - 1) // 8
 
 
 URO14 = Codec(

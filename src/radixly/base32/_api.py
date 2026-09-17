@@ -31,7 +31,7 @@ __all__ = ("BASE32", "BITS_PER_CHAR", "decode", "encode", "encoded_len", "max_by
 encode = base32_encode
 decode = base32_decode
 
-BITS_PER_CHAR = 5
+BITS_PER_CHAR = 5.0
 """Payload bits per character; a final group is padded with ``=`` to eight characters."""
 
 

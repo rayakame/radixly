@@ -90,6 +90,8 @@ STDLIB_RIVALS: typing.Final[tuple[StdlibRival, ...]] = (
     StdlibRival("base32hex", "b32hexencode", "b32hexdecode"),
     StdlibRival("base64", "b64encode", "b64decode"),
     StdlibRival("base64url", "urlsafe_b64encode", "urlsafe_b64decode"),
+    StdlibRival("base85", "b85encode", "b85decode"),
+    StdlibRival("z85", "z85encode", "z85decode"),  # 3.13 and later; absent before, so the row is skipped
 )
 
 
@@ -146,6 +148,8 @@ def stdlib_specs(rivals: tuple[StdlibRival, ...] | None = None) -> dict[str, tup
     found: dict[str, tuple[registry.CompetitorSpec, ...]] = {}
     version = platform.python_version()
     for rival in STDLIB_RIVALS if rivals is None else rivals:
+        if not hasattr(base64, rival.encode_name):
+            continue  # an interpreter older than the function: no row, not an error
         encode = typing.cast("Callable[[bytes], bytes]", getattr(base64, rival.encode_name))
         decode = typing.cast("Callable[[str], bytes]", getattr(base64, rival.decode_name))
 

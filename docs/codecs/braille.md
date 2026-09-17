@@ -52,8 +52,8 @@ it, or use {doc}`uro14`, whose length prefix catches truncation below its
 .. autofunction:: encoded_len
 .. autofunction:: max_bytes
 .. data:: BITS_PER_CHAR
-   :type: int
-   :value: 8
+   :type: float
+   :value: 8.0
 
    Payload bits per character: one byte per braille pattern.
 

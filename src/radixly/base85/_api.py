@@ -17,22 +17,22 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-"""Public face of the base64url codec; the package ``__init__`` re-exports everything here."""
+"""Public face of the base85 codec; the package ``__init__`` re-exports everything here."""
 
 from __future__ import annotations
 
 from radixly._codec import Codec
 from radixly._codec import register
-from radixly._core import base64url_decode
-from radixly._core import base64url_encode
+from radixly._core import base85_decode
+from radixly._core import base85_encode
 
-__all__ = ("BASE64URL", "BITS_PER_CHAR", "decode", "encode", "encoded_len", "max_bytes")
+__all__ = ("BASE85", "BITS_PER_CHAR", "decode", "encode", "encoded_len", "max_bytes")
 
-encode = base64url_encode
-decode = base64url_decode
+encode = base85_encode
+decode = base85_decode
 
-BITS_PER_CHAR = 6.0
-"""Payload bits per character; a final group is padded with ``=`` to four characters."""
+BITS_PER_CHAR = 6.4
+"""Payload bits per character: five characters carry four bytes."""
 
 
 def encoded_len(num_bytes: int) -> int:
@@ -46,7 +46,7 @@ def encoded_len(num_bytes: int) -> int:
     Returns
     -------
     int
-        ``4 * ceil(num_bytes / 3)``.
+        ``5 * (num_bytes // 4)``, plus ``num_bytes % 4 + 1`` for a tail.
 
     Raises
     ------
@@ -55,14 +55,15 @@ def encoded_len(num_bytes: int) -> int:
 
     Examples
     --------
-    >>> from radixly import base64url
-    >>> base64url.encoded_len(10)
-    16
+    >>> from radixly import base85
+    >>> base85.encoded_len(10)
+    13
     """
     if num_bytes < 0:
         msg = f"num_bytes must be >= 0, got {num_bytes}"
         raise ValueError(msg)
-    return 4 * ((num_bytes + 2) // 3)
+    tail = num_bytes % 4
+    return 5 * (num_bytes // 4) + (tail + 1 if tail else 0)
 
 
 def max_bytes(num_chars: int) -> int:
@@ -76,7 +77,7 @@ def max_bytes(num_chars: int) -> int:
     Returns
     -------
     int
-        ``3 * floor(num_chars / 4)``.
+        ``4 * (num_chars // 5)``, plus ``num_chars % 5 - 1`` when that is positive.
 
     Raises
     ------
@@ -85,23 +86,23 @@ def max_bytes(num_chars: int) -> int:
 
     Examples
     --------
-    >>> from radixly import base64url
-    >>> base64url.max_bytes(100)
-    75
+    >>> from radixly import base85
+    >>> base85.max_bytes(100)
+    80
     """
     if num_chars < 0:
         msg = f"num_chars must be >= 0, got {num_chars}"
         raise ValueError(msg)
-    return 3 * (num_chars // 4)
+    return 4 * (num_chars // 5) + max(0, num_chars % 5 - 1)
 
 
-BASE64URL = Codec(
-    name="base64url",
+BASE85 = Codec(
+    name="base85",
     bits_per_char=BITS_PER_CHAR,
-    encode=base64url_encode,
-    decode=base64url_decode,
+    encode=base85_encode,
+    decode=base85_decode,
     encoded_len=encoded_len,
     max_bytes=max_bytes,
 )
 
-register(BASE64URL)
+register(BASE85)

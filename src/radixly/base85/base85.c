@@ -25,6 +25,7 @@
 
 #include "_common/args.h"
 #include "_common/compat.h"
+#include "_common/errors.h"
 #include "_common/internal.h"
 
 enum {
@@ -34,7 +35,12 @@ enum {
     REV_INVALID = 0xFF,
     TABLE_SIZE = 256,
     PAD_DIGIT = 84, /* the '~' b85decode appends, the largest digit */
+    ASCII_MAX = 0x7F,
 };
+
+/* 85 to the power of the digits a tail drops: the span of words that share the tail's digits. */
+enum { SPAN_1 = BASE, SPAN_2 = BASE * BASE, SPAN_3 = BASE * BASE * BASE, SPAN_4 = BASE * BASE * BASE * BASE };
+static const uint64_t DROPPED_SPAN[GROUP_CHARS] = {1, SPAN_1, SPAN_2, SPAN_3, SPAN_4};
 
 static const uint64_t WORD_MAX = 0xFFFFFFFFU;
 static const uint32_t FOUR_SPACES = 0x20202020U;
@@ -168,6 +174,252 @@ radixly_85_encode(const unsigned char *data, Py_ssize_t len, const char *alphabe
         return NULL; /* result already cleared and the exception set */
     }
     return result;
+}
+
+static Py_ssize_t
+encoded_len(Py_ssize_t num_bytes)
+{
+    const Py_ssize_t tail = num_bytes % GROUP_BYTES;
+    return (GROUP_CHARS * (num_bytes / GROUP_BYTES)) + (tail != 0 ? tail + 1 : 0);
+}
+
+/* The strict encoder: full groups, then a tail of one character more than its bytes. */
+PyObject *
+radixly_base85_encode_with(PyObject *arg, int zeromq)
+{
+    Py_buffer view;
+    if (PyObject_GetBuffer(arg, &view, PyBUF_SIMPLE) == -1) {
+        return NULL;
+    }
+    if (view.len == 0) {
+        PyBuffer_Release(&view);
+        return PyUnicode_New(0, 0);
+    }
+    if (view.len > (PY_SSIZE_T_MAX / GROUP_CHARS) * GROUP_BYTES) {
+        PyBuffer_Release(&view);
+        return PyErr_NoMemory();
+    }
+    PyObject *result = PyUnicode_New(encoded_len(view.len), ASCII_MAX);
+    if (result == NULL) {
+        PyBuffer_Release(&view);
+        return NULL;
+    }
+    const char *alphabet = zeromq ? ALPHABET_Z85 : ALPHABET_B85;
+    const unsigned char *data = view.buf;
+    unsigned char *out = PyUnicode_1BYTE_DATA(result);
+    Py_ssize_t offset = 0;
+    for (; offset + GROUP_BYTES <= view.len; offset += GROUP_BYTES) {
+        put_digits(pack(data + offset, GROUP_BYTES), out, alphabet);
+        out += GROUP_CHARS;
+    }
+    const Py_ssize_t tail = view.len - offset;
+    if (tail != 0) {
+        unsigned char digits[GROUP_CHARS];
+        put_digits(pack(data + offset, tail), digits, alphabet);
+        for (Py_ssize_t i = 0; i <= tail; i++) {
+            out[i] = digits[i];
+        }
+    }
+    PyBuffer_Release(&view);
+    return result;
+}
+
+typedef struct {
+    int kind;
+    const void *data;
+    const unsigned char *rev;
+    const char *codec;
+} text_source;
+
+/* Read one group of up to five characters into word, the dropped digits as zero; raises on a bad character.
+ */
+static int
+read_group(const text_source *source, Py_ssize_t start, Py_ssize_t count, uint64_t *word)
+{
+    *word = 0;
+    for (Py_ssize_t i = 0; i < GROUP_CHARS; i++) {
+        unsigned value = 0;
+        if (i < count) {
+            const Py_UCS4 code_point = PyUnicode_READ(source->kind, source->data, start + i);
+            if (code_point > ASCII_MAX || source->rev[code_point] == REV_INVALID) {
+                radixly_raise_decode_error(start + i, "invalid %s character U+%x at index %zd", source->codec,
+                                           (unsigned)code_point, start + i);
+                return -1;
+            }
+            value = source->rev[code_point];
+        }
+        *word = (*word * BASE) + value;
+    }
+    return 0;
+}
+
+/* Write the top count bytes of a word, big-endian. */
+static void
+unpack(uint64_t word, unsigned char *out, Py_ssize_t count)
+{
+    for (Py_ssize_t i = 0; i < count; i++) {
+        out[i] = (unsigned char)((word >> (BITS_PER_BYTE * (unsigned)(GROUP_BYTES - 1 - i))) & BYTE_MASK);
+    }
+}
+
+/* A tail's payload is the one word with zero low bytes among those sharing its digits: the encoder made it,
+ * and no other tail spells it. */
+static int
+finish_tail(uint64_t word, Py_ssize_t count, Py_ssize_t last, unsigned char *out)
+{
+    const Py_ssize_t payload = count - 1;
+    const uint64_t unit = (uint64_t)1 << (BITS_PER_BYTE * (unsigned)(GROUP_BYTES - payload));
+    const uint64_t rounded = ((word + unit - 1) / unit) * unit;
+    const uint64_t span_end = word + DROPPED_SPAN[GROUP_CHARS - count] - 1;
+    if (rounded > span_end || rounded > WORD_MAX) {
+        radixly_raise_decode_error(last, "the tail ending at index %zd is not the encoder's spelling", last);
+        return -1;
+    }
+    unpack(rounded, out, payload);
+    return 0;
+}
+
+/* Strict: characters raise left to right at their own index, a group at its last character. */
+PyObject *
+radixly_base85_decode_with(PyObject *arg, int zeromq)
+{
+    if (!PyUnicode_Check(arg)) {
+        PyErr_Format(PyExc_TypeError, "expected str, not %.200s", Py_TYPE(arg)->tp_name);
+        return NULL;
+    }
+#if PY_VERSION_HEX < 0x030C0000
+    /* 3.11 can still meet legacy, non-ready strings from other C extensions;
+     * GET_LENGTH/KIND/DATA on one is UB. Deprecated call, compiles out on
+     * 3.12+; a 3.11 -Werror build may need a suppression. */
+    if (PyUnicode_READY(arg) == -1) {
+        return NULL;
+    }
+#endif
+    const Py_ssize_t num_chars = PyUnicode_GET_LENGTH(arg);
+    if (num_chars == 0) {
+        return PyBytes_FromStringAndSize("", 0);
+    }
+    const text_source source = {PyUnicode_KIND(arg), PyUnicode_DATA(arg), zeromq ? REV_Z85 : REV_B85,
+                                zeromq ? "z85" : "base85"};
+    const Py_ssize_t num_groups = num_chars / GROUP_CHARS;
+    const Py_ssize_t remainder = num_chars % GROUP_CHARS;
+    const Py_ssize_t out_len = (GROUP_BYTES * num_groups) + (remainder != 0 ? remainder - 1 : 0);
+    PyObject *result = PyBytes_FromStringAndSize(NULL, out_len);
+    if (result == NULL) {
+        return NULL;
+    }
+    unsigned char *out = (unsigned char *)PyBytes_AS_STRING(result);
+    for (Py_ssize_t group = 0; group <= num_groups; group++) {
+        const Py_ssize_t start = GROUP_CHARS * group;
+        const Py_ssize_t count = group < num_groups ? GROUP_CHARS : remainder;
+        if (count == 0) {
+            break;
+        }
+        uint64_t word;
+        if (read_group(&source, start, count, &word) < 0) {
+            Py_DECREF(result);
+            return NULL;
+        }
+        const Py_ssize_t last = start + count - 1;
+        if (count == 1) {
+            Py_DECREF(result);
+            return radixly_raise_decode_error(last, "a tail of one character at index %zd carries no byte",
+                                              last);
+        }
+        if (word > WORD_MAX) {
+            Py_DECREF(result);
+            return radixly_raise_decode_error(last, "the group ending at index %zd exceeds 32 bits", last);
+        }
+        if (count == GROUP_CHARS) {
+            unpack(word, out + (GROUP_BYTES * group), GROUP_BYTES);
+        }
+        else if (finish_tail(word, count, last, out + (GROUP_BYTES * group)) < 0) {
+            Py_DECREF(result);
+            return NULL;
+        }
+    }
+    return result;
+}
+
+const char radixly_base85_encode_doc[] =
+    PyDoc_STR("base85_encode($module, data, /)\n"
+              "--\n"
+              "\n"
+              "Encode a bytes-like object as base85 text.\n"
+              "\n"
+              "The alphabet of RFC 1924 and the standard library's ``b85encode``: five\n"
+              "characters per four bytes; a shorter tail becomes one character more\n"
+              "than its bytes, so ``n`` bytes become ``5 * (n // 4)`` characters plus\n"
+              "``n % 4 + 1`` when ``n`` is not a multiple of four.\n"
+              "\n"
+              "Parameters\n"
+              "----------\n"
+              "data\n"
+              "    The bytes to encode: anything supporting the buffer protocol.\n"
+              "\n"
+              "Returns\n"
+              "-------\n"
+              "str\n"
+              "    The encoded text; empty input encodes to the empty string.\n"
+              "\n"
+              "Raises\n"
+              "------\n"
+              "TypeError\n"
+              "    If ``data`` is a ``str`` or otherwise not bytes-like.\n"
+              "\n"
+              "Examples\n"
+              "--------\n"
+              ">>> from radixly import base85\n"
+              ">>> base85.encode(b'hello')\n"
+              "'Xk~0{Zv'\n"
+              ">>> base85.decode(base85.encode(b'hello'))\n"
+              "b'hello'");
+PyObject *
+radixly_base85_encode(PyObject *Py_UNUSED(self), PyObject *arg)
+{
+    return radixly_base85_encode_with(arg, 0);
+}
+
+const char radixly_base85_decode_doc[] =
+    PyDoc_STR("base85_decode($module, data, /)\n"
+              "--\n"
+              "\n"
+              "Decode base85 text back to bytes.\n"
+              "\n"
+              "Strict: the alphabet only, groups of five, a tail of two to four\n"
+              "characters only in the spelling the encoder produces, no group above\n"
+              "32 bits.\n"
+              "\n"
+              "Parameters\n"
+              "----------\n"
+              "data\n"
+              "    The text to decode.\n"
+              "\n"
+              "Returns\n"
+              "-------\n"
+              "bytes\n"
+              "    The decoded payload; the empty string decodes to ``b''``.\n"
+              "\n"
+              "Raises\n"
+              "------\n"
+              "TypeError\n"
+              "    If ``data`` is not a ``str``.\n"
+              "DecodeError\n"
+              "    On malformed or non-canonical input; ``position`` is the index of\n"
+              "    the offending character.\n"
+              "\n"
+              "Examples\n"
+              "--------\n"
+              ">>> import radixly\n"
+              ">>> try:\n"
+              "...     radixly.base85.decode('Xk~0{Zv ')\n"
+              "... except radixly.DecodeError as error:\n"
+              "...     error.position\n"
+              "7");
+PyObject *
+radixly_base85_decode(PyObject *Py_UNUSED(self), PyObject *arg)
+{
+    return radixly_base85_decode_with(arg, 0);
 }
 
 /* The stdlib's `raise ValueError(...) from None` inside its except clauses: the TypeError or struct.error it

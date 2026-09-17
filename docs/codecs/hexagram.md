@@ -62,8 +62,8 @@ truncation below its 16,384-byte window.
 .. autofunction:: encoded_len
 .. autofunction:: max_bytes
 .. data:: BITS_PER_CHAR
-   :type: int
-   :value: 6
+   :type: float
+   :value: 6.0
 
    Payload bits per character: one hexagram per six bits.
 

@@ -31,7 +31,7 @@ __all__ = ("BITS_PER_CHAR", "BRAILLE", "decode", "encode", "encoded_len", "max_b
 encode = braille_encode
 decode = braille_decode
 
-BITS_PER_CHAR = 8
+BITS_PER_CHAR = 8.0
 """Payload bits per character: one byte per braille pattern."""
 
 
