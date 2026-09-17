@@ -21,6 +21,7 @@
  */
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
+#include "ascii85/ascii85.h"
 #include "base16/base16.h"
 #include "base2048/base2048.h"
 #include "base32/base32.h"
@@ -28,6 +29,7 @@
 #include "base32hex/base32hex.h"
 #include "base64/base64.h"
 #include "base64url/base64url.h"
+#include "base85/base85.h"
 #include "base65536/base65536.h"
 #include "braille/braille.h"
 #include "hexagram/hexagram.h"
@@ -78,6 +80,12 @@ static PyMethodDef radixly_methods[] = {
     {"urlsafe_b64decode", _PyCFunction_CAST(radixly_urlsafe_b64decode), METH_FASTCALL | METH_KEYWORDS,
      radixly_urlsafe_b64decode_doc},
     {"a2b_base64_variant", radixly_a2b_base64_variant, METH_O, radixly_a2b_base64_variant_doc},
+    {"a85encode", _PyCFunction_CAST(radixly_a85encode), METH_FASTCALL | METH_KEYWORDS, radixly_a85encode_doc},
+    {"a85decode", _PyCFunction_CAST(radixly_a85decode), METH_FASTCALL | METH_KEYWORDS, radixly_a85decode_doc},
+    {"b85encode", _PyCFunction_CAST(radixly_b85encode), METH_FASTCALL | METH_KEYWORDS, radixly_b85encode_doc},
+    {"b85decode", _PyCFunction_CAST(radixly_b85decode), METH_FASTCALL | METH_KEYWORDS, radixly_b85decode_doc},
+    {"z85encode", _PyCFunction_CAST(radixly_z85encode), METH_FASTCALL | METH_KEYWORDS, radixly_z85encode_doc},
+    {"z85decode", _PyCFunction_CAST(radixly_z85decode), METH_FASTCALL | METH_KEYWORDS, radixly_z85decode_doc},
     {NULL, NULL, 0, NULL},
 };
 
@@ -128,6 +136,7 @@ static PyModuleDef_Slot radixly_execs[] = {
     {Py_mod_exec, (void *)radixly_base32_exec},
     {Py_mod_exec, (void *)radixly_base32768_exec},
     {Py_mod_exec, (void *)radixly_base64_exec},
+    {Py_mod_exec, (void *)radixly_base85_exec},
     {Py_mod_exec, (void *)radixly_base65536_exec},
     {0, NULL},
 };

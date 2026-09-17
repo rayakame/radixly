@@ -77,11 +77,10 @@ trade-offs.
 ## Standard library drop-in
 
 `radixly.compat.base64` is the standard library's `base64` with the same names,
-arguments, results and errors; the `b16`, `b32`, `b32hex` and `b64` families
-(`b64encode`, `b64decode`, `standard_b64encode`, `standard_b64decode`,
-`urlsafe_b64encode` and `urlsafe_b64decode` among them) run in C, the rest are
-the standard library's own until ported. CPython's own `test_base64` suite runs
-against it. See [the drop-in page](https://radixly.rayakame.dev/en/latest/compat.html).
+arguments, results and errors; every encoder and decoder (`b16`, `b32`,
+`b32hex`, `b64`, `a85`, `b85` and, on 3.13 and later, `z85`) runs in C; the
+four legacy file functions are the standard library's own until ported.
+CPython's own `test_base64` suite runs against it. See [the drop-in page](https://radixly.rayakame.dev/en/latest/compat.html).
 
 ## Performance
 

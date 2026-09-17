@@ -3,9 +3,9 @@
 `test_stdlib_base64.py` is `Lib/test/test_base64.py` from CPython v3.14.6 (upstream sha256
 `681d2ca1cd1e937fc5b27b43078ca39ac55068ed0fe3577c70e92fac4fb40ba3`), vendored under the Python
 Software Foundation License (`LICENSE-PSF.txt`) and run against `radixly.compat.base64`. Passing
-it is what "drop-in" means here; today 19 of its 35 test methods have a ported function as their
-subject (six more reach `b64encode` through the shared `check_other_types` helper), the rest exercise
-the standard library's own functions until their ports land.
+it is what "drop-in" means here; today 30 of its 35 test methods have a ported function as their
+subject, the other five exercise the standard library's own legacy file functions until their ports
+land (and `ErrorHeritage` needs no port).
 
 Edits against the original, and nothing else:
 

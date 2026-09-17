@@ -153,17 +153,32 @@ raise_unexpected_keyword(const char *function, PyObject *name, const radixly_par
     PyErr_Format(PyExc_TypeError, "%s() got an unexpected keyword argument '%U'", function, name);
 }
 
+/* The interpreter's own wording, which names the keyword-only arguments it did accept alongside the excess.
+ */
 static void
-raise_too_many(const char *function, Py_ssize_t nargs, Py_ssize_t required, Py_ssize_t max_positional)
+raise_too_many(const char *function, Py_ssize_t nargs, Py_ssize_t required, Py_ssize_t max_positional,
+               Py_ssize_t kwonly_given)
 {
-    if (required == max_positional) {
-        PyErr_Format(PyExc_TypeError, "%s() takes %zd positional argument%s but %zd were given", function,
-                     max_positional, max_positional == 1 ? "" : "s", nargs);
+    PyObject *takes = required == max_positional
+                          ? PyUnicode_FromFormat("%zd", max_positional)
+                          : PyUnicode_FromFormat("from %zd to %zd", required, max_positional);
+    if (takes == NULL) {
+        return;
+    }
+    const char *plural = max_positional == 1 && required == max_positional ? "" : "s";
+    if (kwonly_given != 0) {
+        PyErr_Format(
+            PyExc_TypeError,
+            "%s() takes %U positional argument%s but %zd positional argument%s (and %zd keyword-only "
+            "argument%s) were given",
+            function, takes, plural, nargs, nargs == 1 ? "" : "s", kwonly_given,
+            kwonly_given == 1 ? "" : "s");
     }
     else {
-        PyErr_Format(PyExc_TypeError, "%s() takes from %zd to %zd positional arguments but %zd were given",
-                     function, required, max_positional, nargs);
+        PyErr_Format(PyExc_TypeError, "%s() takes %U positional argument%s but %zd w%s given", function,
+                     takes, plural, nargs, nargs == 1 ? "as" : "ere");
     }
+    Py_DECREF(takes);
 }
 
 int
@@ -176,6 +191,7 @@ radixly_bind_args(const char *function, PyObject *const *args, Py_ssize_t nargs,
         *params[i].value = args[i];
     }
     const Py_ssize_t num_kwargs = kwnames == NULL ? 0 : PyTuple_GET_SIZE(kwnames);
+    Py_ssize_t kwonly_given = 0;
     for (Py_ssize_t k = 0; k < num_kwargs; k++) {
         PyObject *name = PyTuple_GET_ITEM(kwnames, k);
         Py_ssize_t found = -1;
@@ -189,15 +205,19 @@ radixly_bind_args(const char *function, PyObject *const *args, Py_ssize_t nargs,
             raise_unexpected_keyword(function, name, params, num_params);
             return -1;
         }
-        if (found < nargs) {
+        /* Parameters past max_positional are keyword-only: a positional can never have filled them. */
+        if (found < nargs && found < max_positional) {
             PyErr_Format(PyExc_TypeError, "%s() got multiple values for argument '%s'", function,
                          params[found].name);
             return -1;
         }
+        if (found >= max_positional) {
+            kwonly_given++;
+        }
         *params[found].value = args[nargs + k];
     }
     if (nargs > max_positional) {
-        raise_too_many(function, nargs, required, max_positional);
+        raise_too_many(function, nargs, required, max_positional, kwonly_given);
         return -1;
     }
     for (Py_ssize_t i = 0; i < required; i++) {

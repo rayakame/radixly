@@ -24,6 +24,7 @@
 #include "compat.h"
 
 static PyObject *binascii_error = NULL;
+static PyObject *struct_error = NULL;
 
 int
 radixly_compat_exec(PyObject *Py_UNUSED(module))
@@ -40,6 +41,16 @@ radixly_compat_exec(PyObject *Py_UNUSED(module))
         return -1;
     }
     Py_XSETREF(binascii_error, error);
+    PyObject *structmodule = PyImport_ImportModule("struct");
+    if (structmodule == NULL) {
+        return -1;
+    }
+    PyObject *struct_err = PyObject_GetAttrString(structmodule, "error");
+    Py_DECREF(structmodule);
+    if (struct_err == NULL) {
+        return -1;
+    }
+    Py_XSETREF(struct_error, struct_err);
     return 0;
 }
 
@@ -306,6 +317,34 @@ radixly_binascii_error_format(const char *format, ...)
     PyErr_FormatV(binascii_error, format, args);
     va_end(args);
     return NULL;
+}
+
+PyObject *
+radixly_compat_take_raised(void)
+{
+    return take_raised();
+}
+
+PyObject *
+radixly_raise_from(PyObject *type, PyObject *message, PyObject *context)
+{
+    if (message == NULL) {
+        Py_XDECREF(context);
+        return NULL;
+    }
+    PyObject *error = PyObject_CallOneArg(type, message);
+    raise_with_context(error, context, 1);
+    return NULL;
+}
+
+PyObject *
+radixly_struct_error(const char *message)
+{
+    if (struct_error == NULL) {
+        PyErr_SetString(PyExc_SystemError, "radixly._core was not initialised");
+        return NULL;
+    }
+    return PyObject_CallFunction(struct_error, "s", message);
 }
 
 int

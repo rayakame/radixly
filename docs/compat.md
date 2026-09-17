@@ -33,6 +33,12 @@ direction. And an object that claims to be `bytes` without being one, or a
 standard library would call on it (`translate`, `rstrip`, or `binascii`'s own
 argument check), so the outcome can differ from the standard library's.
 
+The 85 family keeps the standard library's shortcuts and its accidents alike:
+`a85encode` folds four zero bytes to `z` and, on request, four spaces to `y`,
+wraps and frames as `btoa` and PostScript do; the decoders pad a short tail
+with their largest digit, so a lone trailing character is an overflow error,
+as it is in the standard library.
+
 `b64decode` is `binascii.a2b_base64` underneath in the standard library, and
 that function's treatment of stray padding changed in CPython 3.12.4 and
 again in 3.13.13 and 3.14.4. The port carries all three readings and picks
@@ -51,7 +57,7 @@ library's own, so the module is complete at every step and only gets faster.
 | `b16encode`, `b16decode` | C |
 | `b32encode`, `b32decode`, `b32hexencode`, `b32hexdecode` | C |
 | `b64encode`, `b64decode`, `standard_b64encode`, `standard_b64decode`, `urlsafe_b64encode`, `urlsafe_b64decode` | C |
-| `a85encode`, `a85decode`, `b85encode`, `b85decode`, `z85encode`, `z85decode` (3.13 and later) | standard library |
+| `a85encode`, `a85decode`, `b85encode`, `b85decode`, `z85encode`, `z85decode` (3.13 and later) | C |
 | `encode`, `decode`, `encodebytes`, `decodebytes` | standard library |
 
 ## Strict codecs versus the drop-in
