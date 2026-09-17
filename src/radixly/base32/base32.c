@@ -341,28 +341,6 @@ radixly_b32encode_with(const char *function, PyObject *const *args, Py_ssize_t n
     return result;
 }
 
-/* Under -O the stdlib's assert is gone and bytes.maketrans raises instead; the drop-in follows the flag. */
-static int
-optimize_flag(void)
-{
-    PyObject *flags = PySys_GetObject("flags"); /* borrowed */
-    if (flags == NULL) {
-        return 0;
-    }
-    PyObject *optimize = PyObject_GetAttrString(flags, "optimize");
-    if (optimize == NULL) {
-        PyErr_Clear();
-        return 0;
-    }
-    const long level = PyLong_AsLong(optimize);
-    Py_DECREF(optimize);
-    if (level == -1 && PyErr_Occurred()) {
-        PyErr_Clear();
-        return 0;
-    }
-    return level > 0;
-}
-
 /* The stdlib's map01 contract: one byte, or AssertionError showing map01 as _bytes_from_decode_data left it.
  */
 static int
@@ -372,35 +350,13 @@ map01_byte(PyObject *map01, unsigned char *byte)
     if (radixly_compat_decode_input(map01, &source) < 0) {
         return -1;
     }
-    if (source.len == 1) {
-        *byte = source.data[0];
+    if (radixly_compat_check_length(&source, 1) < 0) {
         radixly_compat_input_release(&source);
-        return 0;
-    }
-    if (optimize_flag()) {
-        radixly_compat_input_release(&source);
-        PyErr_SetString(PyExc_ValueError, "maketrans arguments must have same length");
         return -1;
     }
-    PyObject *shown;
-    if (PyBytes_Check(map01) || PyByteArray_Check(map01)) {
-        shown = Py_NewRef(map01); /* bytes and bytearray pass through the stdlib's coercion untouched */
-    }
-    else {
-        shown = PyBytes_FromStringAndSize((const char *)source.data, source.len);
-    }
+    *byte = source.data[0];
     radixly_compat_input_release(&source);
-    if (shown == NULL) {
-        return -1;
-    }
-    PyObject *repr = PyObject_Repr(shown);
-    Py_DECREF(shown);
-    if (repr == NULL) {
-        return -1;
-    }
-    PyErr_SetObject(PyExc_AssertionError, repr);
-    Py_DECREF(repr);
-    return -1;
+    return 0;
 }
 
 /* The stdlib's translate() as one table, 0 and 1 mapped; its upper() is the caller's rev_fold table. */

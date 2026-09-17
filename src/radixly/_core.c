@@ -26,6 +26,8 @@
 #include "base32/base32.h"
 #include "base32768/base32768.h"
 #include "base32hex/base32hex.h"
+#include "base64/base64.h"
+#include "base64url/base64url.h"
 #include "base65536/base65536.h"
 #include "braille/braille.h"
 #include "hexagram/hexagram.h"
@@ -44,6 +46,10 @@ static PyMethodDef radixly_methods[] = {
     {"base32768_decode", radixly_base32768_decode, METH_O, radixly_base32768_decode_doc},
     {"base32hex_encode", radixly_base32hex_encode, METH_O, radixly_base32hex_encode_doc},
     {"base32hex_decode", radixly_base32hex_decode, METH_O, radixly_base32hex_decode_doc},
+    {"base64_encode", radixly_base64_encode, METH_O, radixly_base64_encode_doc},
+    {"base64_decode", radixly_base64_decode, METH_O, radixly_base64_decode_doc},
+    {"base64url_encode", radixly_base64url_encode, METH_O, radixly_base64url_encode_doc},
+    {"base64url_decode", radixly_base64url_decode, METH_O, radixly_base64url_decode_doc},
     {"base65536_encode", radixly_base65536_encode, METH_O, radixly_base65536_encode_doc},
     {"base65536_decode", radixly_base65536_decode, METH_O, radixly_base65536_decode_doc},
     {"braille_encode", radixly_braille_encode, METH_O, radixly_braille_encode_doc},
@@ -61,6 +67,17 @@ static PyMethodDef radixly_methods[] = {
      radixly_b32hexencode_doc},
     {"b32hexdecode", _PyCFunction_CAST(radixly_b32hexdecode), METH_FASTCALL | METH_KEYWORDS,
      radixly_b32hexdecode_doc},
+    {"b64encode", _PyCFunction_CAST(radixly_b64encode), METH_FASTCALL | METH_KEYWORDS, radixly_b64encode_doc},
+    {"b64decode", _PyCFunction_CAST(radixly_b64decode), METH_FASTCALL | METH_KEYWORDS, radixly_b64decode_doc},
+    {"standard_b64encode", _PyCFunction_CAST(radixly_standard_b64encode), METH_FASTCALL | METH_KEYWORDS,
+     radixly_standard_b64encode_doc},
+    {"standard_b64decode", _PyCFunction_CAST(radixly_standard_b64decode), METH_FASTCALL | METH_KEYWORDS,
+     radixly_standard_b64decode_doc},
+    {"urlsafe_b64encode", _PyCFunction_CAST(radixly_urlsafe_b64encode), METH_FASTCALL | METH_KEYWORDS,
+     radixly_urlsafe_b64encode_doc},
+    {"urlsafe_b64decode", _PyCFunction_CAST(radixly_urlsafe_b64decode), METH_FASTCALL | METH_KEYWORDS,
+     radixly_urlsafe_b64decode_doc},
+    {"a2b_base64_variant", radixly_a2b_base64_variant, METH_O, radixly_a2b_base64_variant_doc},
     {NULL, NULL, 0, NULL},
 };
 
@@ -110,6 +127,7 @@ static PyModuleDef_Slot radixly_execs[] = {
     {Py_mod_exec, (void *)radixly_base2048_exec},
     {Py_mod_exec, (void *)radixly_base32_exec},
     {Py_mod_exec, (void *)radixly_base32768_exec},
+    {Py_mod_exec, (void *)radixly_base64_exec},
     {Py_mod_exec, (void *)radixly_base65536_exec},
     {0, NULL},
 };

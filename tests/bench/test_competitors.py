@@ -156,7 +156,7 @@ def test_install_puts_rivals_next_to_radixly(monkeypatch: pytest.MonkeyPatch) ->
 def test_stdlib_rivals_encode_like_radixly() -> None:
     """The strict codecs produce the stdlib's text exactly, so these rows compare the same wire format."""
     found = competitors.stdlib_specs()
-    assert set(found) == {"base16", "base32", "base32hex"}
+    assert set(found) == {"base16", "base32", "base32hex", "base64", "base64url"}
     for codec, (spec,) in found.items():
         payload = bytes(range(37))
         assert spec.encode(payload) == radixly.CODECS[codec].encode(payload)
@@ -169,4 +169,10 @@ def test_install_reports_what_is_missing(monkeypatch: pytest.MonkeyPatch) -> Non
     absent = competitors.Rival("base2048", "radixly-no-such-rival", wire_compatible=True)
     monkeypatch.setattr(competitors, "RIVALS", (absent,))
     assert competitors.install() == [absent]
-    assert set(registry.COMPETITORS) == {"base16", "base32", "base32hex"}  # the stdlib rows never go missing
+    assert set(registry.COMPETITORS) == {
+        "base16",
+        "base32",
+        "base32hex",
+        "base64",
+        "base64url",
+    }  # the stdlib rows never go missing

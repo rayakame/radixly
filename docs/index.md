@@ -78,13 +78,25 @@ Letters and digits only, RFC 4648. The alphabet for case-insensitive channels.
 base32 whose alphabet sorts like the bytes.
 :::
 
+:::{grid-item-card} base64
+:link: codecs/base64
+:link-type: doc
+The encoding every channel speaks, RFC 4648, in its strict form.
+:::
+
+:::{grid-item-card} base64url
+:link: codecs/base64url
+:link-type: doc
+base64 for URLs and file names, padding kept.
+:::
+
 ::::
 
 ## Next steps
 
 - {doc}`guides/getting-started` installs radixly and walks through a first
   round trip.
-- {doc}`guides/choosing-a-codec` compares the nine codecs side by side.
+- {doc}`guides/choosing-a-codec` compares the eleven codecs side by side.
 - Source, issues and releases live on [GitHub](https://github.com/rayakame/radixly).
 
 ```{toctree}
@@ -103,6 +115,8 @@ guides/subinterpreters
 codecs/base16
 codecs/base32
 codecs/base32hex
+codecs/base64
+codecs/base64url
 codecs/base32768
 codecs/base65536
 codecs/base2048

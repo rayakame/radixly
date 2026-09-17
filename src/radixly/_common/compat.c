@@ -168,12 +168,12 @@ input_from_encode(PyObject *arg, radixly_compat_input *input)
         return raise_with_context(error, context, 0);
     }
     // NOLINTNEXTLINE(hicpp-signed-bitwise)
-    const int failed = PyObject_GetBuffer(encoded, &input->view, PyBUF_FULL_RO) < 0;
-    Py_DECREF(encoded); /* the view holds its own reference */
-    if (failed) {
+    if (PyObject_GetBuffer(encoded, &input->view, PyBUF_FULL_RO) < 0 || input_from_view(input) < 0) {
+        Py_DECREF(encoded);
         return -1;
     }
-    return input_from_view(input);
+    input->coerced = encoded; /* the stdlib asserts on and reprs whatever encode returned */
+    return 0;
 }
 
 /* The stdlib names s.__class__.__name__ and writes `from None`, so context stays hidden. Steals context. */
@@ -207,6 +207,7 @@ int
 radixly_compat_decode_input(PyObject *arg, radixly_compat_input *input)
 {
     input->copy = NULL;
+    input->coerced = NULL;
     input->has_view = 0;
     if (PyUnicode_CheckExact(arg)) {
 #if PY_VERSION_HEX < 0x030C0000
@@ -233,6 +234,12 @@ radixly_compat_decode_input(PyObject *arg, radixly_compat_input *input)
             return input_from_encode(arg, input);
         }
     }
+    if (!PyObject_CheckBuffer(arg)) {
+        /* memoryview(s) has its own words for an object without the protocol; they are the hidden context. */
+        PyErr_Format(PyExc_TypeError, "memoryview: a bytes-like object is required, not '%.200s'",
+                     Py_TYPE(arg)->tp_name);
+        return raise_not_bytes_like(arg, take_raised());
+    }
     // NOLINTNEXTLINE(hicpp-signed-bitwise)
     if (PyObject_GetBuffer(arg, &input->view, PyBUF_FULL_RO) < 0) {
         /* The stdlib rewords only the TypeError out of memoryview(s); anything else is the object's own. */
@@ -241,13 +248,21 @@ radixly_compat_decode_input(PyObject *arg, radixly_compat_input *input)
         }
         return raise_not_bytes_like(arg, take_raised());
     }
-    return input_from_view(input);
+    if (input_from_view(input) < 0) {
+        return -1;
+    }
+    if (PyBytes_Check(arg) || PyByteArray_Check(arg)) {
+        input->coerced =
+            Py_NewRef(arg); /* bytes and bytearray, subclasses included, pass through unchanged */
+    }
+    return 0;
 }
 
 int
 radixly_compat_buffer_input(PyObject *arg, radixly_compat_input *input)
 {
     input->copy = NULL;
+    input->coerced = NULL;
     input->has_view = 0;
     /* memoryview(s) has its own words for an object without the protocol and passes every other error on. */
     if (!PyObject_CheckBuffer(arg)) {
@@ -270,10 +285,90 @@ radixly_compat_input_release(radixly_compat_input *input)
         input->has_view = 0;
     }
     Py_CLEAR(input->copy);
+    Py_CLEAR(input->coerced);
 }
 
 int
 radixly_compat_truth(PyObject *arg)
 {
     return arg == NULL ? 0 : PyObject_IsTrue(arg);
+}
+
+PyObject *
+radixly_binascii_error_format(const char *format, ...)
+{
+    if (binascii_error == NULL) {
+        PyErr_SetString(PyExc_SystemError, "radixly._core was not initialised");
+        return NULL;
+    }
+    va_list args;
+    va_start(args, format);
+    PyErr_FormatV(binascii_error, format, args);
+    va_end(args);
+    return NULL;
+}
+
+int
+radixly_compat_optimized(void)
+{
+    PyObject *flags = PySys_GetObject("flags"); /* borrowed */
+    if (flags == NULL) {
+        return 0;
+    }
+    PyObject *optimize = PyObject_GetAttrString(flags, "optimize");
+    if (optimize == NULL) {
+        PyErr_Clear();
+        return 0;
+    }
+    const long level = PyLong_AsLong(optimize);
+    Py_DECREF(optimize);
+    if (level == -1 && PyErr_Occurred()) {
+        PyErr_Clear();
+        return 0;
+    }
+    return level > 0;
+}
+
+/* The stdlib's assert: len() of the coerced object, and its repr in the message; -1 when the assert fails. */
+static int
+assert_length(const radixly_compat_input *input, Py_ssize_t expected)
+{
+    Py_ssize_t length = input->len;
+    if (input->coerced != NULL) {
+        length = PyObject_Size(input->coerced);
+        if (length < 0) {
+            return -1;
+        }
+    }
+    if (length == expected) {
+        return 0;
+    }
+    PyObject *shown = input->coerced != NULL
+                          ? Py_NewRef(input->coerced)
+                          : PyBytes_FromStringAndSize((const char *)input->data, input->len);
+    if (shown == NULL) {
+        return -1;
+    }
+    PyObject *repr = PyObject_Repr(shown);
+    Py_DECREF(shown);
+    if (repr == NULL) {
+        return -1;
+    }
+    PyErr_SetObject(PyExc_AssertionError, repr);
+    Py_DECREF(repr);
+    return -1;
+}
+
+int
+radixly_compat_check_length(const radixly_compat_input *input, Py_ssize_t expected)
+{
+    /* Under -O the assert is gone and only maketrans, which reads the buffer, judges the length. */
+    if (!radixly_compat_optimized() && assert_length(input, expected) < 0) {
+        return -1;
+    }
+    if (input->len != expected) {
+        PyErr_SetString(PyExc_ValueError, "maketrans arguments must have same length");
+        return -1;
+    }
+    return 0;
 }

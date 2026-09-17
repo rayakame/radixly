@@ -24,6 +24,8 @@ from __future__ import annotations
 from radixly import base16 as base16
 from radixly import base32 as base32
 from radixly import base32hex as base32hex
+from radixly import base64 as base64
+from radixly import base64url as base64url
 from radixly import base2048 as base2048
 from radixly import base32768 as base32768
 from radixly import base65536 as base65536

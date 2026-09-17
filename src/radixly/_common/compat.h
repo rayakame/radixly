@@ -30,6 +30,8 @@ typedef struct {
     Py_ssize_t len;
     Py_buffer view;
     PyObject *copy;
+    PyObject *coerced; /* what the stdlib's _bytes_from_decode_data passes on as is; NULL where it makes fresh
+                          bytes */
     int has_view;
 } radixly_compat_input;
 
@@ -41,6 +43,9 @@ PyObject *radixly_binascii_error(const char *message);
 /* binascii.Error mit context dahinter, im Traceback verborgen, wie `raise ... from None`. Stiehlt context. */
 PyObject *radixly_binascii_error_from(const char *message, PyObject *context);
 
+/* binascii.Error(format % args), PyErr_Format style; always returns NULL. */
+PyObject *radixly_binascii_error_format(const char *format, ...);
+
 /* The stdlib's _bytes_from_decode_data: an ASCII str, or anything memoryview accepts, copied when strided. */
 int radixly_compat_decode_input(PyObject *arg, radixly_compat_input *input);
 
@@ -51,5 +56,12 @@ void radixly_compat_input_release(radixly_compat_input *input);
 
 /* PyObject_IsTrue for an optional flag; absent means false. Returns -1 with an exception on failure. */
 int radixly_compat_truth(PyObject *arg);
+
+/* Whether the interpreter runs with -O, where the stdlib's asserts are gone and maketrans raises instead. */
+int radixly_compat_optimized(void);
+
+/* The stdlib's `assert len(x) == expected, repr(x)` on a _bytes_from_decode_data result, then maketrans's own
+ * check of the buffer: 0 when both pass; -1 with the AssertionError, or with maketrans's ValueError. */
+int radixly_compat_check_length(const radixly_compat_input *input, Py_ssize_t expected);
 
 #endif // RADIXLY_COMPAT_H
