@@ -91,46 +91,50 @@ Generated from the committed record run by the benchmark suite in
 is the speedup over the pure-Python oracle in `tests/reference/`.
 
 <!-- radixly-bench:begin -->
-*Measured on Intel(R) Core(TM) i9-14900KF (performance governor), CachyOS, kernel 7.2.4-3-cachyos, CPython 3.14.6, gcc 16.2.1 20260810, radixly 1.0.0 @ 632331f, 2026-09-17T17:58:09+00:00.*
+*Measured on Intel(R) Core(TM) i9-14900KF (performance governor), CachyOS, kernel 7.2.4-3-cachyos, CPython 3.14.6, gcc 16.2.1 20260810, radixly 1.0.0 @ cb16707, 2026-09-17T18:55:58+00:00.*
 
 | codec | direction | 1 B | 200 B | 64 KiB | 1 MiB | vs reference |
 |---|---|---|---|---|---|---|
-| base16 | encode | 0.017 μs | 0.086 μs | 3,101 MB/s | 3,101 MB/s | 93x at 200 B |
-| base16 | decode | 0.014 μs | 0.127 μs | 1,862 MB/s | 1,856 MB/s | 134x at 200 B |
-| base16 (stdlib base64 3.14.6) | encode | 0.067 μs | 0.226 μs | 1,330 MB/s | 1,319 MB/s | — |
-| base16 (stdlib base64 3.14.6) | decode | 0.106 μs | 0.374 μs | 771 MB/s | 568 MB/s | — |
-| base32 | encode | 0.019 μs | 0.085 μs | 3,094 MB/s | 3,096 MB/s | 323x at 200 B |
-| base32 | decode | 0.023 μs | 0.149 μs | 1,557 MB/s | 1,564 MB/s | 167x at 200 B |
-| base32 (stdlib base64 3.14.6) | encode | 0.536 μs | 8.134 μs | 26 MB/s | 26 MB/s | — |
-| base32 (stdlib base64 3.14.6) | decode | 0.553 μs | 11.708 μs | 18 MB/s | 19 MB/s | — |
-| base32hex | encode | 0.020 μs | 0.084 μs | 3,098 MB/s | 3,106 MB/s | 319x at 200 B |
-| base32hex | decode | 0.023 μs | 0.150 μs | 1,555 MB/s | 1,562 MB/s | 167x at 200 B |
-| base32hex (stdlib base64 3.14.6) | encode | 0.537 μs | 7.737 μs | 27 MB/s | 26 MB/s | — |
-| base32hex (stdlib base64 3.14.6) | decode | 0.580 μs | 11.505 μs | 18 MB/s | 18 MB/s | — |
-| base64 | encode | 0.019 μs | 0.078 μs | 3,535 MB/s | 3,533 MB/s | 361x at 200 B |
-| base64 | decode | 0.022 μs | 0.133 μs | 1,871 MB/s | 1,868 MB/s | 191x at 200 B |
-| base64 (stdlib base64 3.14.6) | encode | 0.071 μs | 0.222 μs | 1,392 MB/s | 1,366 MB/s | — |
-| base64 (stdlib base64 3.14.6) | decode | 0.072 μs | 0.254 μs | 1,176 MB/s | 1,139 MB/s | — |
-| base64url | encode | 0.019 μs | 0.078 μs | 3,523 MB/s | 3,544 MB/s | 361x at 200 B |
-| base64url | decode | 0.022 μs | 0.133 μs | 1,866 MB/s | 1,874 MB/s | 189x at 200 B |
-| base64url (stdlib base64 3.14.6) | encode | 0.097 μs | 0.305 μs | 1,033 MB/s | 1,011 MB/s | — |
-| base64url (stdlib base64 3.14.6) | decode | 0.141 μs | 0.377 μs | 893 MB/s | 882 MB/s | — |
-| base2048 | encode | 0.019 μs | 0.128 μs | 1,781 MB/s | 1,772 MB/s | 108x at 200 B |
-| base2048 | decode | 0.015 μs | 0.229 μs | 934 MB/s | 938 MB/s | 98x at 200 B |
-| base2048 (PyPI base2048 0.1.3, other alphabet) | encode | 0.101 μs | 0.994 μs | 146 MB/s | 139 MB/s | — |
-| base2048 (PyPI base2048 0.1.3, other alphabet) | decode | 0.095 μs | 0.841 μs | 130 MB/s | 121 MB/s | — |
-| base32768 | encode | 0.019 μs | 0.110 μs | 2,007 MB/s | 2,008 MB/s | 107x at 200 B |
-| base32768 | decode | 0.015 μs | 0.182 μs | 1,198 MB/s | 1,206 MB/s | 107x at 200 B |
-| base65536 | encode | 0.019 μs | 0.044 μs | 7,135 MB/s | 7,119 MB/s | 181x at 200 B |
-| base65536 | decode | 0.020 μs | 0.063 μs | 4,482 MB/s | 4,471 MB/s | 162x at 200 B |
-| base65536 (PyPI base65536 0.1.1) | encode | 0.199 μs | 7.525 μs | 27 MB/s | 27 MB/s | — |
-| base65536 (PyPI base65536 0.1.1) | decode | 0.156 μs | 12.408 μs | 17 MB/s | 18 MB/s | — |
-| braille | encode | 0.019 μs | 0.166 μs | 1,397 MB/s | 1,407 MB/s | 94x at 200 B |
-| braille | decode | 0.016 μs | 0.268 μs | 796 MB/s | 801 MB/s | 69x at 200 B |
-| hexagram | encode | 0.019 μs | 0.198 μs | 1,163 MB/s | 1,164 MB/s | 102x at 200 B |
-| hexagram | decode | 0.017 μs | 0.319 μs | 672 MB/s | 651 MB/s | 72x at 200 B |
-| uro14 | encode | 0.018 μs | 0.121 μs | 1,903 MB/s | 1,947 MB/s | 106x at 200 B |
-| uro14 | decode | 0.016 μs | 0.198 μs | 1,028 MB/s | 1,029 MB/s | 93x at 200 B |
+| base16 | encode | 0.016 μs | 0.085 μs | 3,154 MB/s | 3,161 MB/s | 95x at 200 B |
+| base16 | decode | 0.013 μs | 0.127 μs | 1,893 MB/s | 1,894 MB/s | 131x at 200 B |
+| base16 (stdlib base64 3.14.6) | encode | 0.064 μs | 0.222 μs | 1,354 MB/s | 1,352 MB/s | — |
+| base16 (stdlib base64 3.14.6) | decode | 0.103 μs | 0.368 μs | 790 MB/s | 586 MB/s | — |
+| base32 | encode | 0.019 μs | 0.083 μs | 3,155 MB/s | 3,160 MB/s | 316x at 200 B |
+| base32 | decode | 0.021 μs | 0.147 μs | 1,579 MB/s | 1,580 MB/s | 158x at 200 B |
+| base32 (stdlib base64 3.14.6) | encode | 0.522 μs | 7.537 μs | 28 MB/s | 27 MB/s | — |
+| base32 (stdlib base64 3.14.6) | decode | 0.537 μs | 10.644 μs | 20 MB/s | 20 MB/s | — |
+| base32hex | encode | 0.018 μs | 0.082 μs | 3,154 MB/s | 3,160 MB/s | 318x at 200 B |
+| base32hex | decode | 0.021 μs | 0.146 μs | 1,579 MB/s | 1,580 MB/s | 160x at 200 B |
+| base32hex (stdlib base64 3.14.6) | encode | 0.523 μs | 7.525 μs | 28 MB/s | 27 MB/s | — |
+| base32hex (stdlib base64 3.14.6) | decode | 0.540 μs | 10.587 μs | 19 MB/s | 20 MB/s | — |
+| base64 | encode | 0.019 μs | 0.076 μs | 3,597 MB/s | 3,595 MB/s | 353x at 200 B |
+| base64 | decode | 0.020 μs | 0.130 μs | 1,894 MB/s | 1,895 MB/s | 185x at 200 B |
+| base64 (PyPI pybase64 1.5.0) | encode | 0.120 μs | 0.125 μs | 32,789 MB/s | 31,490 MB/s | — |
+| base64 (PyPI pybase64 1.5.0) | decode | 0.148 μs | 0.176 μs | 24,112 MB/s | 25,922 MB/s | — |
+| base64 (stdlib base64 3.14.6) | encode | 0.070 μs | 0.217 μs | 1,424 MB/s | 1,405 MB/s | — |
+| base64 (stdlib base64 3.14.6) | decode | 0.069 μs | 0.248 μs | 1,191 MB/s | 1,163 MB/s | — |
+| base64url | encode | 0.019 μs | 0.076 μs | 3,623 MB/s | 3,614 MB/s | 354x at 200 B |
+| base64url | decode | 0.021 μs | 0.130 μs | 1,894 MB/s | 1,895 MB/s | 185x at 200 B |
+| base64url (PyPI pybase64 1.5.0) | encode | 0.130 μs | 0.149 μs | 13,320 MB/s | 13,376 MB/s | — |
+| base64url (PyPI pybase64 1.5.0) | decode | 0.159 μs | 0.204 μs | 9,591 MB/s | 9,858 MB/s | — |
+| base64url (stdlib base64 3.14.6) | encode | 0.094 μs | 0.301 μs | 1,044 MB/s | 1,045 MB/s | — |
+| base64url (stdlib base64 3.14.6) | decode | 0.134 μs | 0.371 μs | 911 MB/s | 894 MB/s | — |
+| base2048 | encode | 0.018 μs | 0.126 μs | 1,806 MB/s | 1,833 MB/s | 108x at 200 B |
+| base2048 | decode | 0.014 μs | 0.224 μs | 948 MB/s | 949 MB/s | 95x at 200 B |
+| base2048 (PyPI base2048 0.1.3, other alphabet) | encode | 0.098 μs | 0.983 μs | 145 MB/s | 138 MB/s | — |
+| base2048 (PyPI base2048 0.1.3, other alphabet) | decode | 0.094 μs | 0.824 μs | 132 MB/s | 122 MB/s | — |
+| base32768 | encode | 0.017 μs | 0.110 μs | 2,038 MB/s | 2,042 MB/s | 105x at 200 B |
+| base32768 | decode | 0.014 μs | 0.179 μs | 1,216 MB/s | 1,217 MB/s | 104x at 200 B |
+| base65536 | encode | 0.017 μs | 0.044 μs | 7,191 MB/s | 7,218 MB/s | 181x at 200 B |
+| base65536 | decode | 0.019 μs | 0.062 μs | 4,538 MB/s | 4,547 MB/s | 163x at 200 B |
+| base65536 (PyPI base65536 0.1.1) | encode | 0.194 μs | 7.323 μs | 28 MB/s | 28 MB/s | — |
+| base65536 (PyPI base65536 0.1.1) | decode | 0.149 μs | 11.287 μs | 18 MB/s | 18 MB/s | — |
+| braille | encode | 0.018 μs | 0.164 μs | 1,421 MB/s | 1,422 MB/s | 91x at 200 B |
+| braille | decode | 0.016 μs | 0.265 μs | 812 MB/s | 812 MB/s | 67x at 200 B |
+| hexagram | encode | 0.018 μs | 0.196 μs | 1,176 MB/s | 1,177 MB/s | 100x at 200 B |
+| hexagram | decode | 0.016 μs | 0.313 μs | 680 MB/s | 670 MB/s | 72x at 200 B |
+| uro14 | encode | 0.017 μs | 0.119 μs | 1,932 MB/s | 1,975 MB/s | 103x at 200 B |
+| uro14 | decode | 0.015 μs | 0.193 μs | 1,041 MB/s | 1,029 MB/s | 92x at 200 B |
 <!-- radixly-bench:end -->
 
 <picture>

@@ -55,7 +55,11 @@ its 16,384-byte window.
 
 The rows marked `stdlib base64` time the standard library's `b64encode` and
 `b64decode`, which are C already (`binascii`) behind a Python wrapper, with
-the encoder's `bytes` result decoded to `str` for a like comparison.
+the encoder's `bytes` result decoded to `str` for a like comparison. The rows
+marked `PyPI pybase64` time the [`pybase64`](https://pypi.org/project/pybase64/)
+package, a C extension over libbase64's SIMD kernels (AVX2 on the record
+machine), through `b64encode_as_string` and `b64decode(validate=True)`, so
+both sides do the same work: text out, strict decoding.
 
 ```{include} ../benchmarks/base64.md
 ```

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import base64
 import dataclasses
+import functools
 import importlib
 import importlib.metadata
 import platform
@@ -36,18 +37,41 @@ if typing.TYPE_CHECKING:
     from collections.abc import Callable
 
 
+if typing.TYPE_CHECKING:
+    Shape = Callable[[types.ModuleType], tuple[Callable[[bytes], str], Callable[[str], bytes]]]
+
+
+def _encode_decode(module: types.ModuleType) -> tuple[Callable[[bytes], str], Callable[[str], bytes]]:
+    """Return the module's own encode and decode, already in radixly's contracts."""
+    return typing.cast("Callable[[bytes], str]", module.encode), typing.cast("Callable[[str], bytes]", module.decode)
+
+
+def _pybase64(altchars: bytes | None) -> Shape:
+    """pybase64's stdlib-shaped functions as one codec: str out, strict decoding, the alphabet by altchars."""
+
+    def shape(module: types.ModuleType) -> tuple[Callable[[bytes], str], Callable[[str], bytes]]:
+        encode = typing.cast("Callable[..., str]", module.b64encode_as_string)
+        decode = typing.cast("Callable[..., bytes]", module.b64decode)
+        return functools.partial(encode, altchars=altchars), functools.partial(decode, altchars=altchars, validate=True)
+
+    return shape
+
+
 @dataclasses.dataclass(frozen=True, slots=True)
 class Rival:
-    """A PyPI distribution whose module of the same name exposes encode and decode."""
+    """A PyPI distribution; shape turns its module into an encode and a decode in radixly's contracts."""
 
     codec: str
     distribution: str
     wire_compatible: bool  # False: same density, different alphabet; a speed comparison only
+    shape: Shape = _encode_decode
 
 
 RIVALS: typing.Final[tuple[Rival, ...]] = (
     Rival("base2048", "base2048", wire_compatible=False),
     Rival("base65536", "base65536", wire_compatible=True),
+    Rival("base64", "pybase64", wire_compatible=True, shape=_pybase64(None)),
+    Rival("base64url", "pybase64", wire_compatible=True, shape=_pybase64(b"-_")),
 )
 
 
@@ -109,8 +133,7 @@ def discover(rivals: tuple[Rival, ...] | None = None) -> dict[str, tuple[registr
             continue
         # Outside the guard on purpose: a module without metadata is a shadowing file, not an absent package.
         version = importlib.metadata.version(rival.distribution)
-        encode = typing.cast("Callable[[bytes], str]", module.encode)
-        decode = typing.cast("Callable[[str], bytes]", module.decode)
+        encode, decode = rival.shape(module)
         suffix = "" if rival.wire_compatible else ", other alphabet"
         spec = registry.CompetitorSpec(f"PyPI {rival.distribution} {version}{suffix}", encode, decode)
         _probe(rival.distribution, rival.codec, spec, wire_compatible=rival.wire_compatible)

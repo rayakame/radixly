@@ -62,7 +62,12 @@ characters outside the alphabet. See {doc}`../compat`.
 The rows marked `stdlib base64` time the standard library's
 `urlsafe_b64encode` and `urlsafe_b64decode`, `binascii` plus a translation
 pass in Python, with the encoder's `bytes` result decoded to `str` for a
-like comparison.
+like comparison. The rows marked `PyPI pybase64` time the
+[`pybase64`](https://pypi.org/project/pybase64/) package, a C extension over
+libbase64's SIMD kernels (AVX2 on the record machine), with `altchars=b"-_"`
+and `validate=True`, so both sides do the same work: text out, whitespace
+refused (pybase64 still lets `+` and `/` through under `altchars`, a leniency
+it has deprecated).
 
 ```{include} ../benchmarks/base64url.md
 ```
