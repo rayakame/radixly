@@ -78,7 +78,7 @@ def _assert_parity(preset: str, string: str) -> bytes | None:
 
 def test_case_tables_are_nonempty() -> None:
     """An emptied table would collect zero cases and stay green, here and in test_reference.py."""
-    assert len(error_cases.PRESETS) > 0
+    assert set(error_cases.PRESETS) == {"base64", "base64url"} == set(C_ENCODE) == set(C_DECODE) == set(STDLIB_DECODE)
     assert len(error_cases.INVALID_KINDS) > 0
     assert len(error_cases.RFC_VECTORS) > 0
     assert all(len(vectors) > 0 for vectors in error_cases.HIGH_VECTORS.values())

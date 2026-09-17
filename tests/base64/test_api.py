@@ -70,6 +70,7 @@ def test_base64url_codec_fields() -> None:
 def test_api_all_is_nonempty() -> None:
     assert len(base64_api.__all__) > 0
     assert len(base64url_api.__all__) > 0
+    assert set(_SIZE_MATH) == {"base64", "base64url"} == set(_ENCODE)
 
 
 _REEXPORTS = [("base64", name) for name in base64_api.__all__] + [("base64url", name) for name in base64url_api.__all__]
