@@ -21,7 +21,8 @@ tokens carried in them want {doc}`base64url` instead. The alphabet is
 case-sensitive; a channel that folds case needs {doc}`base32`.
 
 It does not save bytes: as UTF-8 each character costs one, so the text is
-1.33 times the payload.
+four characters for every three bytes, a third longer than the payload, plus
+the padding that rounds a one- or two-byte tail up to a full group.
 
 ## Truncation behavior
 
