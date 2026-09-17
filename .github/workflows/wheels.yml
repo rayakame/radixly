@@ -1,12 +1,7 @@
 name: wheels
 
+# Pull requests reach this through ci.yml, which decides from the changed paths whether to call it.
 on:
-  pull_request:
-    paths:
-      - "src/**"
-      - "pyproject.toml"
-      - "MANIFEST.in"
-      - ".github/workflows/wheels.yml"
   push:
     tags:
       - "v*"

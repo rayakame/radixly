@@ -1,16 +1,8 @@
 name: bench
 
+# Pull requests reach this through ci.yml, which decides from the changed paths whether to call it.
 on:
-  pull_request:
-    paths:
-      - "src/**"
-      - "benchmarks/**"
-      - "tests/reference/**" # the ratio's denominator
-      - "README.md" # readme-sync gates it
-      - "docs/benchmarks/**" # so does the docs-pages half of it
-      - ".github/workflows/bench.yml"
-      - "pyproject.toml"
-      - "uv.lock"
+  workflow_call:
   workflow_dispatch:
   schedule:
     - cron: "17 4 * * 1"

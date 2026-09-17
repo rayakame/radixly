@@ -15,6 +15,33 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    # Which of the path-filtered suites a pull request touches; every other event runs them all.
+    runs-on: ubuntu-latest
+    outputs:
+      wheels: ${{ steps.filter.outputs.wheels }}
+      bench: ${{ steps.filter.outputs.bench }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - id: filter
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.base_ref }}
+        run: |
+          if [ "$EVENT" != "pull_request" ]; then
+            echo "wheels=true" >> "$GITHUB_OUTPUT"
+            echo "bench=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed=$(git diff --name-only "origin/$BASE...HEAD")
+          echo "$changed"
+          match() { echo "$changed" | grep -qE "$1" && echo true || echo false; }
+          echo "wheels=$(match '^(src/|pyproject\.toml$|MANIFEST\.in$|\.github/workflows/(ci|wheels)\.yml$)')" >> "$GITHUB_OUTPUT"
+          echo "bench=$(match '^(src/|benchmarks/|tests/reference/|README\.md$|docs/benchmarks/|\.github/workflows/(ci|bench)\.yml$|pyproject\.toml$|uv\.lock$)')" >> "$GITHUB_OUTPUT"
+
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -146,3 +173,30 @@ jobs:
           enable-cache: true
       - name: Check for a changelog fragment
         run: uv run --only-group release towncrier check --compare-with origin/${{ github.base_ref }}
+
+  wheels:
+    # Every wheel on every platform, when the extension or its packaging changed.
+    needs: changes
+    if: needs.changes.outputs.wheels == 'true'
+    uses: ./.github/workflows/wheels.yml
+
+  bench:
+    # The C-vs-reference ratio gates and the README/docs render check, when anything they read changed.
+    needs: changes
+    if: needs.changes.outputs.bench == 'true'
+    uses: ./.github/workflows/bench.yml
+
+  complete:
+    # The one status check the branch ruleset requires: green only when every job above passed or was
+    # skipped by its own condition; a failure or a cancellation anywhere turns it red.
+    name: CI complete
+    if: always()
+    needs: [changes, lint, format-check, pyright, tidy, docs, test, asan, build, changelog, wheels, bench]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail on any failed or cancelled job
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          echo "$RESULTS" | jq -e '[.[] | select(.result == "failure" or .result == "cancelled")] | length == 0' > /dev/null
