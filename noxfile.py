@@ -211,6 +211,9 @@ def asan(session: nox.Session) -> None:
         "LD_PRELOAD": libasan.strip(),
         "PYTHONMALLOC": "malloc",
         "PYTHONUNBUFFERED": "1",
+        # LeakSanitizer stays off: CPython's own startup is 7,000 unreachable allocations, and the
+        # interpreter binary allocates our objects too, so any suppression wide enough to silence it
+        # silences a real leak in the extension. tests/test_leaks.py counts allocated blocks instead.
         "ASAN_OPTIONS": "detect_leaks=0",
         "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1",
     }
