@@ -99,7 +99,7 @@ Four bytes in five characters of printable ASCII, git's alphabet.
 :::{grid-item-card} z85
 :link: codecs/z85
 :link-type: doc
-base85 with ZeroMQ's alphabet: no quotes, no shell punctuation.
+base85 with ZeroMQ's alphabet: no quotes, no backslash.
 :::
 
 ::::

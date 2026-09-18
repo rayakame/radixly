@@ -32,7 +32,7 @@ const char radixly_z85_encode_doc[] =
               "Encode a bytes-like object as Z85 text.\n"
               "\n"
               "ZeroMQ's Z85: base85 with an alphabet that stays clear of quotes,\n"
-              "backslashes and the shell's punctuation. Five characters per four\n"
+              "backslashes and backquotes. Five characters per four\n"
               "bytes; a shorter tail becomes one character more than its bytes, so\n"
               "``n`` bytes become ``5 * (n // 4)`` characters plus ``n % 4 + 1`` when\n"
               "``n`` is not a multiple of four.\n"

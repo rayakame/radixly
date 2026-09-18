@@ -5,10 +5,11 @@ characters of RFC 1924, the alphabet of the standard library's `b85encode`
 and of git's binary patches, decoded strictly.
 
 Four bytes become one 32-bit word, written as five base-85 digits from `0`
-to `9`, `A` to `Z`, `a` to `z` and `!#$%&()*+-;<=>?@^_`{|}~`. A shorter tail
-of one to three bytes becomes one character more than its bytes, so `n`
-bytes become `5 * (n // 4)` characters plus `n % 4 + 1`, and the text is
-never one character past a multiple of five. The characters are the standard
+to `9`, `A` to `Z`, `a` to `z` and `` !#$%&()*+-;<=>?@^_`{|}~ ``. A shorter
+tail of one to three bytes becomes one character more than its bytes, so `n`
+bytes become `5 * (n // 4)` characters, plus `n % 4 + 1` when `n` is not a
+multiple of four, and the text is never one character past a multiple of
+five. The characters are the standard
 library's `b85encode` output, returned as `str`. The decoder takes the strict
 reading: characters outside the alphabet, whitespace, a group worth more than
 32 bits, a one-character tail, and a tail spelled any way but the encoder's

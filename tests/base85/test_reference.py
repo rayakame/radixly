@@ -82,8 +82,8 @@ def test_alphabet_has_85_distinct_ascii_characters(preset: str) -> None:
     assert math.isclose(module.BITS_PER_CHAR, 32 / 5)
 
 
-def test_z85_avoids_the_shell_and_quotes() -> None:
-    """ZeroMQ's point: no quotes, backslash, or the characters a shell or a JSON string treats as special."""
+def test_z85_excludes_selected_escaping_characters() -> None:
+    """ZeroMQ left out both quotes, backslash, comma, semicolon, underscore, backquote, pipe, tilde and space."""
     assert not set(error_cases.PRESETS["z85"].ALPHABET) & set("\"'\\,;_`|~ ")
 
 

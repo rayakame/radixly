@@ -17,7 +17,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-"""z85: ZeroMQ's base85, an alphabet that stays clear of quotes and the shell's punctuation. Strict decoding."""
+"""z85: ZeroMQ's base85, an alphabet that stays clear of quotes, backslash and backquote. Strict decoding."""
 
 from __future__ import annotations
 

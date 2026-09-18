@@ -60,7 +60,8 @@ text is uppercased again before it reaches `decode`. base64 adds `+` and
 marks on top, braces, pipe and backquote among them, so it is for channels
 that take all of printable ASCII; z85 picks 23 that leave out quotes,
 backslash, comma, semicolon, pipe, underscore and tilde, so the text sits in
-a shell argument or a JSON string as is.
+a JSON string or a quoted literal as is, and a quoted shell argument never
+breaks on it (unquoted, its `*`, `?`, `&` and brackets are the shell's).
 Among the Unicode codecs, hexagram uses 64 symbols from one block, braille
 256, uro14 one block of 16,384 ideographs, base2048 letters and numerals from
 two dozen scripts, base32768 characters from many BMP blocks, base65536
