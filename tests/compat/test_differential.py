@@ -1056,6 +1056,59 @@ def test_encodebytes_keeps_nothing_per_chunk(make: Callable[[], object]) -> None
     assert sys.getallocatedblocks() - before < 100  # one chunk per 57 bytes, so a leak would be thousands
 
 
+@typing.final
+class _OwnContains(bytes):
+    """A bytes subclass whose __contains__ answers for every byte, which the stdlib's `x in ignorechars` asks."""
+
+    __slots__ = ()
+
+    def __contains__(self, _item: object) -> bool:  # pyright: ignore[reportImplicitOverride]
+        return True
+
+
+@typing.final
+class _LyingWidth:
+    """A wrapcol that compares greater than any floor but indexes to something else entirely."""
+
+    def __init__(self, index: int) -> None:
+        self.index: int = index
+
+    def __gt__(self, _other: object) -> bool:
+        return True
+
+    def __index__(self) -> int:
+        return self.index
+
+
+@pytest.mark.parametrize("data", [b"~", b"! !", b"!!!!!", b""], ids=repr)
+@pytest.mark.parametrize("ignorechars", [b" ", bytearray(b" "), " ", {32}, [32], b""], ids=repr)
+def test_a85decode_ignorechars_shapes_match(data: bytes, ignorechars: object) -> None:
+    _assert_same("a85decode", data, ignorechars=ignorechars)
+
+
+def test_a85decode_asks_a_subclass_its_own_question() -> None:
+    """A bytes subclass may override __contains__, and the stdlib's membership test calls it."""
+    _assert_same("a85decode", b"~", ignorechars=_OwnContains(b""))
+    _assert_same("a85decode", b"!!!!!", ignorechars=_OwnContains(b""))
+
+
+@pytest.mark.parametrize("width", [0, 1, 2, 3, 76, True, False, None, -1, -5, 2**70], ids=repr)
+@pytest.mark.parametrize("adobe", [False, True], ids=repr)
+def test_a85encode_wrapcol_shapes_match(width: object, adobe: object) -> None:
+    for payload in (b"", b"a", b"abcdefgh", b"x" * 200):
+        _assert_same("a85encode", payload, wrapcol=width, adobe=adobe)
+
+
+@pytest.mark.parametrize("index", [-1, 0, 3], ids=repr)
+@pytest.mark.parametrize("adobe", [False, True], ids=repr)
+def test_a85encode_survives_a_width_that_lies(index: int, adobe: object) -> None:
+    """A width whose __index__ contradicts its comparison must still raise or return, never a bare NULL."""
+    outcome = _outcome(_ours("a85encode"), b"abcdefgh", wrapcol=_LyingWidth(index), adobe=adobe)
+    assert outcome[0] is not SystemError
+    if index != 3:  # a width the stdlib's range() refuses or empties out
+        assert _outcome(_theirs("a85encode"), b"abcdefgh", wrapcol=_LyingWidth(index), adobe=adobe) == outcome
+
+
 def test_long_type_names_are_truncated_where_binascii_truncates() -> None:
     """The drop-in's message carries the same truncated name as binascii's, not a longer one."""
     ours = _outcome(_ours("decode"), _LongNamedLine(), io.BytesIO())

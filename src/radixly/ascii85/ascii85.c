@@ -49,6 +49,9 @@ static const char DEFAULT_IGNORED[] = " \t\n\r\v";
 /* The stdlib's max(2 if adobe else 1, wrapcol) then range(0, n, wrapcol): the comparison's own TypeError for
  * a value that is not ordered against int, __index__'s for one that is not an integer, the ssize maximum for
  * one too large to matter. */
+/* The line width the stdlib's max() settles on, as a count. It then threads the object itself through
+ * range(), the slice and, under adobe, the closing-line test, so an object whose arithmetic or ordering is
+ * partial can still differ; a plain integer, which is what the parameter is for, cannot. */
 static Py_ssize_t
 wrap_width(PyObject *wrapcol, int adobe)
 {
@@ -64,6 +67,13 @@ wrap_width(PyObject *wrapcol, int adobe)
     PyObject *chosen = larger ? wrapcol : floor;
     const Py_ssize_t width = PyNumber_AsSsize_t(chosen, NULL);
     Py_DECREF(floor);
+    if (width == -1 && PyErr_Occurred()) {
+        return -1; /* the conversion failed; a -1 without an exception is a real width, see below */
+    }
+    if (width == 0) {
+        PyErr_SetString(PyExc_ValueError, "range() arg 3 must not be zero");
+        return -1;
+    }
     return width;
 }
 
@@ -183,9 +193,18 @@ radixly_a85encode(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t n
     Py_ssize_t width = 0;
     if (wrapped) {
         width = wrap_width(wrapcol, framed);
-        if (width < 0) {
+        if (width == -1 && PyErr_Occurred()) {
             Py_DECREF(raw);
             return NULL;
+        }
+        if (width < 0) {
+            /* The stdlib's range() yields nothing, so it joins no chunks at all and then indexes them. */
+            Py_DECREF(raw);
+            if (framed) {
+                PyErr_SetString(PyExc_IndexError, "list index out of range");
+                return NULL;
+            }
+            return PyBytes_FromStringAndSize("", 0);
         }
     }
     PyObject *result = frame_and_wrap(raw, framed, width);
@@ -215,11 +234,13 @@ ignore_set_init(ignore_set *set, PyObject *ignorechars)
         data = (const unsigned char *)DEFAULT_IGNORED;
         len = (Py_ssize_t)(sizeof(DEFAULT_IGNORED) - 1);
     }
-    else if (PyBytes_Check(ignorechars)) {
+    /* Exact types only: a subclass may have its own __contains__, which the stdlib's `x in ignorechars`
+     * calls. */
+    else if (PyBytes_CheckExact(ignorechars)) {
         data = (const unsigned char *)PyBytes_AS_STRING(ignorechars);
         len = PyBytes_GET_SIZE(ignorechars);
     }
-    else if (PyByteArray_Check(ignorechars)) {
+    else if (PyByteArray_CheckExact(ignorechars)) {
         data = (const unsigned char *)PyByteArray_AS_STRING(ignorechars);
         len = PyByteArray_GET_SIZE(ignorechars);
     }

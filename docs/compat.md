@@ -32,7 +32,11 @@ direction. And an object that claims to be `bytes` without being one, or a
 `str` subclass whose `encode` returns anything other than `bytes` or
 `bytearray`, is judged by the buffer it offers rather than by the methods the
 standard library would call on it (`translate`, `rstrip`, or `binascii`'s own
-argument check), so the outcome can differ from the standard library's.
+argument check), so the outcome can differ from the standard library's. The
+same holds for an argument that is not the plain `bool` or `int` it is meant to
+be: `foldspaces`, `adobe` and `pad` are read once where the standard library
+reads them again per group, and `wrapcol` is converted once where the standard
+library threads the object itself through `max`, `range` and the slice.
 
 The 85 family keeps the standard library's shortcuts and its accidents alike:
 `a85encode` folds four zero bytes to `z` and, on request, four spaces to `y`,
