@@ -51,8 +51,8 @@ class Codec:
     bits_per_char: float
     encode: collections.abc.Callable[[ReadableBuffer], str]
     decode: collections.abc.Callable[[str], bytes]
-    encoded_len: collections.abc.Callable[[int], int]
-    max_bytes: collections.abc.Callable[[int], int]
+    encoded_len: collections.abc.Callable[[typing.SupportsIndex], int]
+    max_bytes: collections.abc.Callable[[typing.SupportsIndex], int]
 
 
 _registry: dict[str, Codec] = {}

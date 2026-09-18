@@ -154,7 +154,7 @@ def test_size_math_returns_int_for_index_likes(name: str) -> None:
     codec = radixly.get_codec(name)
     for value in (7, True, IndexLike(7)):
         for function in (codec.encoded_len, codec.max_bytes):
-            result = function(value)  # pyright: ignore[reportArgumentType]
+            result = function(value)
             assert type(result) is int
             assert result == function(int(value))
 

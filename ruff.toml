@@ -17,12 +17,14 @@ select = ["ALL"]
 ignore = [
     "ISC003", # we prefer explicit string concatenation
     "COM812", # missing trailing comma; conflicts with the formatter, which owns trailing commas
-    "DOC502", # a Raises entry for what a call raises (operator.index's TypeError) is the documented contract
 ]
 
 [lint.per-file-ignores]
 "**/__init__.py" = [
     "F403", # unable to detect undefined names
+]
+"src/radixly/*/_api.py" = [
+    "DOC502", # the sizing helpers document operator.index's TypeError, which is their contract
 ]
 "tests/**" = [
     "DOC",     # docstring sections vs signature; test docstrings explain intent, not parameters

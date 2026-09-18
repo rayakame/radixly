@@ -22,6 +22,7 @@
 from __future__ import annotations
 
 import operator
+import typing
 
 from radixly._codec import Codec
 from radixly._codec import register
@@ -37,7 +38,7 @@ BITS_PER_CHAR = 14.0
 """Payload bits carried by one body character; the length prefix is one character on top."""
 
 
-def encoded_len(num_bytes: int) -> int:
+def encoded_len(num_bytes: typing.SupportsIndex) -> int:
     """Exact length of ``encode(data)``: the prefix plus the body.
 
     Parameters
@@ -53,7 +54,7 @@ def encoded_len(num_bytes: int) -> int:
     Raises
     ------
     TypeError
-        If ``num_bytes`` is not an integer.
+        If ``num_bytes`` has no ``__index__``.
     ValueError
         If ``num_bytes`` is negative.
 
@@ -70,7 +71,7 @@ def encoded_len(num_bytes: int) -> int:
     return 1 + (8 * num_bytes + 13) // 14
 
 
-def max_bytes(num_chars: int) -> int:
+def max_bytes(num_chars: typing.SupportsIndex) -> int:
     """Largest payload that fits in ``num_chars`` characters.
 
     Zero characters fit nothing, the prefix alone needs one, so ``max_bytes(0)`` refuses.
@@ -88,7 +89,7 @@ def max_bytes(num_chars: int) -> int:
     Raises
     ------
     TypeError
-        If ``num_chars`` is not an integer.
+        If ``num_chars`` has no ``__index__``.
     ValueError
         If ``num_chars`` is negative or zero.
 

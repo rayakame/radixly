@@ -15,12 +15,12 @@ and so on, and registers it under its name. The registry is populated as soon as
 
       Decode ``data`` with this codec.
 
-   .. method:: encoded_len(num_bytes: int) -> int
+   .. method:: encoded_len(num_bytes: typing.SupportsIndex) -> int
 
       Exact output length in characters for a ``num_bytes``-byte payload,
       without encoding anything.
 
-   .. method:: max_bytes(num_chars: int) -> int
+   .. method:: max_bytes(num_chars: typing.SupportsIndex) -> int
 
       Largest payload that encodes into at most ``num_chars`` characters.
 
