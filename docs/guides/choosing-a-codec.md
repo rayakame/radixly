@@ -58,12 +58,12 @@ text is uppercased again before it reaches `decode`. base64 adds `+` and
 `/` to the letters and digits, and base64url trades those two for `-` and
 `_`, which URLs and file names take unchanged. base85 uses 23 punctuation
 marks on top, braces, pipe and backquote among them, so it is for channels
-that take all of printable ASCII; z85 picks 23 that leave out semicolon,
-pipe, underscore, backquote and tilde, so the text survives Markdown, an
-identifier and a pipe-split column as is. Neither alphabet holds a quote, a
-backslash or a comma, so both sit in a JSON string unescaped; in a shell
-either needs single quotes, since `$(`, `*`, `?`, `&` and the brackets are in
-both.
+that take all of printable ASCII; z85 picks 23 that leave out backquote,
+pipe, semicolon, underscore and tilde, so it crosses a pipe-split column and a
+backquoted span that base85 breaks. Neither alphabet holds a quote, a
+backslash or a comma, so both sit in a JSON string unescaped, and neither is
+safe raw in Markdown or a shell, where `*`, `&`, `!`, `<>` and a bracket pair
+are still the format's: quote it, or reach for {doc}`base64url`.
 Among the Unicode codecs, hexagram uses 64 symbols from one block, braille
 256, uro14 one block of 16,384 ideographs, base2048 letters and numerals from
 two dozen scripts, base32768 characters from many BMP blocks, base65536
