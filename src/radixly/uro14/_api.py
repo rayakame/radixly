@@ -21,6 +21,8 @@
 
 from __future__ import annotations
 
+import operator
+
 from radixly._codec import Codec
 from radixly._codec import register
 from radixly._core import uro14_decode
@@ -59,6 +61,7 @@ def encoded_len(num_bytes: int) -> int:
     >>> uro14.encoded_len(10)
     7
     """
+    num_bytes = operator.index(num_bytes)
     if num_bytes < 0:
         msg = f"num_bytes must be >= 0, got {num_bytes}"
         raise ValueError(msg)
@@ -91,6 +94,7 @@ def max_bytes(num_chars: int) -> int:
     >>> uro14.max_bytes(100)
     173
     """
+    num_chars = operator.index(num_chars)
     if num_chars < 0:
         msg = f"num_chars must be >= 0, got {num_chars}"
         raise ValueError(msg)
