@@ -653,15 +653,24 @@ def _raise_ambient() -> None:
     raise ValueError(message)
 
 
-def _chain_shape(call: Callable[[], object]) -> tuple[type, type, bool]:
-    """Return the exception chain as a traceback would show it, from inside a live except block."""
+def _chain_shape(call: Callable[[], object]) -> tuple[tuple[type, bool], ...]:
+    """Return the whole exception chain, from inside a live except block, hidden links included.
+
+    Walking past the first link is what catches a context the port built by hand: one the standard library
+    really raised inside an except block carries the exception being handled behind it.
+    """
     try:
         try:
             _raise_ambient()
         except ValueError:
             call()
     except Exception as error:  # ruff: ignore[blind-except] -- the exception chain is the subject
-        return (type(error), type(error.__context__), error.__suppress_context__)
+        shape: list[tuple[type, bool]] = []
+        current: BaseException | None = error
+        while current is not None:
+            shape.append((type(current), current.__suppress_context__))
+            current = current.__context__
+        return tuple(shape)
     message = "expected an exception"
     raise AssertionError(message)
 
@@ -695,6 +704,12 @@ def _chain_shape(call: Callable[[], object]) -> tuple[type, type, bool]:
         ("b85decode", (b"~",), {}),  # the struct.error behind the overflow, hidden
         ("b85decode", (b"0000 0",), {}),  # the TypeError behind the bad character, hidden
         ("b85decode", (42,), {}),
+        # z85decode rewords the base85 error, so its chain is one link longer than any other.
+        *(
+            (("z85decode", (b"#####",), {}), ("z85decode", (b"0000 ",), {}), ("z85decode", (42,), {}))
+            if sys.version_info >= (3, 13)
+            else ()
+        ),
         ("b85encode", ("x",), {}),
         ("a85decode", (b"uuuuu",), {}),
         ("a85decode", (b"!!z",), {}),

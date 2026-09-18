@@ -76,6 +76,30 @@ take_raised(void)
 }
 
 /* Raise error with context behind it; suppress hides it, the way `raise ... from None` does. Steals both. */
+/* A context built by hand has no context of its own, where one the stdlib really raised inside an except
+ * block picked up the exception being handled; without this the chain is a link shorter than the stdlib's. */
+static void
+inherit_handled_context(PyObject *context)
+{
+    if (context == NULL) {
+        return;
+    }
+    PyObject *existing = PyException_GetContext(context);
+    if (existing != NULL) {
+        Py_DECREF(existing);
+        return;
+    }
+    PyObject *handled = PyErr_GetHandledException();
+    if (handled == NULL) {
+        return;
+    }
+    if (handled == context) { /* the interpreter refuses to close a cycle here, and so does this */
+        Py_DECREF(handled);
+        return;
+    }
+    PyException_SetContext(context, handled); /* steals handled */
+}
+
 static int
 raise_with_context(PyObject *error, PyObject *context, int suppress)
 {
@@ -83,6 +107,7 @@ raise_with_context(PyObject *error, PyObject *context, int suppress)
         Py_XDECREF(context);
         return -1;
     }
+    inherit_handled_context(context);
     PyException_SetContext(error, context); /* steals context */
     if (suppress != 0 && PyObject_SetAttrString(error, "__suppress_context__", Py_True) < 0) {
         Py_DECREF(error);
