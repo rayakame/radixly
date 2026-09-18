@@ -175,6 +175,27 @@ def test_compat_functions_keep_nothing(name: str) -> None:
     assert retained(raising(function, 42)) <= TOLERANCE
 
 
+# A wrong-type argument fails in the shared converter, so these are the only inputs that reach the 85
+# decoders' own raise: bad character, overflow, and z85's reword of the base85 error.
+_MALFORMED_85: typing.Final[list[tuple[str, bytes]]] = [
+    ("a85decode", b"uuuuu"),
+    ("a85decode", b"!!!!x"),
+    ("b85decode", b"~~~~~"),
+    ("b85decode", b"0000 "),
+    ("z85decode", b"#####"),
+    ("z85decode", b"0000 "),
+]
+
+
+@pytest.mark.parametrize(("name", "payload"), _MALFORMED_85, ids=[f"{n}-{p.decode()}" for n, p in _MALFORMED_85])
+def test_compat_85_decoders_keep_nothing_when_they_reject(name: str, payload: bytes) -> None:
+    """A malformed payload, not a wrong type: only this reaches the message the 85 decoders build."""
+    if name not in _PORTED:
+        pytest.skip(f"{name} arrived in 3.13")
+    function = typing.cast("Callable[..., object]", getattr(compat, name))
+    assert retained(raising(function, payload)) <= TOLERANCE
+
+
 @pytest.mark.parametrize(
     "make",
     [

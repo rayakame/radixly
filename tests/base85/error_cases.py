@@ -48,7 +48,7 @@ class Base85Preset(typing.Protocol):
 PRESETS: dict[str, Base85Preset] = {"base85": base85, "z85": z85}
 
 # Characters of the other alphabet only, which this one refuses.
-FOREIGN_CHARS: dict[str, str] = {"base85": ".:[]", "z85": ";_`|~"}
+FOREIGN_CHARS: dict[str, str] = {"base85": "./:[]", "z85": ";_`|~"}
 
 # The standard library's own output (Lib/test/test_base64.py and ZeroMQ's RFC 32 example), both directions.
 VECTORS: dict[str, dict[bytes, str]] = {

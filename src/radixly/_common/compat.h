@@ -49,12 +49,12 @@ PyObject *radixly_binascii_error_format(const char *format, ...);
 /* The exception currently raised, as a new reference, with the error state cleared. */
 PyObject *radixly_compat_take_raised(void);
 
-/* type(message) with context behind it, hidden as `raise ... from None` hides it. Steals context; returns
- * NULL. */
+/* type(message) with context behind it, hidden as `raise ... from None` hides it. Steals message and
+ * context; returns NULL. */
 PyObject *radixly_raise_from(PyObject *type, PyObject *message, PyObject *context);
 
-/* type(message) raised as `raise ... from cause`: the cause is the context too. Steals cause; returns NULL.
- */
+/* type(message) raised as `raise ... from cause`: the cause is the context too. Steals message and cause;
+ * returns NULL. */
 PyObject *radixly_raise_from_cause(PyObject *type, PyObject *message, PyObject *cause);
 
 /* struct.error(message), the context the stdlib's 85-family decoders leave behind an overflow. */

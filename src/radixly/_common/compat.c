@@ -393,6 +393,7 @@ radixly_raise_from(PyObject *type, PyObject *message, PyObject *context)
         return NULL;
     }
     PyObject *error = PyObject_CallOneArg(type, message);
+    Py_DECREF(message);
     raise_with_context(error, context, 1);
     return NULL;
 }

@@ -21,7 +21,8 @@ are all errors, so one payload has exactly one accepted spelling.
 the choice when every character counts and the channel takes all of
 printable ASCII: git chose it for binary diffs for that reason. The price is
 the alphabet, which reaches into `{}`, `|`, `` ` ``, `<>` and `&`: text that
-lands in a shell, a URL, a JSON string or HTML has to be quoted first. When
+lands in a shell, a URL or HTML has to be quoted first. A JSON string takes it
+as is, since no quote and no backslash is in the alphabet. When
 it cannot be, {doc}`z85` trades those characters away at the same density.
 
 It does not save bytes: as UTF-8 each character costs one, so the text is
@@ -34,7 +35,7 @@ The decoder reads groups of five, so a cut inside a group usually raises
 one-character tail never decodes, and a tail of two to four characters
 decodes only when it happens to be the exact spelling of a shorter payload:
 for random data, about one two-character tail in twenty-seven, one
-three-character tail in eight, one four-character tail in three. A cut on a
+three-character tail in nine, one four-character tail in three. A cut on a
 group boundary passes, without an error, and decodes to a prefix of the
 payload. Taken over every cut, about three in ten pass; there is no length
 and no checksum to catch them.
