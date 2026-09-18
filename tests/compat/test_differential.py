@@ -21,11 +21,15 @@
 
 from __future__ import annotations
 
+import array
 import base64
 import binascii
 import decimal
 import functools
+import gc
 import inspect
+import io
+import pickle  # ruff: ignore[suspicious-pickle-import] -- PickleBuffer is the stdlib's buffer exporter
 import random
 import subprocess  # ruff: ignore[suspicious-subprocess-import] -- fixed argv, own interpreter
 import sys
@@ -69,6 +73,10 @@ def test_ported_set_is_what_this_release_promises() -> None:
         "b64encode",
         "b85decode",
         "b85encode",
+        "decode",
+        "decodebytes",
+        "encode",
+        "encodebytes",
         "standard_b64decode",
         "standard_b64encode",
         "urlsafe_b64decode",
@@ -88,12 +96,28 @@ def test_signatures_match_the_stdlib(name: str) -> None:
     assert inspect.signature(_ours(name)) == inspect.signature(_theirs(name))
 
 
-@pytest.mark.parametrize("name", sorted(set(STDLIB_ALL) - set(PORTED)))
-def test_unported_names_are_the_stdlib_objects(name: str) -> None:
-    assert _ours(name) is _theirs(name)
+def test_nothing_is_left_to_the_stdlib() -> None:
+    """The drop-in is complete; a name that fell back to the standard library would show up here."""
+    assert sorted(PORTED) == sorted(STDLIB_ALL)
 
 
-@pytest.mark.parametrize("name", PORTED)
+# The legacy four take a bytestring or a pair of files, so the sample table below does not fit them.
+LEGACY = ("encode", "decode", "encodebytes", "decodebytes")
+
+
+def test_legacy_keyword_calls_match_the_stdlib() -> None:
+    """input, output and s are keyword names in the stdlib, so they are here too."""
+    _assert_same("encodebytes", s=b"abc")
+    _assert_same("decodebytes", s=b"YWJj\n")
+    for name in ("encode", "decode"):
+        payload = b"abc" if name == "encode" else b"YWJj\n"
+        ours, theirs = io.BytesIO(), io.BytesIO()
+        assert _ours(name)(input=io.BytesIO(payload), output=ours) is None
+        assert _theirs(name)(input=io.BytesIO(payload), output=theirs) is None
+        assert ours.getvalue() == theirs.getvalue()
+
+
+@pytest.mark.parametrize("name", [name for name in PORTED if name not in LEGACY])
 def test_keyword_calls_match_the_stdlib(name: str) -> None:
     """Every parameter the stdlib takes by name, the port takes by name, with the same result."""
     parameters = inspect.signature(_theirs(name)).parameters
@@ -376,6 +400,7 @@ def test_b16decode_matches(data: object, casefold: object) -> None:
 
 
 _PAIRS_PORTED = (
+    ("encodebytes", "decodebytes"),
     ("b16encode", "b16decode"),
     ("b32encode", "b32decode"),
     ("b32hexencode", "b32hexdecode"),
@@ -410,6 +435,18 @@ def test_ported_pairs_agree_on_a_megabyte() -> None:
     _assert_same("b64decode", wrapped, validate=True)
     _assert_same("standard_b64decode", wrapped)
     _assert_same("urlsafe_b64decode", wrapped)
+    _assert_same("encodebytes", payload)
+    _assert_same("decodebytes", base64.encodebytes(payload))
+    # A length that is a nonzero multiple of the line's 57 bytes is the boundary of the one-shot allocation.
+    for lines in (1, 2, 17):
+        _assert_same("encodebytes", b"a" * (57 * lines))
+        _assert_same("encodebytes", bytearray(b"b" * (57 * lines)))
+    for name in ("encode", "decode"):
+        source = payload if name == "encode" else base64.encodebytes(payload)
+        ours, theirs = io.BytesIO(), io.BytesIO()
+        assert _ours(name)(io.BytesIO(source), ours) is None
+        assert _theirs(name)(io.BytesIO(source), theirs) is None
+        assert ours.getvalue() == theirs.getvalue()
     _assert_same("b64decode", b"=" * 2**20 + base64.b64encode(payload))
     _assert_same("b64decode", base64.b64encode(payload) + b"=" * 2**20)
     zeros = bytes(2**20)
@@ -422,7 +459,7 @@ def test_ported_pairs_agree_on_a_megabyte() -> None:
     _assert_same("b85decode", b"~" * 2**20)
 
 
-@pytest.mark.parametrize("name", PORTED)
+@pytest.mark.parametrize("name", [name for name in PORTED if name not in LEGACY])
 def test_wrong_argument_shapes_match(name: str) -> None:
     """Too many, missing, unknown and duplicate arguments raise the stdlib's TypeError, text included."""
     shapes: list[tuple[tuple[object, ...], dict[str, object]]] = [
@@ -556,6 +593,8 @@ def test_str_like_inputs_go_through_encode(make: Callable[[], object]) -> None:
         _assert_same(name, make())
     for name in sorted({"a85decode", "b85decode", "z85decode"} & set(PORTED)):
         _assert_same(name, make())
+    for name in ("encodebytes", "decodebytes"):
+        _assert_same(name, make())
     _assert_same("b32decode", "AAAAAAAA", map01=make())
     _assert_same("b64decode", "AAAA", altchars=make())
 
@@ -666,6 +705,12 @@ def _chain_shape(call: Callable[[], object]) -> tuple[type, type, bool]:
         ("a85encode", (b"abc",), {"wrapcol": "x"}),
         ("a85encode", (b"abc",), {"wrapcol": 3.0}),
         ("a85encode", (42,), {}),
+        ("encodebytes", (42,), {}),  # the memoryview TypeError rides along as the cause
+        ("encodebytes", ("text",), {}),
+        ("decodebytes", (42,), {}),
+        ("decodebytes", (memoryview(b"abcdef")[::2],), {}),
+        ("encodebytes", (memoryview(b"1234").cast("I"),), {}),
+        ("encodebytes", (memoryview(b"1234").cast("B", (2, 2)),), {}),
     ],
 )
 def test_exception_chains_match(name: str, args: tuple[object, ...], kwargs: dict[str, object]) -> None:
@@ -711,6 +756,313 @@ def _chain(function: Callable[..., object], *args: object, **kwargs: object) -> 
         return (type(error), error.args, type(context), context.args if context else None, error.__suppress_context__)
     message = "expected an exception"
     raise AssertionError(message)
+
+
+@pytest.mark.parametrize("name", LEGACY)
+def test_legacy_wrong_argument_shapes_match(name: str) -> None:
+    """Too many, missing, unknown and duplicate arguments raise the stdlib's TypeError, text included."""
+    files = name in {"encode", "decode"}
+    sample: tuple[object, ...] = (io.BytesIO(b""), io.BytesIO()) if files else (b"",)
+    shapes: list[tuple[tuple[object, ...], dict[str, object]]] = [
+        ((), {}),
+        ((*sample, b""), {}),
+        ((*sample,), {"nope": 1}),
+        ((*sample,), {"s": b""}),
+        ((*sample,), {"input": io.BytesIO(b"")}),
+        ((*sample,), {"output": io.BytesIO()}),
+    ]
+    extra: list[tuple[tuple[object, ...], dict[str, object]]] = (
+        [
+            ((io.BytesIO(b""),), {}),  # output is missing
+            ((), {"s": b""}),
+            ((), {"input": io.BytesIO(b"")}),  # output is missing, input bound by name
+            ((), {"output": io.BytesIO()}),
+        ]
+        if files
+        else [((), {"input": b""})]
+    )
+    shapes += extra
+    for args, kwargs in shapes:
+        _assert_same(name, *args, **kwargs)
+        assert _outcome(_ours(name), *args, **kwargs)[0] is TypeError, (name, args, kwargs)
+
+
+class _RaisingWrite(io.BytesIO):
+    """An output file whose write fails, to pin that the port passes the failure on untouched."""
+
+    # pyright wants @override, which needs 3.12; the project floor is 3.11.
+    def write(self, _buffer: object, /) -> int:  # ruff: ignore[no-self-use]  # pyright: ignore[reportImplicitOverride]
+        message = "no write today"
+        raise RuntimeError(message)
+
+
+class _ShortReads:
+    """A file whose reads stop short of the line size, so the port must top the chunk up as the stdlib does."""
+
+    def __init__(self, pieces: list[object]) -> None:
+        self.pieces: list[object] = list(pieces)
+
+    def read(self, _size: int) -> object:
+        return self.pieces.pop(0) if self.pieces else b""
+
+
+class _SizedReads:
+    """A file that honours the size it is asked for and records every ask, the way a pipe or a socket does."""
+
+    def __init__(self, data: bytes, most: int) -> None:
+        self.data: bytes = data
+        self.most: int = most
+        self.asks: list[int] = []
+
+    def read(self, size: int) -> bytes:
+        self.asks.append(size)
+        taken = self.data[: min(size, self.most)]
+        self.data = self.data[len(taken) :]
+        return taken
+
+
+@pytest.mark.parametrize("most", [1, 7, 56, 57, 58, 100])
+@pytest.mark.parametrize("length", [0, 1, 56, 57, 58, 114, 200])
+def test_encode_asks_for_the_same_bytes_as_the_stdlib(most: int, length: int) -> None:
+    """The top-up read asks for what is still missing, so the lines stay 76 characters on a short-reading file."""
+    ours, theirs = _SizedReads(b"a" * length, most), _SizedReads(b"a" * length, most)
+    out_ours, out_theirs = io.BytesIO(), io.BytesIO()
+    assert _ours("encode")(ours, out_ours) is None
+    assert _theirs("encode")(theirs, out_theirs) is None
+    assert ours.asks == theirs.asks
+    assert out_ours.getvalue() == out_theirs.getvalue()
+
+
+# Fresh pieces per call: `s += ns` mutates a bytearray in place, so the two runs must not share one.
+@pytest.mark.parametrize(
+    "make",
+    [
+        lambda: [b"abc", b"de"],
+        lambda: [b"a" * 57, b"b" * 57],
+        lambda: [b"a" * 56, b"b"],
+        lambda: [b"a" * 100],
+        lambda: [b"", b"never read"],
+        lambda: [bytearray(b"ab"), bytearray(b"cd")],
+        lambda: [memoryview(b"abc")],
+        lambda: [b"ab", memoryview(b"cd")],
+    ],
+    ids=lambda make: repr(make()),  # pyright: ignore[reportAny]
+)
+def test_encode_tops_up_short_reads_like_the_stdlib(make: Callable[[], list[object]]) -> None:
+    ours, theirs = io.BytesIO(), io.BytesIO()
+    assert _outcome(_ours("encode"), _ShortReads(make()), ours) == _outcome(
+        _theirs("encode"), _ShortReads(make()), theirs
+    )
+    assert ours.getvalue() == theirs.getvalue()
+
+
+def test_legacy_files_pass_their_own_failures_on() -> None:
+    """A read, a write or a line that fails is the file's error, not reworded."""
+    assert _outcome(_ours("encode"), io.BytesIO(b"abc"), _RaisingWrite()) == _outcome(
+        _theirs("encode"), io.BytesIO(b"abc"), _RaisingWrite()
+    )
+    assert _outcome(_ours("decode"), io.BytesIO(b"YWJj\n"), _RaisingWrite()) == _outcome(
+        _theirs("decode"), io.BytesIO(b"YWJj\n"), _RaisingWrite()
+    )
+    for missing in (object(), None, 42):
+        assert _outcome(_ours("encode"), missing, io.BytesIO()) == _outcome(_theirs("encode"), missing, io.BytesIO())
+        assert _outcome(_ours("decode"), missing, io.BytesIO()) == _outcome(_theirs("decode"), missing, io.BytesIO())
+
+
+@pytest.mark.parametrize(
+    ("text", "binary"),
+    [(io.StringIO, io.BytesIO), (io.BytesIO, io.StringIO), (io.StringIO, io.StringIO)],
+    ids=repr,
+)
+def test_legacy_text_files_match(text: Callable[..., object], binary: Callable[..., object]) -> None:
+    """A text file on either side is the stdlib's TypeError, or its ValueError for non-ASCII input."""
+    for name, payload in (("encode", "abc"), ("decode", "eA==\n")):
+        for maker, other in ((text, binary), (binary, text)):
+            ours = _outcome(_ours(name), maker(payload if maker is io.StringIO else payload.encode()), other())
+            theirs = _outcome(_theirs(name), maker(payload if maker is io.StringIO else payload.encode()), other())
+            assert ours == theirs, (name, maker, other)
+    assert _outcome(_ours("decode"), io.StringIO("\xe9\n"), io.BytesIO()) == _outcome(
+        _theirs("decode"), io.StringIO("\xe9\n"), io.BytesIO()
+    )
+
+
+_LONG_NAMED = typing.cast("type[object]", type("L" * 250, (), {}))
+
+
+@typing.final
+class _RaisingClassBytes(bytes):
+    """A buffer whose __class__ raises; the stdlib reads __class__ only when it is about to raise."""
+
+    __slots__ = ()
+
+    @property
+    def __class__(self) -> type:  # pyright: ignore[reportIncompatibleMethodOverride, reportImplicitOverride]
+        message = "class lookup ran"
+        raise RuntimeError(message)
+
+
+@typing.final
+class _ZeroLen(bytes):
+    """A buffer whose __len__ says zero, so the stdlib's chunk loop never runs."""
+
+    __slots__ = ()
+
+    def __len__(self) -> int:  # pyright: ignore[reportImplicitOverride]
+        return 0
+
+
+@typing.final
+class _LongLen(bytes):
+    """A buffer whose __len__ overstates it, so the stdlib asks for slices past its end."""
+
+    __slots__ = ()
+
+    def __len__(self) -> int:  # pyright: ignore[reportImplicitOverride]
+        return 200
+
+
+@typing.final
+class _Slicer(bytes):
+    """A buffer whose slices are not its own bytes, which is what the stdlib encodes."""
+
+    __slots__ = ()
+
+    def __getitem__(self, key: object) -> bytes:  # pyright: ignore[reportImplicitOverride, reportIncompatibleMethodOverride]
+        return b"ZZZ"
+
+
+@pytest.mark.parametrize(
+    "make",
+    [
+        lambda: _RaisingClassBytes(b"abcdef"),
+        lambda: _ZeroLen(b"abcdef"),
+        lambda: _LongLen(b"abcdef"),
+        lambda: _Slicer(b"abcdef"),
+        lambda: pickle.PickleBuffer(b"A" * 100),
+        lambda: pickle.PickleBuffer(b""),
+    ],
+    ids=["raising-class", "zero-len", "long-len", "slicer", "picklebuffer", "empty-picklebuffer"],
+)
+def test_legacy_reads_the_object_where_the_stdlib_reads_it(make: Callable[[], object]) -> None:
+    """len(), the slices and __class__ are the stdlib's, not the buffer's, so these must agree exactly."""
+    _assert_same("encodebytes", make())
+    _assert_same("decodebytes", make())
+
+
+class _LongNamedLine:
+    """A file whose line is an instance of a 250-character type, the name binascii cuts at 100 characters."""
+
+    def readline(self) -> object:  # ruff: ignore[no-self-use]
+        return _LONG_NAMED()
+
+
+@typing.final
+class _CountingLen(bytes):
+    """A chunk that counts how often its length is asked for; the stdlib asks twice per top-up round."""
+
+    __slots__ = ()
+    calls: typing.ClassVar[int] = 0
+
+    def __len__(self) -> int:  # pyright: ignore[reportImplicitOverride]
+        type(self).calls += 1
+        return bytes.__len__(self)
+
+
+class _CountingReads:
+    """A file whose reads hand back _CountingLen chunks, so len(s) calls are observable."""
+
+    def __init__(self) -> None:
+        self.reads: int = 0
+
+    def read(self, _size: int) -> bytes:
+        self.reads += 1
+        return _CountingLen(b"abc") if self.reads == 1 else (_CountingLen(b"de") if self.reads == 2 else b"")
+
+
+def test_encode_asks_for_the_length_as_often_as_the_stdlib() -> None:
+    """The stdlib's loop condition and its read size are two separate len(s) calls."""
+    counts: list[int] = []
+    for name in ("ours", "theirs"):
+        _CountingLen.calls = 0
+        function = _ours("encode") if name == "ours" else _theirs("encode")
+        assert function(_CountingReads(), io.BytesIO()) is None
+        counts.append(_CountingLen.calls)
+    assert counts[0] == counts[1]
+
+
+class _RecordingWrites(io.BytesIO):
+    """A sink that remembers the size of every write, so streaming is observable, not just the total."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.sizes: list[int] = []
+
+    def write(self, buffer: object, /) -> int:  # pyright: ignore[reportImplicitOverride]
+        self.sizes.append(len(typing.cast("bytes", buffer)))
+        return super().write(typing.cast("bytes", buffer))
+
+
+@pytest.mark.parametrize("length", [0, 1, 57, 58, 200, 1000])
+def test_legacy_files_write_one_line_at_a_time(length: int) -> None:
+    """A batching port would pass on the joined output alone, so the write sizes are pinned too."""
+    payload = b"a" * length
+    for name, source in (("encode", payload), ("decode", base64.encodebytes(payload))):
+        ours, theirs = _RecordingWrites(), _RecordingWrites()
+        assert _ours(name)(io.BytesIO(source), ours) is None
+        assert _theirs(name)(io.BytesIO(source), theirs) is None
+        assert ours.sizes == theirs.sizes, (name, length)
+        assert ours.getvalue() == theirs.getvalue()
+
+
+@typing.final
+class _RaisingClassObject:
+    """Not a buffer, and its __class__ raises: the stdlib is still inside `except TypeError` when it does."""
+
+    @property
+    def __class__(self) -> type:  # pyright: ignore[reportIncompatibleMethodOverride, reportImplicitOverride]
+        message = "class boom"
+        raise RuntimeError(message)
+
+
+@pytest.mark.parametrize("name", ["encodebytes", "decodebytes"])
+def test_failing_class_lookup_keeps_the_memoryview_error_as_context(name: str) -> None:
+    """The stdlib's rewording happens inside an except block, so its TypeError stays as the context."""
+    assert _chain(_ours(name), _RaisingClassObject()) == _chain(_theirs(name), _RaisingClassObject())
+
+
+def test_decode_writes_what_the_stdlib_writes_for_text_lines() -> None:
+    """The ASCII-str branch of the buffer converter decodes the line's own bytes, not an empty slice."""
+    for text in ("eA==\n", "YWJj\n", "", "\n", "Zm9vYmFy\n" * 3):
+        ours, theirs = io.BytesIO(), io.BytesIO()
+        assert _ours("decode")(io.StringIO(text), ours) is None
+        assert _theirs("decode")(io.StringIO(text), theirs) is None
+        assert ours.getvalue() == theirs.getvalue()
+        assert ours.getvalue() == base64.b64decode(text.encode("ascii"))
+
+
+@pytest.mark.parametrize(
+    "make", [lambda: memoryview(bytes(1 << 18)), lambda: array.array("B", bytes(1 << 18))], ids=repr
+)
+def test_encodebytes_keeps_nothing_per_chunk(make: Callable[[], object]) -> None:
+    """The slicing path builds two index objects per 57-byte chunk; holding them would grow without bound."""
+    argument = make()
+    encode = _ours("encodebytes")
+    encode(argument)
+    gc.collect()
+    before = sys.getallocatedblocks()
+    for _ in range(5):
+        encode(argument)
+    gc.collect()
+    assert sys.getallocatedblocks() - before < 100  # one chunk per 57 bytes, so a leak would be thousands
+
+
+def test_long_type_names_are_truncated_where_binascii_truncates() -> None:
+    """The drop-in's message carries the same truncated name as binascii's, not a longer one."""
+    ours = _outcome(_ours("decode"), _LongNamedLine(), io.BytesIO())
+    assert ours == _outcome(_theirs("decode"), _LongNamedLine(), io.BytesIO())
+    message = str(typing.cast("tuple[object, ...]", ours[1])[0])
+    assert "L" * 100 in message
+    assert "L" * 101 not in message
 
 
 @pytest.mark.parametrize("make", [lambda: 5, list, lambda: 3.5, lambda: decimal.Decimal(1), _ClassLiar, _RaisingBuffer])

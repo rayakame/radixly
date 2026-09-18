@@ -779,6 +779,364 @@ radixly_a2b_base64_variant(PyObject *Py_UNUSED(self), PyObject *arg)
     return PyLong_FromLong((long)a2b_variant_for(version));
 }
 
+/* The legacy file functions: 76-character lines, so 57 bytes of payload each. */
+enum {
+    MAXLINESIZE = 76,
+    MAXBINSIZE = (MAXLINESIZE / GROUP_CHARS) * GROUP_BYTES,
+};
+
+/* binascii.b2a_base64 with its courtesy newline. */
+static PyObject *
+b2a_line(const unsigned char *data, Py_ssize_t len)
+{
+    if (len > STDLIB_MAX_INPUT) {
+        return radixly_binascii_error("Too much data for base64 line");
+    }
+    const Py_ssize_t chars = encoded_len(len);
+    PyObject *result = PyBytes_FromStringAndSize(NULL, chars + 1);
+    if (result == NULL) {
+        return NULL;
+    }
+    unsigned char *out = (unsigned char *)PyBytes_AS_STRING(result);
+    fill(data, len, out, TABLES[0].alphabet);
+    out[chars] = '\n';
+    return result;
+}
+
+/* The stdlib's _input_type_check: memoryview(s), single-byte elements, one dimension. Fills length. */
+static int
+input_type_check(PyObject *arg, Py_ssize_t *length)
+{
+    PyObject *view = PyMemoryView_FromObject(arg);
+    if (view == NULL) {
+        if (!PyErr_ExceptionMatches(PyExc_TypeError)) {
+            return -1; /* the stdlib catches only memoryview's TypeError */
+        }
+        PyObject *cause = radixly_compat_take_raised();
+        PyObject *name = radixly_compat_class_name(arg);
+        if (name == NULL) {
+            /* The stdlib is still inside `except TypeError as err`, so that error is this one's context. */
+            radixly_compat_set_context(cause);
+            return -1;
+        }
+        PyObject *message = PyUnicode_FromFormat("expected bytes-like object, not %S", name);
+        Py_DECREF(name);
+        radixly_raise_from_cause(PyExc_TypeError, message, cause);
+        return -1;
+    }
+    const Py_buffer *buffer = PyMemoryView_GET_BUFFER(view);
+    const char *format = buffer->format == NULL ? "B" : buffer->format;
+    const int single_byte =
+        format[0] != '\0' && format[1] == '\0' && (format[0] == 'c' || format[0] == 'b' || format[0] == 'B');
+    if (single_byte && buffer->ndim == 1) {
+        *length = buffer->len; /* the stdlib names __class__ only when it raises, so nothing else is read */
+        Py_DECREF(view);
+        return 0;
+    }
+    /* format points into the view's buffer, so the message is built before the view goes. */
+    PyObject *name = radixly_compat_class_name(arg);
+    if (name != NULL) {
+        if (!single_byte) {
+            PyErr_Format(PyExc_TypeError, "expected single byte elements, not '%s' from %S", format, name);
+        }
+        else {
+            PyErr_Format(PyExc_TypeError, "expected 1-D data, not %d-D data from %S", buffer->ndim, name);
+        }
+        Py_DECREF(name);
+    }
+    Py_DECREF(view);
+    return -1;
+}
+
+const char radixly_encodebytes_doc[] =
+    PyDoc_STR("encodebytes($module, /, s)\n"
+              "--\n"
+              "\n"
+              "Encode a bytestring into a bytes object containing multiple lines\n"
+              "of base-64 data.");
+/* The lines of a contiguous buffer in one allocation, for the bytes and bytearray the stdlib slices into
+ * identical copies. */
+static PyObject *
+encodebytes_contiguous(PyObject *arg, Py_ssize_t length)
+{
+    if (length == 0) {
+        return PyBytes_FromStringAndSize("", 0); /* no chunk, so the stdlib never reaches b2a_base64 */
+    }
+    if (length > PY_SSIZE_T_MAX / 2) {
+        return PyErr_NoMemory(); /* the lines are 77 characters per 57 bytes, comfortably under twice */
+    }
+    Py_buffer view;
+    if (PyObject_GetBuffer(arg, &view, PyBUF_SIMPLE) == -1) {
+        return NULL;
+    }
+    const Py_ssize_t chunks = (view.len + MAXBINSIZE - 1) / MAXBINSIZE;
+    const Py_ssize_t tail = view.len - (MAXBINSIZE * (chunks - 1));
+    PyObject *result =
+        PyBytes_FromStringAndSize(NULL, ((MAXLINESIZE + 1) * (chunks - 1)) + encoded_len(tail) + 1);
+    if (result == NULL) {
+        PyBuffer_Release(&view);
+        return NULL;
+    }
+    const unsigned char *data = view.buf;
+    unsigned char *out = (unsigned char *)PyBytes_AS_STRING(result);
+    for (Py_ssize_t chunk = 0; chunk < chunks; chunk++) {
+        const Py_ssize_t offset = MAXBINSIZE * chunk;
+        const Py_ssize_t count = Py_MIN(MAXBINSIZE, view.len - offset);
+        fill(data + offset, count, out, TABLES[0].alphabet);
+        out += encoded_len(count);
+        *out++ = '\n';
+    }
+    PyBuffer_Release(&view);
+    return result;
+}
+
+/* One encoded line from s[start:stop], the slice and its buffer the stdlib's own. */
+static PyObject *
+encode_slice(PyObject *arg, Py_ssize_t start, Py_ssize_t stop)
+{
+    /* PySlice_New increfs its bounds and reads a NULL as None, so both are owned here and checked first. */
+    PyObject *first = PyLong_FromSsize_t(start);
+    PyObject *last = PyLong_FromSsize_t(stop);
+    PyObject *bounds = first == NULL || last == NULL ? NULL : PySlice_New(first, last, NULL);
+    Py_XDECREF(first);
+    Py_XDECREF(last);
+    if (bounds == NULL) {
+        return NULL;
+    }
+    PyObject *chunk = PyObject_GetItem(arg, bounds);
+    Py_DECREF(bounds);
+    if (chunk == NULL) {
+        return NULL;
+    }
+    Py_buffer view;
+    if (PyObject_GetBuffer(chunk, &view, PyBUF_SIMPLE) == -1) {
+        Py_DECREF(chunk);
+        return NULL;
+    }
+    PyObject *line = b2a_line(view.buf, view.len);
+    PyBuffer_Release(&view);
+    Py_DECREF(chunk);
+    return line;
+}
+
+/* The stdlib's own loop: `for i in range(0, len(s), MAXBINSIZE):
+ * pieces.append(b2a_base64(s[i:i+MAXBINSIZE]))`, so an object whose length or slicing disagrees with its
+ * buffer is treated as the stdlib treats it. */
+static PyObject *
+encodebytes_by_slices(PyObject *arg)
+{
+    const Py_ssize_t length = PyObject_Length(arg);
+    if (length < 0) {
+        return NULL;
+    }
+    PyObject *pieces = PyList_New(0);
+    if (pieces == NULL) {
+        return NULL;
+    }
+    for (Py_ssize_t start = 0; start < length; start += MAXBINSIZE) {
+        PyObject *line = encode_slice(arg, start, start + MAXBINSIZE);
+        if (line == NULL || PyList_Append(pieces, line) < 0) {
+            Py_XDECREF(line);
+            Py_DECREF(pieces);
+            return NULL;
+        }
+        Py_DECREF(line);
+    }
+    PyObject *empty = PyBytes_FromStringAndSize("", 0);
+    if (empty == NULL) {
+        Py_DECREF(pieces);
+        return NULL;
+    }
+    PyObject *result = PyObject_CallMethod(empty, "join", "O", pieces);
+    Py_DECREF(empty);
+    Py_DECREF(pieces);
+    return result;
+}
+
+PyObject *
+radixly_encodebytes(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+{
+    PyObject *arg = NULL;
+    radixly_param params[] = {{"s", &arg}};
+    if (radixly_bind_args("encodebytes", args, nargs, kwnames, params, 1, 1, 1) < 0) {
+        return NULL;
+    }
+    Py_ssize_t length = 0;
+    if (input_type_check(arg, &length) < 0) {
+        return NULL;
+    }
+    if (PyBytes_CheckExact(arg) || PyByteArray_CheckExact(arg)) {
+        return encodebytes_contiguous(arg,
+                                      length); /* len(s) is the buffer's own length, every slice a copy */
+    }
+    return encodebytes_by_slices(arg);
+}
+
+const char radixly_decodebytes_doc[] = PyDoc_STR("decodebytes($module, /, s)\n"
+                                                 "--\n"
+                                                 "\n"
+                                                 "Decode a bytestring of base-64 data into a bytes object.");
+PyObject *
+radixly_decodebytes(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+{
+    PyObject *arg = NULL;
+    radixly_param params[] = {{"s", &arg}};
+    if (radixly_bind_args("decodebytes", args, nargs, kwnames, params, 1, 1, 1) < 0) {
+        return NULL;
+    }
+    Py_ssize_t length = 0;
+    if (input_type_check(arg, &length) < 0) {
+        return NULL;
+    }
+    radixly_compat_input source;
+    if (radixly_compat_ascii_buffer_input(arg, &source) < 0) {
+        return NULL;
+    }
+    PyObject *result = stdlib_a2b(COMPAT_REV[0], source.data, source.len, 0);
+    radixly_compat_input_release(&source);
+    return result;
+}
+
+/* The stdlib's `line = b2a_base64(s); output.write(line)`, with s whatever read returned. */
+static int
+write_encoded_line(PyObject *output, PyObject *chunk)
+{
+    Py_buffer view;
+    if (PyObject_GetBuffer(chunk, &view, PyBUF_SIMPLE) == -1) {
+        return -1;
+    }
+    PyObject *line = b2a_line(view.buf, view.len);
+    PyBuffer_Release(&view);
+    if (line == NULL) {
+        return -1;
+    }
+    PyObject *written = PyObject_CallMethod(output, "write", "O", line);
+    Py_DECREF(line);
+    Py_XDECREF(written);
+    return written == NULL ? -1 : 0;
+}
+
+/* One read of at most count bytes, or NULL with the exception set. */
+static PyObject *
+read_chunk(PyObject *input, Py_ssize_t count)
+{
+    return PyObject_CallMethod(input, "read", "n", count);
+}
+
+/* A short read is topped up, so every line but the last carries its full 57 bytes; -1 clears the chunk. */
+static int
+top_up(PyObject *input, PyObject **chunk)
+{
+    for (;;) {
+        const Py_ssize_t have = PyObject_Length(*chunk);
+        if (have < 0) {
+            return -1;
+        }
+        if (have >= MAXBINSIZE) {
+            return 0;
+        }
+        /* The stdlib's condition and its read size are two separate len(s) calls, so this asks twice too. */
+        const Py_ssize_t wanted = PyObject_Length(*chunk);
+        if (wanted < 0) {
+            return -1;
+        }
+        PyObject *extra = read_chunk(input, MAXBINSIZE - wanted);
+        if (extra == NULL) {
+            return -1;
+        }
+        const int again = PyObject_IsTrue(extra);
+        if (again <= 0) {
+            Py_DECREF(extra);
+            return again;
+        }
+        PyObject *joined = PyNumber_InPlaceAdd(*chunk, extra);
+        Py_DECREF(extra);
+        Py_DECREF(*chunk);
+        *chunk = joined;
+        if (joined == NULL) {
+            return -1;
+        }
+    }
+}
+
+const char radixly_encode_doc[] = PyDoc_STR("encode($module, /, input, output)\n"
+                                            "--\n"
+                                            "\n"
+                                            "Encode a file; input and output are binary files.");
+PyObject *
+radixly_encode(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+{
+    PyObject *input = NULL;
+    PyObject *output = NULL;
+    radixly_param params[] = {{"input", &input}, {"output", &output}};
+    if (radixly_bind_args("encode", args, nargs, kwnames, params, 2, 2, 2) < 0) {
+        return NULL;
+    }
+    for (;;) {
+        PyObject *chunk = read_chunk(input, MAXBINSIZE);
+        if (chunk == NULL) {
+            return NULL;
+        }
+        const int more = PyObject_IsTrue(chunk);
+        if (more <= 0) {
+            Py_DECREF(chunk);
+            return more < 0 ? NULL : Py_NewRef(Py_None);
+        }
+        if (top_up(input, &chunk) < 0) {
+            Py_XDECREF(chunk);
+            return NULL;
+        }
+        const int failed = write_encoded_line(output, chunk) < 0;
+        Py_DECREF(chunk);
+        if (failed) {
+            return NULL;
+        }
+    }
+}
+
+const char radixly_decode_doc[] = PyDoc_STR("decode($module, /, input, output)\n"
+                                            "--\n"
+                                            "\n"
+                                            "Decode a file; input and output are binary files.");
+PyObject *
+radixly_decode(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+{
+    PyObject *input = NULL;
+    PyObject *output = NULL;
+    radixly_param params[] = {{"input", &input}, {"output", &output}};
+    if (radixly_bind_args("decode", args, nargs, kwnames, params, 2, 2, 2) < 0) {
+        return NULL;
+    }
+    for (;;) {
+        PyObject *line = PyObject_CallMethod(input, "readline", NULL);
+        if (line == NULL) {
+            return NULL;
+        }
+        const int more = PyObject_IsTrue(line);
+        if (more <= 0) {
+            Py_DECREF(line);
+            return more < 0 ? NULL : Py_NewRef(Py_None);
+        }
+        radixly_compat_input source;
+        if (radixly_compat_ascii_buffer_input(line, &source) < 0) {
+            Py_DECREF(line);
+            return NULL;
+        }
+        PyObject *decoded = stdlib_a2b(COMPAT_REV[0], source.data, source.len, 0);
+        radixly_compat_input_release(&source);
+        Py_DECREF(line);
+        if (decoded == NULL) {
+            return NULL;
+        }
+        PyObject *written = PyObject_CallMethod(output, "write", "O", decoded);
+        Py_DECREF(decoded);
+        Py_XDECREF(written);
+        if (written == NULL) {
+            return NULL;
+        }
+    }
+}
+
 const char radixly_base64_encode_doc[] =
     PyDoc_STR("base64_encode($module, data, /)\n"
               "--\n"

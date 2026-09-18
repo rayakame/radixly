@@ -300,6 +300,66 @@ radixly_compat_input_release(radixly_compat_input *input)
 }
 
 int
+radixly_compat_ascii_buffer_input(PyObject *arg, radixly_compat_input *input)
+{
+    input->copy = NULL;
+    input->coerced = NULL;
+    input->has_view = 0;
+    if (PyUnicode_Check(arg)) {
+#if PY_VERSION_HEX < 0x030C0000
+        /* 3.11 can still meet legacy, non-ready strings; IS_ASCII on one is UB. Compiles out on 3.12+. */
+        if (PyUnicode_READY(arg) == -1) {
+            return -1;
+        }
+#endif
+        if (!PyUnicode_IS_ASCII(arg)) {
+            PyErr_SetString(PyExc_ValueError, "string argument should contain only ASCII characters");
+            return -1;
+        }
+        input->data = PyUnicode_1BYTE_DATA(arg);
+        input->len = PyUnicode_GET_LENGTH(arg);
+        return 0;
+    }
+    if (PyObject_GetBuffer(arg, &input->view, PyBUF_SIMPLE) < 0) {
+        /* The converter words every failure, a strided buffer's BufferError included, as its own TypeError.
+         */
+        PyErr_Format(PyExc_TypeError, "argument should be bytes, buffer or ASCII string, not '%.100s'",
+                     Py_TYPE(arg)->tp_name);
+        return -1;
+    }
+    input->data = input->view.buf;
+    input->len = input->view.len;
+    input->has_view = 1;
+    return 0;
+}
+
+void
+radixly_compat_set_context(PyObject *context)
+{
+    if (context == NULL) {
+        return;
+    }
+    PyObject *error = take_raised();
+    if (error == NULL) {
+        Py_DECREF(context);
+        return;
+    }
+    raise_with_context(error, context, 0);
+}
+
+PyObject *
+radixly_compat_class_name(PyObject *arg)
+{
+    PyObject *cls = PyObject_GetAttrString(arg, "__class__");
+    if (cls == NULL) {
+        return NULL;
+    }
+    PyObject *name = PyObject_GetAttrString(cls, "__name__");
+    Py_DECREF(cls);
+    return name;
+}
+
+int
 radixly_compat_truth(PyObject *arg)
 {
     return arg == NULL ? 0 : PyObject_IsTrue(arg);
@@ -334,6 +394,26 @@ radixly_raise_from(PyObject *type, PyObject *message, PyObject *context)
     }
     PyObject *error = PyObject_CallOneArg(type, message);
     raise_with_context(error, context, 1);
+    return NULL;
+}
+
+PyObject *
+radixly_raise_from_cause(PyObject *type, PyObject *message, PyObject *cause)
+{
+    if (message == NULL || cause == NULL) {
+        Py_XDECREF(cause);
+        Py_XDECREF(message);
+        return NULL;
+    }
+    PyObject *error = PyObject_CallOneArg(type, message);
+    Py_DECREF(message);
+    if (error == NULL) {
+        Py_DECREF(cause);
+        return NULL;
+    }
+    PyException_SetCause(error,
+                         Py_NewRef(cause)); /* the C setter leaves the flag alone; the context does it */
+    raise_with_context(error, cause, 1);
     return NULL;
 }
 

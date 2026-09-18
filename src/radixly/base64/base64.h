@@ -34,6 +34,18 @@ PyObject *radixly_b64encode_with(const char *function, PyObject *const *args, Py
 PyObject *radixly_b64decode_with(const char *function, PyObject *const *args, Py_ssize_t nargs,
                                  PyObject *kwnames, int url, int with_options);
 
+extern const char radixly_encodebytes_doc[];
+PyObject *radixly_encodebytes(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
+
+extern const char radixly_decodebytes_doc[];
+PyObject *radixly_decodebytes(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
+
+extern const char radixly_encode_doc[];
+PyObject *radixly_encode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
+
+extern const char radixly_decode_doc[];
+PyObject *radixly_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
+
 extern const char radixly_a2b_base64_variant_doc[];
 PyObject *radixly_a2b_base64_variant(PyObject *self, PyObject *arg);
 

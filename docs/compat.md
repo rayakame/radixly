@@ -1,7 +1,8 @@
 # Standard library drop-in
 
 `radixly.compat.base64` is the standard library's `base64` module with the
-same names, arguments, results and errors, one import away:
+same names, arguments, results and errors, one import away, and every one of
+them runs in C:
 
 ```python
 from radixly.compat import base64
@@ -49,8 +50,8 @@ The strict codecs in the rest of radixly are a different contract, see below.
 
 ## What runs in C
 
-The port lands family by family. Functions not yet ported are the standard
-library's own, so the module is complete at every step and only gets faster.
+The port landed family by family, and is complete: nothing falls back to the
+standard library any more.
 
 | functions | status |
 |---|---|
@@ -58,7 +59,7 @@ library's own, so the module is complete at every step and only gets faster.
 | `b32encode`, `b32decode`, `b32hexencode`, `b32hexdecode` | C |
 | `b64encode`, `b64decode`, `standard_b64encode`, `standard_b64decode`, `urlsafe_b64encode`, `urlsafe_b64decode` | C |
 | `a85encode`, `a85decode`, `b85encode`, `b85decode`, `z85encode`, `z85decode` (3.13 and later) | C |
-| `encode`, `decode`, `encodebytes`, `decodebytes` | standard library |
+| `encode`, `decode`, `encodebytes`, `decodebytes` | C |
 
 ## Strict codecs versus the drop-in
 

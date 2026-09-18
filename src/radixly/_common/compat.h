@@ -53,6 +53,10 @@ PyObject *radixly_compat_take_raised(void);
  * NULL. */
 PyObject *radixly_raise_from(PyObject *type, PyObject *message, PyObject *context);
 
+/* type(message) raised as `raise ... from cause`: the cause is the context too. Steals cause; returns NULL.
+ */
+PyObject *radixly_raise_from_cause(PyObject *type, PyObject *message, PyObject *cause);
+
 /* struct.error(message), the context the stdlib's 85-family decoders leave behind an overflow. */
 PyObject *radixly_struct_error(const char *message);
 
@@ -61,6 +65,15 @@ int radixly_compat_decode_input(PyObject *arg, radixly_compat_input *input);
 
 /* memoryview(arg).tobytes(): any buffer, copied when strided, str refused with memoryview's own words. */
 int radixly_compat_buffer_input(PyObject *arg, radixly_compat_input *input);
+
+/* binascii's ascii_buffer converter: an ASCII str's own bytes, or a C-contiguous buffer, with its wording. */
+int radixly_compat_ascii_buffer_input(PyObject *arg, radixly_compat_input *input);
+
+/* arg.__class__.__name__, which the stdlib names in its type errors; a new reference, or NULL. */
+PyObject *radixly_compat_class_name(PyObject *arg);
+
+/* Put context behind the exception now raised, as an active except block does. Steals context. */
+void radixly_compat_set_context(PyObject *context);
 
 void radixly_compat_input_release(radixly_compat_input *input);
 
