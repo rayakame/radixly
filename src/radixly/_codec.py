@@ -44,11 +44,11 @@ class Codec:
     name
         The registry key, e.g. ``"base32768"``.
     bits_per_char
-        Payload bits per output character.
+        Payload bits per output character, as a ratio: 6.4 for base85, whose five characters carry four bytes.
     """
 
     name: str
-    bits_per_char: int
+    bits_per_char: float
     encode: collections.abc.Callable[[ReadableBuffer], str]
     decode: collections.abc.Callable[[str], bytes]
     encoded_len: collections.abc.Callable[[int], int]
@@ -101,7 +101,7 @@ def get_codec(name: str) -> Codec:
     --------
     >>> import radixly
     >>> radixly.get_codec("uro14").bits_per_char
-    14
+    14.0
     """
     codec = _registry.get(name)
     if codec is None:

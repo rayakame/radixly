@@ -90,13 +90,25 @@ The encoding every channel speaks, RFC 4648, in its strict form.
 base64 for URLs and file names, padding kept.
 :::
 
+:::{grid-item-card} base85
+:link: codecs/base85
+:link-type: doc
+Four bytes in five characters of printable ASCII, git's alphabet.
+:::
+
+:::{grid-item-card} z85
+:link: codecs/z85
+:link-type: doc
+base85 with ZeroMQ's alphabet: no backquote, pipe, semicolon, underscore or tilde.
+:::
+
 ::::
 
 ## Next steps
 
 - {doc}`guides/getting-started` installs radixly and walks through a first
   round trip.
-- {doc}`guides/choosing-a-codec` compares the eleven codecs side by side.
+- {doc}`guides/choosing-a-codec` compares the thirteen codecs side by side.
 - Source, issues and releases live on [GitHub](https://github.com/rayakame/radixly).
 
 ```{toctree}
@@ -117,6 +129,8 @@ codecs/base32
 codecs/base32hex
 codecs/base64
 codecs/base64url
+codecs/base85
+codecs/z85
 codecs/base32768
 codecs/base65536
 codecs/base2048

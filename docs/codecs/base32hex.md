@@ -62,8 +62,8 @@ to `str` for a like comparison.
 .. autofunction:: encoded_len
 .. autofunction:: max_bytes
 .. data:: BITS_PER_CHAR
-   :type: int
-   :value: 5
+   :type: float
+   :value: 5.0
 
    Payload bits per character; a final group is padded with ``=`` to eight characters.
 

@@ -116,12 +116,14 @@ EXPECTED_CODECS = [
     "base32hex",
     "base64",
     "base64url",
+    "base85",
     "base2048",
     "base32768",
     "base65536",
     "braille",
     "hexagram",
     "uro14",
+    "z85",
 ]
 
 

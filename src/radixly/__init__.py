@@ -26,12 +26,14 @@ from radixly import base32 as base32
 from radixly import base32hex as base32hex
 from radixly import base64 as base64
 from radixly import base64url as base64url
+from radixly import base85 as base85
 from radixly import base2048 as base2048
 from radixly import base32768 as base32768
 from radixly import base65536 as base65536
 from radixly import braille as braille
 from radixly import hexagram as hexagram
 from radixly import uro14 as uro14
+from radixly import z85 as z85
 from radixly._about import __author__ as __author__
 from radixly._about import __copyright__ as __copyright__
 from radixly._about import __license__ as __license__

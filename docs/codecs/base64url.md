@@ -82,8 +82,8 @@ it has deprecated).
 .. autofunction:: encoded_len
 .. autofunction:: max_bytes
 .. data:: BITS_PER_CHAR
-   :type: int
-   :value: 6
+   :type: float
+   :value: 6.0
 
    Payload bits per character; a final group is padded with ``=`` to four characters.
 

@@ -31,7 +31,7 @@ __all__ = ("BASE16", "BITS_PER_CHAR", "decode", "encode", "encoded_len", "max_by
 encode = base16_encode
 decode = base16_decode
 
-BITS_PER_CHAR = 4
+BITS_PER_CHAR = 4.0
 """Payload bits per character: one hexadecimal digit."""
 
 

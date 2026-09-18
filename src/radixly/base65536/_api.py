@@ -31,7 +31,7 @@ __all__ = ("BASE65536", "BITS_PER_CHAR", "decode", "encode", "encoded_len", "max
 encode = base65536_encode
 decode = base65536_decode
 
-BITS_PER_CHAR = 16
+BITS_PER_CHAR = 16.0
 """Payload bits carried by one full character: two bytes; a final odd byte gets a character of its own."""
 
 

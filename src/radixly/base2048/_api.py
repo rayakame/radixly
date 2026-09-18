@@ -31,7 +31,7 @@ __all__ = ("BASE2048", "BITS_PER_CHAR", "decode", "encode", "encoded_len", "max_
 encode = base2048_encode
 decode = base2048_decode
 
-BITS_PER_CHAR = 11
+BITS_PER_CHAR = 11.0
 """Payload bits carried by one full character; a final short character carries 3."""
 
 
@@ -62,7 +62,7 @@ def encoded_len(num_bytes: int) -> int:
     if num_bytes < 0:
         msg = f"num_bytes must be >= 0, got {num_bytes}"
         raise ValueError(msg)
-    return (8 * num_bytes + 10) // BITS_PER_CHAR
+    return (8 * num_bytes + 10) // 11
 
 
 def max_bytes(num_chars: int) -> int:
@@ -92,7 +92,7 @@ def max_bytes(num_chars: int) -> int:
     if num_chars < 0:
         msg = f"num_chars must be >= 0, got {num_chars}"
         raise ValueError(msg)
-    return BITS_PER_CHAR * num_chars // 8
+    return 11 * num_chars // 8
 
 
 BASE2048 = Codec(

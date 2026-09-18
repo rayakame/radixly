@@ -30,6 +30,7 @@
 #include "base64/base64.h"
 #include "base64url/base64url.h"
 #include "base85/base85.h"
+#include "z85/z85.h"
 #include "base65536/base65536.h"
 #include "braille/braille.h"
 #include "hexagram/hexagram.h"
@@ -52,6 +53,10 @@ static PyMethodDef radixly_methods[] = {
     {"base64_decode", radixly_base64_decode, METH_O, radixly_base64_decode_doc},
     {"base64url_encode", radixly_base64url_encode, METH_O, radixly_base64url_encode_doc},
     {"base64url_decode", radixly_base64url_decode, METH_O, radixly_base64url_decode_doc},
+    {"base85_encode", radixly_base85_encode, METH_O, radixly_base85_encode_doc},
+    {"base85_decode", radixly_base85_decode, METH_O, radixly_base85_decode_doc},
+    {"z85_encode", radixly_z85_encode, METH_O, radixly_z85_encode_doc},
+    {"z85_decode", radixly_z85_decode, METH_O, radixly_z85_decode_doc},
     {"base65536_encode", radixly_base65536_encode, METH_O, radixly_base65536_encode_doc},
     {"base65536_decode", radixly_base65536_decode, METH_O, radixly_base65536_decode_doc},
     {"braille_encode", radixly_braille_encode, METH_O, radixly_braille_encode_doc},

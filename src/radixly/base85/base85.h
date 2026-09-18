@@ -36,6 +36,16 @@ PyObject *radixly_85_encode(const unsigned char *data, Py_ssize_t len, const cha
 PyObject *radixly_85_decode(const unsigned char *data, Py_ssize_t len, const unsigned char *rev,
                             const char *codec);
 
+/* The strict codecs: zeromq selects the Z85 alphabet. */
+PyObject *radixly_base85_encode_with(PyObject *arg, int zeromq);
+PyObject *radixly_base85_decode_with(PyObject *arg, int zeromq);
+
+extern const char radixly_base85_encode_doc[];
+PyObject *radixly_base85_encode(PyObject *self, PyObject *arg);
+
+extern const char radixly_base85_decode_doc[];
+PyObject *radixly_base85_decode(PyObject *self, PyObject *arg);
+
 extern const char radixly_b85encode_doc[];
 PyObject *radixly_b85encode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 

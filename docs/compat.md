@@ -64,7 +64,8 @@ library's own, so the module is complete at every step and only gets faster.
 
 Every RFC 4648 codec radixly registers ({doc}`codecs/base16`,
 {doc}`codecs/base32`, {doc}`codecs/base32hex`, {doc}`codecs/base64`,
-{doc}`codecs/base64url`) takes the strict reading of the RFC: characters
+{doc}`codecs/base64url`) takes the strict reading of the RFC, and
+{doc}`codecs/base85` and {doc}`codecs/z85` the same reading of theirs: characters
 outside the alphabet, wrong padding, nonzero pad bits and, for the
 single-case alphabets of base16, base32 and base32hex, the other case are
 errors, so one payload has exactly one accepted spelling. The RFC requires

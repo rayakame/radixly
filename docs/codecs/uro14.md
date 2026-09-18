@@ -61,8 +61,8 @@ are not capped; the window is the documented limit of the guarantee.
 .. autofunction:: encoded_len
 .. autofunction:: max_bytes
 .. data:: BITS_PER_CHAR
-   :type: int
-   :value: 14
+   :type: float
+   :value: 14.0
 
    Payload bits carried by one body character; the length prefix is one character on top.
 

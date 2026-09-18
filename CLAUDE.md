@@ -22,10 +22,11 @@ radixly: fast binary-to-text codecs for Python, hand-written C extension
 base32768 (qntm's spec, 15 bits/char), base65536 (qntm, 16 bits/char, mostly
 astral), base2048 (qntm, 11 bits/char below U+1100), uro14 (own design, 14
 bits/char from U+4E00 with a length prefix), braille (8), hexagram (6),
-base16, base32, base32hex, base64 and base64url (RFC 4648, strict). The
-drop-in's a85, b85 and z85 twins are in C without registry codecs yet. Next:
-the ascii85, base85 and z85 registry codecs, then the four legacy functions
-(`encode`/`decode` on files, `encodebytes`/`decodebytes` on bytes).
+base16, base32, base32hex, base64 and base64url (RFC 4648, strict), base85
+and z85 (four bytes in five digits, strict). The drop-in's a85 twin is in C
+without a registry codec. Next: the four legacy functions (`encode`/`decode`
+on files, `encodebytes`/`decodebytes` on bytes); an ascii85 registry codec
+is undecided.
 
 ## Fixed decisions
 
@@ -38,7 +39,11 @@ the ascii85, base85 and z85 registry codecs, then the four legacy functions
 - `encode` takes any buffer, `str` raises TypeError. `DecodeError` is a
   ValueError with `position`; `message` is keyword-only.
 - uro14's truncation guarantee is windowed at 16,384 bytes; every doc says so.
-- Codec is a frozen dataclass, registry via `get_codec`/`CODECS`/`register`.
+- Codec is a frozen dataclass, registry via `get_codec`/`CODECS`/`register`;
+  `bits_per_char` is a float (6.4 for the 85 pair).
+- The 85 pair's strict tail: dropped digits read as zero, the payload is the
+  one word with zero low bytes in the span the tail's digits cover; a tail of
+  one character and a group above 32 bits are errors.
 - RFC 4648 codecs (base16, base32, base32hex, base64, base64url) are strict: every
   MUST of the RFC and every MAY resolved toward rejection, the alphabet's own
   case only, one spelling per payload. `radixly.compat.base64` is the standard
