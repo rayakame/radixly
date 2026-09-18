@@ -70,4 +70,6 @@ whether ascii85 gets one is undecided.
 Every test must be able to fail. Reference first, C diffed byte-for-byte
 against it; qntm's vectors; Hypothesis round-trips; fuzz with hostile input
 (surrogates, astral, empty, multi-MB); error contracts pinned as
-(input, position) data shared by both implementations.
+(input, position) data shared by both implementations. Every C entry point is
+called in a loop in `tests/test_leaks.py`, success and error paths both, and
+must give back what it allocated; ASan cannot do this job, see the noxfile.
