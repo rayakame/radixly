@@ -32,11 +32,12 @@ five characters for every four bytes, a quarter longer than the payload.
 The decoder reads groups of five, so a cut inside a group usually raises
 {class}`~radixly.DecodeError` at the last character of the cut group: a
 one-character tail never decodes, and a tail of two to four characters
-decodes only when it happens to be the exact spelling of a shorter payload,
-which the remaining digits allow about one time in twelve. A cut on a group
-boundary passes, without an error, and decodes to a prefix of the payload.
-Taken over every cut, about three in ten pass; there is no length and no
-checksum to catch them.
+decodes only when it happens to be the exact spelling of a shorter payload:
+for random data, about one two-character tail in twenty-seven, one
+three-character tail in eight, one four-character tail in three. A cut on a
+group boundary passes, without an error, and decodes to a prefix of the
+payload. Taken over every cut, about three in ten pass; there is no length
+and no checksum to catch them.
 
 ```python
 from radixly import base85

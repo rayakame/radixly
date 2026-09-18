@@ -63,7 +63,7 @@ Every codec module has the same four functions; `radixly.get_codec(name)` and
 | [braille](https://radixly.rayakame.dev/en/latest/codecs/braille.html) | 8 | 100 bytes | 256 Braille patterns | no |
 | [hexagram](https://radixly.rayakame.dev/en/latest/codecs/hexagram.html) | 6 | 75 bytes | 64 Yijing hexagrams | partly |
 | [base85](https://radixly.rayakame.dev/en/latest/codecs/base85.html) | 6.4 | 80 bytes | RFC 1924: letters, digits and 23 punctuation marks, the standard library's `b85` | partly |
-| [z85](https://radixly.rayakame.dev/en/latest/codecs/z85.html) | 6.4 | 80 bytes | ZeroMQ: base85 without quotes, backslash or backquote | partly |
+| [z85](https://radixly.rayakame.dev/en/latest/codecs/z85.html) | 6.4 | 80 bytes | ZeroMQ: base85 with `.:/[]` in place of `` ` ``, `;`, `\|`, `_` and `~` | partly |
 | [base64](https://radixly.rayakame.dev/en/latest/codecs/base64.html) | 6 | 75 bytes | RFC 4648: `A` to `Z`, `a` to `z`, `0` to `9`, `+`, `/`, `=` padding | partly |
 | [base64url](https://radixly.rayakame.dev/en/latest/codecs/base64url.html) | 6 | 75 bytes | RFC 4648: base64 with `-` and `_` for `+` and `/`, `=` padding | partly |
 | [base32](https://radixly.rayakame.dev/en/latest/codecs/base32.html) | 5 | 60 bytes | RFC 4648: `A` to `Z`, `2` to `7`, `=` padding | partly |
