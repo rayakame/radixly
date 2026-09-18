@@ -17,6 +17,7 @@ select = ["ALL"]
 ignore = [
     "ISC003", # we prefer explicit string concatenation
     "COM812", # missing trailing comma; conflicts with the formatter, which owns trailing commas
+    "DOC502", # a Raises entry for what a call raises (operator.index's TypeError) is the documented contract
 ]
 
 [lint.per-file-ignores]

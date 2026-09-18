@@ -52,6 +52,8 @@ def encoded_len(num_bytes: int) -> int:
 
     Raises
     ------
+    TypeError
+        If ``num_bytes`` is not an integer.
     ValueError
         If ``num_bytes`` is negative.
     """
@@ -77,6 +79,8 @@ def max_bytes(num_chars: int) -> int:
 
     Raises
     ------
+    TypeError
+        If ``num_chars`` is not an integer.
     ValueError
         If ``num_chars`` is negative.
     """
