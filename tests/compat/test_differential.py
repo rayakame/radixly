@@ -21,10 +21,12 @@
 
 from __future__ import annotations
 
+import array
 import base64
 import binascii
 import decimal
 import functools
+import gc
 import inspect
 import io
 import pickle  # ruff: ignore[suspicious-pickle-import] -- PickleBuffer is the stdlib's buffer exporter
@@ -952,6 +954,106 @@ class _LongNamedLine:
 
     def readline(self) -> object:  # ruff: ignore[no-self-use]
         return _LONG_NAMED()
+
+
+@typing.final
+class _CountingLen(bytes):
+    """A chunk that counts how often its length is asked for; the stdlib asks twice per top-up round."""
+
+    __slots__ = ()
+    calls: typing.ClassVar[int] = 0
+
+    def __len__(self) -> int:  # pyright: ignore[reportImplicitOverride]
+        type(self).calls += 1
+        return bytes.__len__(self)
+
+
+class _CountingReads:
+    """A file whose reads hand back _CountingLen chunks, so len(s) calls are observable."""
+
+    def __init__(self) -> None:
+        self.reads: int = 0
+
+    def read(self, _size: int) -> bytes:
+        self.reads += 1
+        return _CountingLen(b"abc") if self.reads == 1 else (_CountingLen(b"de") if self.reads == 2 else b"")
+
+
+def test_encode_asks_for_the_length_as_often_as_the_stdlib() -> None:
+    """The stdlib's loop condition and its read size are two separate len(s) calls."""
+    counts: list[int] = []
+    for name in ("ours", "theirs"):
+        _CountingLen.calls = 0
+        function = _ours("encode") if name == "ours" else _theirs("encode")
+        assert function(_CountingReads(), io.BytesIO()) is None
+        counts.append(_CountingLen.calls)
+    assert counts[0] == counts[1]
+
+
+class _RecordingWrites(io.BytesIO):
+    """A sink that remembers the size of every write, so streaming is observable, not just the total."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.sizes: list[int] = []
+
+    def write(self, buffer: object, /) -> int:  # pyright: ignore[reportImplicitOverride]
+        self.sizes.append(len(typing.cast("bytes", buffer)))
+        return super().write(typing.cast("bytes", buffer))
+
+
+@pytest.mark.parametrize("length", [0, 1, 57, 58, 200, 1000])
+def test_legacy_files_write_one_line_at_a_time(length: int) -> None:
+    """A batching port would pass on the joined output alone, so the write sizes are pinned too."""
+    payload = b"a" * length
+    for name, source in (("encode", payload), ("decode", base64.encodebytes(payload))):
+        ours, theirs = _RecordingWrites(), _RecordingWrites()
+        assert _ours(name)(io.BytesIO(source), ours) is None
+        assert _theirs(name)(io.BytesIO(source), theirs) is None
+        assert ours.sizes == theirs.sizes, (name, length)
+        assert ours.getvalue() == theirs.getvalue()
+
+
+@typing.final
+class _RaisingClassObject:
+    """Not a buffer, and its __class__ raises: the stdlib is still inside `except TypeError` when it does."""
+
+    @property
+    def __class__(self) -> type:  # pyright: ignore[reportIncompatibleMethodOverride, reportImplicitOverride]
+        message = "class boom"
+        raise RuntimeError(message)
+
+
+@pytest.mark.parametrize("name", ["encodebytes", "decodebytes"])
+def test_failing_class_lookup_keeps_the_memoryview_error_as_context(name: str) -> None:
+    """The stdlib's rewording happens inside an except block, so its TypeError stays as the context."""
+    assert _chain(_ours(name), _RaisingClassObject()) == _chain(_theirs(name), _RaisingClassObject())
+
+
+def test_decode_writes_what_the_stdlib_writes_for_text_lines() -> None:
+    """The ASCII-str branch of the buffer converter decodes the line's own bytes, not an empty slice."""
+    for text in ("eA==\n", "YWJj\n", "", "\n", "Zm9vYmFy\n" * 3):
+        ours, theirs = io.BytesIO(), io.BytesIO()
+        assert _ours("decode")(io.StringIO(text), ours) is None
+        assert _theirs("decode")(io.StringIO(text), theirs) is None
+        assert ours.getvalue() == theirs.getvalue()
+        assert ours.getvalue() == base64.b64decode(text.encode("ascii"))
+
+
+@pytest.mark.parametrize(
+    "make", [lambda: memoryview(bytes(1 << 18)), lambda: array.array("B", bytes(1 << 18))], ids=repr
+)
+def test_encodebytes_keeps_nothing_per_chunk(make: Callable[[], object]) -> None:
+    """The slicing path builds two index objects per 57-byte chunk; holding them would grow without bound."""
+    argument = make()
+    encode = _ours("encodebytes")
+    encode(argument)
+    gc.collect()
+    before = sys.getallocatedblocks()
+    for _ in range(5):
+        encode(argument)
+    gc.collect()
+    assert sys.getallocatedblocks() - before < 100  # one chunk per 57 bytes, so a leak would be thousands
 
 
 def test_long_type_names_are_truncated_where_binascii_truncates() -> None:

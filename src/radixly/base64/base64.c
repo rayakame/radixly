@@ -894,7 +894,12 @@ encodebytes_contiguous(PyObject *arg, Py_ssize_t length)
 static PyObject *
 encode_slice(PyObject *arg, Py_ssize_t start, Py_ssize_t stop)
 {
-    PyObject *bounds = PySlice_New(PyLong_FromSsize_t(start), PyLong_FromSsize_t(stop), NULL);
+    /* PySlice_New increfs its bounds and reads a NULL as None, so both are owned here and checked first. */
+    PyObject *first = PyLong_FromSsize_t(start);
+    PyObject *last = PyLong_FromSsize_t(stop);
+    PyObject *bounds = first == NULL || last == NULL ? NULL : PySlice_New(first, last, NULL);
+    Py_XDECREF(first);
+    Py_XDECREF(last);
     if (bounds == NULL) {
         return NULL;
     }
@@ -1030,7 +1035,12 @@ top_up(PyObject *input, PyObject **chunk)
         if (have >= MAXBINSIZE) {
             return 0;
         }
-        PyObject *extra = read_chunk(input, MAXBINSIZE - have);
+        /* The stdlib's condition and its read size are two separate len(s) calls, so this asks twice too. */
+        const Py_ssize_t wanted = PyObject_Length(*chunk);
+        if (wanted < 0) {
+            return -1;
+        }
+        PyObject *extra = read_chunk(input, MAXBINSIZE - wanted);
         if (extra == NULL) {
             return -1;
         }
