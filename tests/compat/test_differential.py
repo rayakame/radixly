@@ -653,15 +653,24 @@ def _raise_ambient() -> None:
     raise ValueError(message)
 
 
-def _chain_shape(call: Callable[[], object]) -> tuple[type, type, bool]:
-    """Return the exception chain as a traceback would show it, from inside a live except block."""
+def _chain_shape(call: Callable[[], object]) -> tuple[tuple[type, bool], ...]:
+    """Return the whole exception chain, from inside a live except block, hidden links included.
+
+    Walking past the first link is what catches a context the port built by hand: one the standard library
+    really raised inside an except block carries the exception being handled behind it.
+    """
     try:
         try:
             _raise_ambient()
         except ValueError:
             call()
     except Exception as error:  # ruff: ignore[blind-except] -- the exception chain is the subject
-        return (type(error), type(error.__context__), error.__suppress_context__)
+        shape: list[tuple[type, bool]] = []
+        current: BaseException | None = error
+        while current is not None:
+            shape.append((type(current), current.__suppress_context__))
+            current = current.__context__
+        return tuple(shape)
     message = "expected an exception"
     raise AssertionError(message)
 
@@ -695,6 +704,12 @@ def _chain_shape(call: Callable[[], object]) -> tuple[type, type, bool]:
         ("b85decode", (b"~",), {}),  # the struct.error behind the overflow, hidden
         ("b85decode", (b"0000 0",), {}),  # the TypeError behind the bad character, hidden
         ("b85decode", (42,), {}),
+        # z85decode rewords the base85 error, so its chain is one link longer than any other.
+        *(
+            (("z85decode", (b"#####",), {}), ("z85decode", (b"0000 ",), {}), ("z85decode", (42,), {}))
+            if sys.version_info >= (3, 13)
+            else ()
+        ),
         ("b85encode", ("x",), {}),
         ("a85decode", (b"uuuuu",), {}),
         ("a85decode", (b"!!z",), {}),
@@ -1054,6 +1069,59 @@ def test_encodebytes_keeps_nothing_per_chunk(make: Callable[[], object]) -> None
         encode(argument)
     gc.collect()
     assert sys.getallocatedblocks() - before < 100  # one chunk per 57 bytes, so a leak would be thousands
+
+
+@typing.final
+class _OwnContains(bytes):
+    """A bytes subclass whose __contains__ answers for every byte, which the stdlib's `x in ignorechars` asks."""
+
+    __slots__ = ()
+
+    def __contains__(self, _item: object) -> bool:  # pyright: ignore[reportImplicitOverride]
+        return True
+
+
+@typing.final
+class _LyingWidth:
+    """A wrapcol that compares greater than any floor but indexes to something else entirely."""
+
+    def __init__(self, index: int) -> None:
+        self.index: int = index
+
+    def __gt__(self, _other: object) -> bool:
+        return True
+
+    def __index__(self) -> int:
+        return self.index
+
+
+@pytest.mark.parametrize("data", [b"~", b"! !", b"!!!!!", b""], ids=repr)
+@pytest.mark.parametrize("ignorechars", [b" ", bytearray(b" "), " ", {32}, [32], b""], ids=repr)
+def test_a85decode_ignorechars_shapes_match(data: bytes, ignorechars: object) -> None:
+    _assert_same("a85decode", data, ignorechars=ignorechars)
+
+
+def test_a85decode_asks_a_subclass_its_own_question() -> None:
+    """A bytes subclass may override __contains__, and the stdlib's membership test calls it."""
+    _assert_same("a85decode", b"~", ignorechars=_OwnContains(b""))
+    _assert_same("a85decode", b"!!!!!", ignorechars=_OwnContains(b""))
+
+
+@pytest.mark.parametrize("width", [0, 1, 2, 3, 76, True, False, None, -1, -5, 2**70], ids=repr)
+@pytest.mark.parametrize("adobe", [False, True], ids=repr)
+def test_a85encode_wrapcol_shapes_match(width: object, adobe: object) -> None:
+    for payload in (b"", b"a", b"abcdefgh", b"x" * 200):
+        _assert_same("a85encode", payload, wrapcol=width, adobe=adobe)
+
+
+@pytest.mark.parametrize("index", [-1, 0, 3], ids=repr)
+@pytest.mark.parametrize("adobe", [False, True], ids=repr)
+def test_a85encode_survives_a_width_that_lies(index: int, adobe: object) -> None:
+    """A width whose __index__ contradicts its comparison must still raise or return, never a bare NULL."""
+    outcome = _outcome(_ours("a85encode"), b"abcdefgh", wrapcol=_LyingWidth(index), adobe=adobe)
+    assert outcome[0] is not SystemError
+    if index != 3:  # a width the stdlib's range() refuses or empties out
+        assert _outcome(_theirs("a85encode"), b"abcdefgh", wrapcol=_LyingWidth(index), adobe=adobe) == outcome
 
 
 def test_long_type_names_are_truncated_where_binascii_truncates() -> None:

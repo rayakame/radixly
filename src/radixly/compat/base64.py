@@ -26,7 +26,11 @@ decodes where the standard library may already have copied it, so a ``casefold``
 ``validate`` hook that resizes that buffer during the call gets ``BufferError``, and a same-length edit is read.
 And an object that claims to be ``bytes`` without being one, or a ``str`` subclass whose ``encode`` returns
 anything other than ``bytes`` or ``bytearray``, is judged by the buffer it offers rather than by the methods the
-standard library would call on it, so the outcome can differ from the standard library's.
+standard library would call on it, so the outcome can differ from the standard library's. The same holds for a
+flag or a width that is not the plain ``bool`` or ``int`` it is meant to be: ``foldspaces`` is read once where
+the standard library reads it again per group, ``adobe`` once where it reads it two to four times, and
+``wrapcol`` is converted once where the standard library threads the object through ``max``, ``range`` and the
+slice.
 """
 
 from __future__ import annotations

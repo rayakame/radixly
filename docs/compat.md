@@ -32,13 +32,18 @@ direction. And an object that claims to be `bytes` without being one, or a
 `str` subclass whose `encode` returns anything other than `bytes` or
 `bytearray`, is judged by the buffer it offers rather than by the methods the
 standard library would call on it (`translate`, `rstrip`, or `binascii`'s own
-argument check), so the outcome can differ from the standard library's.
+argument check), so the outcome can differ from the standard library's. The
+same holds for an argument that is not the plain `bool` or `int` it is meant to
+be: `foldspaces` is read once where the standard library reads it again per
+group, `adobe` once where the standard library reads it two to four times, and
+`wrapcol` is converted once where the standard library threads the object itself
+through `max`, `range` and the slice.
 
 The 85 family keeps the standard library's shortcuts and its accidents alike:
 `a85encode` folds four zero bytes to `z` and, on request, four spaces to `y`,
 wraps and frames as `btoa` and PostScript do; the decoders pad a short tail
-with their largest digit, so a lone trailing character is an overflow error,
-as it is in the standard library.
+with their largest digit, so a lone trailing character overflows when it is one
+of the three largest and is dropped otherwise, as in the standard library.
 
 `b64decode` is `binascii.a2b_base64` underneath in the standard library, and
 that function's treatment of stray padding changed in CPython 3.12.4 and
