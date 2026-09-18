@@ -21,6 +21,9 @@
 
 from __future__ import annotations
 
+import operator
+import typing
+
 from radixly._codec import Codec
 from radixly._codec import register
 from radixly._core import base16_decode
@@ -35,7 +38,7 @@ BITS_PER_CHAR = 4.0
 """Payload bits per character: one hexadecimal digit."""
 
 
-def encoded_len(num_bytes: int) -> int:
+def encoded_len(num_bytes: typing.SupportsIndex) -> int:
     """Exact length of ``encode(data)`` for ``num_bytes`` bytes, without encoding.
 
     Parameters
@@ -50,6 +53,8 @@ def encoded_len(num_bytes: int) -> int:
 
     Raises
     ------
+    TypeError
+        If ``num_bytes`` has no ``__index__``.
     ValueError
         If ``num_bytes`` is negative.
 
@@ -59,13 +64,14 @@ def encoded_len(num_bytes: int) -> int:
     >>> base16.encoded_len(10)
     20
     """
+    num_bytes = operator.index(num_bytes)
     if num_bytes < 0:
         msg = f"num_bytes must be >= 0, got {num_bytes}"
         raise ValueError(msg)
     return 2 * num_bytes
 
 
-def max_bytes(num_chars: int) -> int:
+def max_bytes(num_chars: typing.SupportsIndex) -> int:
     """Largest payload that fits in ``num_chars`` characters.
 
     Parameters
@@ -80,6 +86,8 @@ def max_bytes(num_chars: int) -> int:
 
     Raises
     ------
+    TypeError
+        If ``num_chars`` has no ``__index__``.
     ValueError
         If ``num_chars`` is negative.
 
@@ -89,6 +97,7 @@ def max_bytes(num_chars: int) -> int:
     >>> base16.max_bytes(100)
     50
     """
+    num_chars = operator.index(num_chars)
     if num_chars < 0:
         msg = f"num_chars must be >= 0, got {num_chars}"
         raise ValueError(msg)

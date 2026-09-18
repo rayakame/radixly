@@ -127,6 +127,38 @@ EXPECTED_CODECS = [
 ]
 
 
+@pytest.mark.parametrize("name", EXPECTED_CODECS)
+@pytest.mark.parametrize("bad", [3.0, "3", None, b"3", 3.5], ids=repr)
+def test_size_math_takes_integers_only(name: str, bad: object) -> None:
+    """operator.index, so a float or a str is a TypeError and never a float result."""
+    codec = radixly.get_codec(name)
+    with pytest.raises(TypeError):
+        codec.encoded_len(bad)  # pyright: ignore[reportArgumentType]
+    with pytest.raises(TypeError):
+        codec.max_bytes(bad)  # pyright: ignore[reportArgumentType]
+
+
+class IndexLike:
+    """An integer by __index__ only, the way numpy scalars and enums count."""
+
+    def __init__(self, value: int) -> None:
+        self.value: int = value
+
+    def __index__(self) -> int:
+        return self.value
+
+
+@pytest.mark.parametrize("name", EXPECTED_CODECS)
+def test_size_math_returns_int_for_index_likes(name: str) -> None:
+    """Anything with __index__ is taken, the result is a plain int."""
+    codec = radixly.get_codec(name)
+    for value in (7, True, IndexLike(7)):
+        for function in (codec.encoded_len, codec.max_bytes):
+            result = function(value)
+            assert type(result) is int
+            assert result == function(int(value))
+
+
 def test_import_is_eager() -> None:
     """The only test that fails if a codec's eager import leaves __init__; in-process, pytest imports it first."""
     code = (

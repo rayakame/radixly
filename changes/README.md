@@ -1,7 +1,7 @@
 # Changelog fragments
 
 One file per pull request: `changes/<PR number>.<type>.md`, one sentence, written
-for users. Types: `feature`, `bugfix`, `removal`, `doc`, `misc`.
+for users. Types: `breaking`, `feature`, `bugfix`, `removal`, `doc`, `misc`.
 
     echo "uro14 gains a length prefix that catches truncation." > changes/23.feature.md
 

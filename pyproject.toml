@@ -112,6 +112,11 @@ underlines = ["", "", ""]
 ignore = ["README.md"]
 
 [[tool.towncrier.type]]
+directory = "breaking"
+name = "Breaking changes"
+showcontent = true
+
+[[tool.towncrier.type]]
 directory = "feature"
 name = "Added"
 showcontent = true
