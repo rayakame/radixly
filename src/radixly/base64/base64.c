@@ -814,9 +814,13 @@ input_type_check(PyObject *arg, Py_ssize_t *length)
         }
         PyObject *cause = radixly_compat_take_raised();
         PyObject *name = radixly_compat_class_name(arg);
-        PyObject *message =
-            name == NULL ? NULL : PyUnicode_FromFormat("expected bytes-like object, not %S", name);
-        Py_XDECREF(name);
+        if (name == NULL) {
+            /* The stdlib is still inside `except TypeError as err`, so that error is this one's context. */
+            radixly_compat_set_context(cause);
+            return -1;
+        }
+        PyObject *message = PyUnicode_FromFormat("expected bytes-like object, not %S", name);
+        Py_DECREF(name);
         radixly_raise_from_cause(PyExc_TypeError, message, cause);
         return -1;
     }
@@ -824,23 +828,24 @@ input_type_check(PyObject *arg, Py_ssize_t *length)
     const char *format = buffer->format == NULL ? "B" : buffer->format;
     const int single_byte =
         format[0] != '\0' && format[1] == '\0' && (format[0] == 'c' || format[0] == 'b' || format[0] == 'B');
-    PyObject *name = radixly_compat_class_name(arg);
-    if (name == NULL) {
+    if (single_byte && buffer->ndim == 1) {
+        *length = buffer->len; /* the stdlib names __class__ only when it raises, so nothing else is read */
         Py_DECREF(view);
-        return -1;
+        return 0;
     }
-    if (!single_byte) {
-        PyErr_Format(PyExc_TypeError, "expected single byte elements, not '%s' from %S", format, name);
+    /* format points into the view's buffer, so the message is built before the view goes. */
+    PyObject *name = radixly_compat_class_name(arg);
+    if (name != NULL) {
+        if (!single_byte) {
+            PyErr_Format(PyExc_TypeError, "expected single byte elements, not '%s' from %S", format, name);
+        }
+        else {
+            PyErr_Format(PyExc_TypeError, "expected 1-D data, not %d-D data from %S", buffer->ndim, name);
+        }
+        Py_DECREF(name);
     }
-    else if (buffer->ndim != 1) {
-        PyErr_Format(PyExc_TypeError, "expected 1-D data, not %d-D data from %S", buffer->ndim, name);
-    }
-    else {
-        *length = buffer->len;
-    }
-    Py_DECREF(name);
     Py_DECREF(view);
-    return PyErr_Occurred() ? -1 : 0;
+    return -1;
 }
 
 const char radixly_encodebytes_doc[] =
@@ -849,25 +854,17 @@ const char radixly_encodebytes_doc[] =
               "\n"
               "Encode a bytestring into a bytes object containing multiple lines\n"
               "of base-64 data.");
-PyObject *
-radixly_encodebytes(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+/* The lines of a contiguous buffer in one allocation, for the bytes and bytearray the stdlib slices into
+ * identical copies. */
+static PyObject *
+encodebytes_contiguous(PyObject *arg, Py_ssize_t length)
 {
-    PyObject *arg = NULL;
-    radixly_param params[] = {{"s", &arg}};
-    if (radixly_bind_args("encodebytes", args, nargs, kwnames, params, 1, 1, 1) < 0) {
-        return NULL;
-    }
-    Py_ssize_t length = 0;
-    if (input_type_check(arg, &length) < 0) {
-        return NULL;
-    }
     if (length == 0) {
         return PyBytes_FromStringAndSize("", 0); /* no chunk, so the stdlib never reaches b2a_base64 */
     }
     if (length > PY_SSIZE_T_MAX / 2) {
         return PyErr_NoMemory(); /* the lines are 77 characters per 57 bytes, comfortably under twice */
     }
-    /* The stdlib slices s per chunk, so a strided buffer fails here exactly as its first slice would. */
     Py_buffer view;
     if (PyObject_GetBuffer(arg, &view, PyBUF_SIMPLE) == -1) {
         return NULL;
@@ -891,6 +888,83 @@ radixly_encodebytes(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t
     }
     PyBuffer_Release(&view);
     return result;
+}
+
+/* One encoded line from s[start:stop], the slice and its buffer the stdlib's own. */
+static PyObject *
+encode_slice(PyObject *arg, Py_ssize_t start, Py_ssize_t stop)
+{
+    PyObject *bounds = PySlice_New(PyLong_FromSsize_t(start), PyLong_FromSsize_t(stop), NULL);
+    if (bounds == NULL) {
+        return NULL;
+    }
+    PyObject *chunk = PyObject_GetItem(arg, bounds);
+    Py_DECREF(bounds);
+    if (chunk == NULL) {
+        return NULL;
+    }
+    Py_buffer view;
+    if (PyObject_GetBuffer(chunk, &view, PyBUF_SIMPLE) == -1) {
+        Py_DECREF(chunk);
+        return NULL;
+    }
+    PyObject *line = b2a_line(view.buf, view.len);
+    PyBuffer_Release(&view);
+    Py_DECREF(chunk);
+    return line;
+}
+
+/* The stdlib's own loop: `for i in range(0, len(s), MAXBINSIZE):
+ * pieces.append(b2a_base64(s[i:i+MAXBINSIZE]))`, so an object whose length or slicing disagrees with its
+ * buffer is treated as the stdlib treats it. */
+static PyObject *
+encodebytes_by_slices(PyObject *arg)
+{
+    const Py_ssize_t length = PyObject_Length(arg);
+    if (length < 0) {
+        return NULL;
+    }
+    PyObject *pieces = PyList_New(0);
+    if (pieces == NULL) {
+        return NULL;
+    }
+    for (Py_ssize_t start = 0; start < length; start += MAXBINSIZE) {
+        PyObject *line = encode_slice(arg, start, start + MAXBINSIZE);
+        if (line == NULL || PyList_Append(pieces, line) < 0) {
+            Py_XDECREF(line);
+            Py_DECREF(pieces);
+            return NULL;
+        }
+        Py_DECREF(line);
+    }
+    PyObject *empty = PyBytes_FromStringAndSize("", 0);
+    if (empty == NULL) {
+        Py_DECREF(pieces);
+        return NULL;
+    }
+    PyObject *result = PyObject_CallMethod(empty, "join", "O", pieces);
+    Py_DECREF(empty);
+    Py_DECREF(pieces);
+    return result;
+}
+
+PyObject *
+radixly_encodebytes(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+{
+    PyObject *arg = NULL;
+    radixly_param params[] = {{"s", &arg}};
+    if (radixly_bind_args("encodebytes", args, nargs, kwnames, params, 1, 1, 1) < 0) {
+        return NULL;
+    }
+    Py_ssize_t length = 0;
+    if (input_type_check(arg, &length) < 0) {
+        return NULL;
+    }
+    if (PyBytes_CheckExact(arg) || PyByteArray_CheckExact(arg)) {
+        return encodebytes_contiguous(arg,
+                                      length); /* len(s) is the buffer's own length, every slice a copy */
+    }
+    return encodebytes_by_slices(arg);
 }
 
 const char radixly_decodebytes_doc[] = PyDoc_STR("decodebytes($module, /, s)\n"

@@ -72,6 +72,9 @@ int radixly_compat_ascii_buffer_input(PyObject *arg, radixly_compat_input *input
 /* arg.__class__.__name__, which the stdlib names in its type errors; a new reference, or NULL. */
 PyObject *radixly_compat_class_name(PyObject *arg);
 
+/* Put context behind the exception now raised, as an active except block does. Steals context. */
+void radixly_compat_set_context(PyObject *context);
+
 void radixly_compat_input_release(radixly_compat_input *input);
 
 /* PyObject_IsTrue for an optional flag; absent means false. Returns -1 with an exception on failure. */

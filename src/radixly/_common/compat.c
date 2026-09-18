@@ -323,7 +323,7 @@ radixly_compat_ascii_buffer_input(PyObject *arg, radixly_compat_input *input)
     if (PyObject_GetBuffer(arg, &input->view, PyBUF_SIMPLE) < 0) {
         /* The converter words every failure, a strided buffer's BufferError included, as its own TypeError.
          */
-        PyErr_Format(PyExc_TypeError, "argument should be bytes, buffer or ASCII string, not '%.200s'",
+        PyErr_Format(PyExc_TypeError, "argument should be bytes, buffer or ASCII string, not '%.100s'",
                      Py_TYPE(arg)->tp_name);
         return -1;
     }
@@ -331,6 +331,20 @@ radixly_compat_ascii_buffer_input(PyObject *arg, radixly_compat_input *input)
     input->len = input->view.len;
     input->has_view = 1;
     return 0;
+}
+
+void
+radixly_compat_set_context(PyObject *context)
+{
+    if (context == NULL) {
+        return;
+    }
+    PyObject *error = take_raised();
+    if (error == NULL) {
+        Py_DECREF(context);
+        return;
+    }
+    raise_with_context(error, context, 0);
 }
 
 PyObject *

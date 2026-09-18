@@ -1,8 +1,10 @@
 # Copyright (c) 2026-present rayakame
-from typing import IO
 from typing import Final
 
 from _typeshed import ReadableBuffer
+from _typeshed import SupportsNoArgReadline
+from _typeshed import SupportsRead
+from _typeshed import SupportsWrite
 from typing_extensions import override
 
 COMPILER: Final[str]
@@ -74,9 +76,9 @@ def b85decode(b: str | ReadableBuffer) -> bytes: ...
 def z85encode(s: ReadableBuffer) -> bytes: ...
 def z85decode(s: str | ReadableBuffer) -> bytes: ...
 
-# The stdlib names these parameters input and output, so the drop-in does too.
-def encode(input: IO[bytes], output: IO[bytes]) -> None: ...  # ruff: ignore[builtin-argument-shadowing]
-def decode(input: IO[bytes], output: IO[bytes]) -> None: ...  # ruff: ignore[builtin-argument-shadowing]
+# The stdlib names these parameters input and output and duck-types the files, so the drop-in does too.
+def encode(input: SupportsRead[bytes], output: SupportsWrite[bytes]) -> None: ...  # ruff: ignore[builtin-argument-shadowing]
+def decode(input: SupportsNoArgReadline[bytes], output: SupportsWrite[bytes]) -> None: ...  # ruff: ignore[builtin-argument-shadowing]
 def encodebytes(s: ReadableBuffer) -> bytes: ...
 def decodebytes(s: ReadableBuffer) -> bytes: ...
 

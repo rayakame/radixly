@@ -27,6 +27,7 @@ import decimal
 import functools
 import inspect
 import io
+import pickle  # ruff: ignore[suspicious-pickle-import] -- PickleBuffer is the stdlib's buffer exporter
 import random
 import subprocess  # ruff: ignore[suspicious-subprocess-import] -- fixed argv, own interpreter
 import sys
@@ -434,6 +435,10 @@ def test_ported_pairs_agree_on_a_megabyte() -> None:
     _assert_same("urlsafe_b64decode", wrapped)
     _assert_same("encodebytes", payload)
     _assert_same("decodebytes", base64.encodebytes(payload))
+    # A length that is a nonzero multiple of the line's 57 bytes is the boundary of the one-shot allocation.
+    for lines in (1, 2, 17):
+        _assert_same("encodebytes", b"a" * (57 * lines))
+        _assert_same("encodebytes", bytearray(b"b" * (57 * lines)))
     for name in ("encode", "decode"):
         source = payload if name == "encode" else base64.encodebytes(payload)
         ours, theirs = io.BytesIO(), io.BytesIO()
@@ -799,6 +804,33 @@ class _ShortReads:
         return self.pieces.pop(0) if self.pieces else b""
 
 
+class _SizedReads:
+    """A file that honours the size it is asked for and records every ask, the way a pipe or a socket does."""
+
+    def __init__(self, data: bytes, most: int) -> None:
+        self.data: bytes = data
+        self.most: int = most
+        self.asks: list[int] = []
+
+    def read(self, size: int) -> bytes:
+        self.asks.append(size)
+        taken = self.data[: min(size, self.most)]
+        self.data = self.data[len(taken) :]
+        return taken
+
+
+@pytest.mark.parametrize("most", [1, 7, 56, 57, 58, 100])
+@pytest.mark.parametrize("length", [0, 1, 56, 57, 58, 114, 200])
+def test_encode_asks_for_the_same_bytes_as_the_stdlib(most: int, length: int) -> None:
+    """The top-up read asks for what is still missing, so the lines stay 76 characters on a short-reading file."""
+    ours, theirs = _SizedReads(b"a" * length, most), _SizedReads(b"a" * length, most)
+    out_ours, out_theirs = io.BytesIO(), io.BytesIO()
+    assert _ours("encode")(ours, out_ours) is None
+    assert _theirs("encode")(theirs, out_theirs) is None
+    assert ours.asks == theirs.asks
+    assert out_ours.getvalue() == out_theirs.getvalue()
+
+
 # Fresh pieces per call: `s += ns` mutates a bytearray in place, so the two runs must not share one.
 @pytest.mark.parametrize(
     "make",
@@ -850,6 +882,85 @@ def test_legacy_text_files_match(text: Callable[..., object], binary: Callable[.
     assert _outcome(_ours("decode"), io.StringIO("\xe9\n"), io.BytesIO()) == _outcome(
         _theirs("decode"), io.StringIO("\xe9\n"), io.BytesIO()
     )
+
+
+_LONG_NAMED = typing.cast("type[object]", type("L" * 250, (), {}))
+
+
+@typing.final
+class _RaisingClassBytes(bytes):
+    """A buffer whose __class__ raises; the stdlib reads __class__ only when it is about to raise."""
+
+    __slots__ = ()
+
+    @property
+    def __class__(self) -> type:  # pyright: ignore[reportIncompatibleMethodOverride, reportImplicitOverride]
+        message = "class lookup ran"
+        raise RuntimeError(message)
+
+
+@typing.final
+class _ZeroLen(bytes):
+    """A buffer whose __len__ says zero, so the stdlib's chunk loop never runs."""
+
+    __slots__ = ()
+
+    def __len__(self) -> int:  # pyright: ignore[reportImplicitOverride]
+        return 0
+
+
+@typing.final
+class _LongLen(bytes):
+    """A buffer whose __len__ overstates it, so the stdlib asks for slices past its end."""
+
+    __slots__ = ()
+
+    def __len__(self) -> int:  # pyright: ignore[reportImplicitOverride]
+        return 200
+
+
+@typing.final
+class _Slicer(bytes):
+    """A buffer whose slices are not its own bytes, which is what the stdlib encodes."""
+
+    __slots__ = ()
+
+    def __getitem__(self, key: object) -> bytes:  # pyright: ignore[reportImplicitOverride, reportIncompatibleMethodOverride]
+        return b"ZZZ"
+
+
+@pytest.mark.parametrize(
+    "make",
+    [
+        lambda: _RaisingClassBytes(b"abcdef"),
+        lambda: _ZeroLen(b"abcdef"),
+        lambda: _LongLen(b"abcdef"),
+        lambda: _Slicer(b"abcdef"),
+        lambda: pickle.PickleBuffer(b"A" * 100),
+        lambda: pickle.PickleBuffer(b""),
+    ],
+    ids=["raising-class", "zero-len", "long-len", "slicer", "picklebuffer", "empty-picklebuffer"],
+)
+def test_legacy_reads_the_object_where_the_stdlib_reads_it(make: Callable[[], object]) -> None:
+    """len(), the slices and __class__ are the stdlib's, not the buffer's, so these must agree exactly."""
+    _assert_same("encodebytes", make())
+    _assert_same("decodebytes", make())
+
+
+class _LongNamedLine:
+    """A file whose line is an instance of a 250-character type, the name binascii cuts at 100 characters."""
+
+    def readline(self) -> object:  # ruff: ignore[no-self-use]
+        return _LONG_NAMED()
+
+
+def test_long_type_names_are_truncated_where_binascii_truncates() -> None:
+    """The drop-in's message carries the same truncated name as binascii's, not a longer one."""
+    ours = _outcome(_ours("decode"), _LongNamedLine(), io.BytesIO())
+    assert ours == _outcome(_theirs("decode"), _LongNamedLine(), io.BytesIO())
+    message = str(typing.cast("tuple[object, ...]", ours[1])[0])
+    assert "L" * 100 in message
+    assert "L" * 101 not in message
 
 
 @pytest.mark.parametrize("make", [lambda: 5, list, lambda: 3.5, lambda: decimal.Decimal(1), _ClassLiar, _RaisingBuffer])
