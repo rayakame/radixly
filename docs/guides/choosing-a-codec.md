@@ -63,7 +63,7 @@ pipe, semicolon, underscore and tilde, so it crosses a pipe-split column and a
 backquoted span that base85 breaks. Neither alphabet holds a quote, a
 backslash or a comma, so both sit in a JSON string unescaped, and neither is
 safe raw in Markdown or a shell, where `*`, `&`, `!`, `<>` and a bracket pair
-are still the format's: quote it, or reach for {doc}`base64url`.
+are still the format's: quote it, or reach for {doc}`../codecs/base64url`.
 Among the Unicode codecs, hexagram uses 64 symbols from one block, braille
 256, uro14 one block of 16,384 ideographs, base2048 letters and numerals from
 two dozen scripts, base32768 characters from many BMP blocks, base65536
