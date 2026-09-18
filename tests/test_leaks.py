@@ -79,8 +79,22 @@ def raising(function: Callable[..., object], *args: object, **kwargs: object) ->
 
     def attempt() -> object:
         try:
-            return function(*args, **kwargs)
+            function(*args, **kwargs)
         except Exception as error:  # ruff: ignore[blind-except] -- every error path is under test here
+            return type(error)
+        # Measuring the success path here would pass while proving nothing about the error path.
+        pytest.fail(f"{getattr(function, '__name__', function)} did not raise")
+
+    return attempt
+
+
+def either(function: Callable[..., object], *args: object) -> Callable[[], object]:
+    """Wrap a call whose outcome is the codec's own business, such as a cut that lands on a group boundary."""
+
+    def attempt() -> object:
+        try:
+            return function(*args)
+        except Exception as error:  # ruff: ignore[blind-except] -- both outcomes are under measurement
             return type(error)
 
     return attempt
@@ -120,8 +134,11 @@ def test_codec_error_paths_keep_nothing(name: str) -> None:
     """A decoder that leaks only when it raises would pass every other test in the suite."""
     codec = radixly.CODECS[name]
     text = codec.encode(PAYLOAD)
-    for bad in (text[:-1], text + "\ud800", text + "\U0001f600", "\x00" + text, text[:7]):
+    for bad in (text + "\ud800", text + "\U0001f600", "\x00" + text, "\x7f" + text):
         assert retained(raising(codec.decode, bad)) <= TOLERANCE, bad[:16]
+    # A cut decodes or raises depending on where it lands, so only the allocation is the subject here.
+    for cut in (text[:-1], text[:7], text[: len(text) // 2]):
+        assert retained(either(codec.decode, cut)) <= TOLERANCE, cut[:16]
     assert retained(raising(codec.encode, "str is not a buffer")) <= TOLERANCE
     assert retained(raising(codec.decode, b"bytes are not a str")) <= TOLERANCE
     assert retained(raising(codec.encoded_len, 3.5)) <= TOLERANCE
@@ -153,7 +170,8 @@ def test_compat_functions_keep_nothing(name: str) -> None:
     if name == "decodebytes":
         argument = base64.encodebytes(PAYLOAD)
     assert retained(functools.partial(function, argument)) <= TOLERANCE
-    assert retained(raising(function, "text")) <= TOLERANCE
+    # The lenient decoders take "text" as four digits and discard the rest, so only the strict ones raise.
+    assert retained(either(function, "text")) <= TOLERANCE
     assert retained(raising(function, 42)) <= TOLERANCE
 
 
@@ -186,9 +204,17 @@ def test_legacy_file_functions_keep_nothing() -> None:
     assert retained(encode_once) <= TOLERANCE
     assert retained(decode_once) <= TOLERANCE
     assert retained(raising(compat.encodebytes, pickle.PickleBuffer(PAYLOAD))) <= TOLERANCE
+    # A file that cannot be written to fails halfway through the loop, where the line is still owned; the
+    # input is rebuilt per call, since an exhausted one would return b"" and never reach the write.
+    encode = typing.cast("Callable[..., object]", compat.encode)
+    decode = typing.cast("Callable[..., object]", compat.decode)
+    assert retained(raising(lambda: encode(io.BytesIO(PAYLOAD), object()))) <= TOLERANCE
+    assert retained(raising(lambda: decode(io.BytesIO(lines), object()))) <= TOLERANCE
 
 
 def test_registry_and_errors_keep_nothing() -> None:
+    decode_error = typing.cast("Callable[..., object]", radixly.DecodeError)
     assert retained(functools.partial(radixly.get_codec, "base64")) <= TOLERANCE
     assert retained(raising(radixly.get_codec, "nope")) <= TOLERANCE
     assert retained(lambda: radixly.DecodeError(3, message="x")) <= TOLERANCE
+    assert retained(raising(decode_error, 3, message=42)) <= TOLERANCE
