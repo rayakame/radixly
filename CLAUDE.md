@@ -23,10 +23,9 @@ base32768 (qntm's spec, 15 bits/char), base65536 (qntm, 16 bits/char, mostly
 astral), base2048 (qntm, 11 bits/char below U+1100), uro14 (own design, 14
 bits/char from U+4E00 with a length prefix), braille (8), hexagram (6),
 base16, base32, base32hex, base64 and base64url (RFC 4648, strict), base85
-and z85 (four bytes in five digits, strict). The drop-in's a85 twin is in C
-without a registry codec. Next: the four legacy functions (`encode`/`decode`
-on files, `encodebytes`/`decodebytes` on bytes); an ascii85 registry codec
-is undecided.
+and z85 (four bytes in five digits, strict). `radixly.compat.base64` is
+complete: all 22 functions in C. The drop-in's a85 twin has no registry codec;
+whether ascii85 gets one is undecided.
 
 ## Fixed decisions
 

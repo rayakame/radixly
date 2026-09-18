@@ -181,6 +181,60 @@ raise_too_many(const char *function, Py_ssize_t nargs, Py_ssize_t required, Py_s
     Py_DECREF(takes);
 }
 
+/* What goes before the seen-th of count names: nothing, a comma, or the interpreter's "and". */
+static const char *
+name_separator(Py_ssize_t seen, Py_ssize_t count)
+{
+    if (seen == 0) {
+        return "";
+    }
+    if (seen != count - 1) {
+        return ", ";
+    }
+    return count == 2 ? " and " : ", and ";
+}
+
+/* The names of the parameters left unbound, joined as the interpreter joins them; NULL with the exception. */
+static PyObject *
+missing_names(radixly_param *params, Py_ssize_t required, Py_ssize_t count)
+{
+    PyObject *names = PyUnicode_FromString("");
+    Py_ssize_t seen = 0;
+    for (Py_ssize_t i = 0; i < required && names != NULL; i++) {
+        if (*params[i].value != NULL) {
+            continue;
+        }
+        PyObject *piece = PyUnicode_FromFormat("%s'%s'", name_separator(seen, count), params[i].name);
+        if (piece == NULL) {
+            Py_CLEAR(names);
+            break;
+        }
+        PyUnicode_Append(&names, piece); /* clears names on failure */
+        Py_DECREF(piece);
+        seen++;
+    }
+    return names;
+}
+
+/* The interpreter's wording for every parameter left unbound, not just the first. */
+static void
+raise_missing(const char *function, radixly_param *params, Py_ssize_t required)
+{
+    Py_ssize_t count = 0;
+    for (Py_ssize_t i = 0; i < required; i++) {
+        if (*params[i].value == NULL) {
+            count++;
+        }
+    }
+    PyObject *names = missing_names(params, required, count);
+    if (names == NULL) {
+        return; /* the formatting failure is the exception now */
+    }
+    PyErr_Format(PyExc_TypeError, "%s() missing %zd required positional argument%s: %U", function, count,
+                 count == 1 ? "" : "s", names);
+    Py_DECREF(names);
+}
+
 int
 radixly_bind_args(const char *function, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames,
                   radixly_param *params, Py_ssize_t num_params, Py_ssize_t required,
@@ -222,8 +276,7 @@ radixly_bind_args(const char *function, PyObject *const *args, Py_ssize_t nargs,
     }
     for (Py_ssize_t i = 0; i < required; i++) {
         if (*params[i].value == NULL) {
-            PyErr_Format(PyExc_TypeError, "%s() missing 1 required positional argument: '%s'", function,
-                         params[i].name);
+            raise_missing(function, params, required);
             return -1;
         }
     }

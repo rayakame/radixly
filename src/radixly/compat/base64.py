@@ -19,8 +19,8 @@
 # SOFTWARE.
 """A drop-in for the standard library's ``base64``: the same names, arguments, results and errors.
 
-The functions radixly has ported run in C; the others are the standard library's own until their port lands.
-The surface is ``base64.__all__``; undocumented module attributes such as ``MAXLINESIZE`` are not carried over.
+Every function runs in C. The surface is ``base64.__all__``; undocumented module attributes such as
+``MAXLINESIZE`` are not carried over.
 Two gaps are left, and both take code that breaks its own contract to reach. The port holds the buffer it
 decodes where the standard library may already have copied it, so a ``casefold``, ``map01``, ``altchars`` or
 ``validate`` hook that resizes that buffer during the call gets ``BufferError``, and a same-length edit is read.
@@ -32,10 +32,6 @@ standard library would call on it, so the outcome can differ from the standard l
 from __future__ import annotations
 
 import sys
-from base64 import decode
-from base64 import decodebytes
-from base64 import encode
-from base64 import encodebytes
 
 from radixly._core import a85decode
 from radixly._core import a85encode
@@ -49,6 +45,10 @@ from radixly._core import b64decode
 from radixly._core import b64encode
 from radixly._core import b85decode
 from radixly._core import b85encode
+from radixly._core import decode
+from radixly._core import decodebytes
+from radixly._core import encode
+from radixly._core import encodebytes
 from radixly._core import standard_b64decode
 from radixly._core import standard_b64encode
 from radixly._core import urlsafe_b64decode

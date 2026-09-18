@@ -3,9 +3,8 @@
 `test_stdlib_base64.py` is `Lib/test/test_base64.py` from CPython v3.14.6 (upstream sha256
 `681d2ca1cd1e937fc5b27b43078ca39ac55068ed0fe3577c70e92fac4fb40ba3`), vendored under the Python
 Software Foundation License (`LICENSE-PSF.txt`) and run against `radixly.compat.base64`. Passing
-it is what "drop-in" means here; today 30 of its 35 test methods have a ported function as their
-subject, four more exercise the standard library's own legacy functions (`encode`, `decode`,
-`encodebytes`, `decodebytes`) until their ports land, and `ErrorHeritage` needs no port.
+it is what "drop-in" means here; 34 of its 35 test methods have a ported function as their subject,
+and the one that does not, `test_ErrorHeritage`, checks `binascii.Error`'s own class hierarchy.
 
 Edits against the original, and nothing else:
 

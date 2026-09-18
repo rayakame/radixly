@@ -26,6 +26,7 @@ import binascii
 import decimal
 import functools
 import inspect
+import io
 import random
 import subprocess  # ruff: ignore[suspicious-subprocess-import] -- fixed argv, own interpreter
 import sys
@@ -69,6 +70,10 @@ def test_ported_set_is_what_this_release_promises() -> None:
         "b64encode",
         "b85decode",
         "b85encode",
+        "decode",
+        "decodebytes",
+        "encode",
+        "encodebytes",
         "standard_b64decode",
         "standard_b64encode",
         "urlsafe_b64decode",
@@ -88,12 +93,28 @@ def test_signatures_match_the_stdlib(name: str) -> None:
     assert inspect.signature(_ours(name)) == inspect.signature(_theirs(name))
 
 
-@pytest.mark.parametrize("name", sorted(set(STDLIB_ALL) - set(PORTED)))
-def test_unported_names_are_the_stdlib_objects(name: str) -> None:
-    assert _ours(name) is _theirs(name)
+def test_nothing_is_left_to_the_stdlib() -> None:
+    """The drop-in is complete; a name that fell back to the standard library would show up here."""
+    assert sorted(PORTED) == sorted(STDLIB_ALL)
 
 
-@pytest.mark.parametrize("name", PORTED)
+# The legacy four take a bytestring or a pair of files, so the sample table below does not fit them.
+LEGACY = ("encode", "decode", "encodebytes", "decodebytes")
+
+
+def test_legacy_keyword_calls_match_the_stdlib() -> None:
+    """input, output and s are keyword names in the stdlib, so they are here too."""
+    _assert_same("encodebytes", s=b"abc")
+    _assert_same("decodebytes", s=b"YWJj\n")
+    for name in ("encode", "decode"):
+        payload = b"abc" if name == "encode" else b"YWJj\n"
+        ours, theirs = io.BytesIO(), io.BytesIO()
+        assert _ours(name)(input=io.BytesIO(payload), output=ours) is None
+        assert _theirs(name)(input=io.BytesIO(payload), output=theirs) is None
+        assert ours.getvalue() == theirs.getvalue()
+
+
+@pytest.mark.parametrize("name", [name for name in PORTED if name not in LEGACY])
 def test_keyword_calls_match_the_stdlib(name: str) -> None:
     """Every parameter the stdlib takes by name, the port takes by name, with the same result."""
     parameters = inspect.signature(_theirs(name)).parameters
@@ -376,6 +397,7 @@ def test_b16decode_matches(data: object, casefold: object) -> None:
 
 
 _PAIRS_PORTED = (
+    ("encodebytes", "decodebytes"),
     ("b16encode", "b16decode"),
     ("b32encode", "b32decode"),
     ("b32hexencode", "b32hexdecode"),
@@ -410,6 +432,14 @@ def test_ported_pairs_agree_on_a_megabyte() -> None:
     _assert_same("b64decode", wrapped, validate=True)
     _assert_same("standard_b64decode", wrapped)
     _assert_same("urlsafe_b64decode", wrapped)
+    _assert_same("encodebytes", payload)
+    _assert_same("decodebytes", base64.encodebytes(payload))
+    for name in ("encode", "decode"):
+        source = payload if name == "encode" else base64.encodebytes(payload)
+        ours, theirs = io.BytesIO(), io.BytesIO()
+        assert _ours(name)(io.BytesIO(source), ours) is None
+        assert _theirs(name)(io.BytesIO(source), theirs) is None
+        assert ours.getvalue() == theirs.getvalue()
     _assert_same("b64decode", b"=" * 2**20 + base64.b64encode(payload))
     _assert_same("b64decode", base64.b64encode(payload) + b"=" * 2**20)
     zeros = bytes(2**20)
@@ -422,7 +452,7 @@ def test_ported_pairs_agree_on_a_megabyte() -> None:
     _assert_same("b85decode", b"~" * 2**20)
 
 
-@pytest.mark.parametrize("name", PORTED)
+@pytest.mark.parametrize("name", [name for name in PORTED if name not in LEGACY])
 def test_wrong_argument_shapes_match(name: str) -> None:
     """Too many, missing, unknown and duplicate arguments raise the stdlib's TypeError, text included."""
     shapes: list[tuple[tuple[object, ...], dict[str, object]]] = [
@@ -556,6 +586,8 @@ def test_str_like_inputs_go_through_encode(make: Callable[[], object]) -> None:
         _assert_same(name, make())
     for name in sorted({"a85decode", "b85decode", "z85decode"} & set(PORTED)):
         _assert_same(name, make())
+    for name in ("encodebytes", "decodebytes"):
+        _assert_same(name, make())
     _assert_same("b32decode", "AAAAAAAA", map01=make())
     _assert_same("b64decode", "AAAA", altchars=make())
 
@@ -666,6 +698,12 @@ def _chain_shape(call: Callable[[], object]) -> tuple[type, type, bool]:
         ("a85encode", (b"abc",), {"wrapcol": "x"}),
         ("a85encode", (b"abc",), {"wrapcol": 3.0}),
         ("a85encode", (42,), {}),
+        ("encodebytes", (42,), {}),  # the memoryview TypeError rides along as the cause
+        ("encodebytes", ("text",), {}),
+        ("decodebytes", (42,), {}),
+        ("decodebytes", (memoryview(b"abcdef")[::2],), {}),
+        ("encodebytes", (memoryview(b"1234").cast("I"),), {}),
+        ("encodebytes", (memoryview(b"1234").cast("B", (2, 2)),), {}),
     ],
 )
 def test_exception_chains_match(name: str, args: tuple[object, ...], kwargs: dict[str, object]) -> None:
@@ -711,6 +749,107 @@ def _chain(function: Callable[..., object], *args: object, **kwargs: object) -> 
         return (type(error), error.args, type(context), context.args if context else None, error.__suppress_context__)
     message = "expected an exception"
     raise AssertionError(message)
+
+
+@pytest.mark.parametrize("name", LEGACY)
+def test_legacy_wrong_argument_shapes_match(name: str) -> None:
+    """Too many, missing, unknown and duplicate arguments raise the stdlib's TypeError, text included."""
+    files = name in {"encode", "decode"}
+    sample: tuple[object, ...] = (io.BytesIO(b""), io.BytesIO()) if files else (b"",)
+    shapes: list[tuple[tuple[object, ...], dict[str, object]]] = [
+        ((), {}),
+        ((*sample, b""), {}),
+        ((*sample,), {"nope": 1}),
+        ((*sample,), {"s": b""}),
+        ((*sample,), {"input": io.BytesIO(b"")}),
+        ((*sample,), {"output": io.BytesIO()}),
+    ]
+    extra: list[tuple[tuple[object, ...], dict[str, object]]] = (
+        [
+            ((io.BytesIO(b""),), {}),  # output is missing
+            ((), {"s": b""}),
+            ((), {"input": io.BytesIO(b"")}),  # output is missing, input bound by name
+            ((), {"output": io.BytesIO()}),
+        ]
+        if files
+        else [((), {"input": b""})]
+    )
+    shapes += extra
+    for args, kwargs in shapes:
+        _assert_same(name, *args, **kwargs)
+        assert _outcome(_ours(name), *args, **kwargs)[0] is TypeError, (name, args, kwargs)
+
+
+class _RaisingWrite(io.BytesIO):
+    """An output file whose write fails, to pin that the port passes the failure on untouched."""
+
+    # pyright wants @override, which needs 3.12; the project floor is 3.11.
+    def write(self, _buffer: object, /) -> int:  # ruff: ignore[no-self-use]  # pyright: ignore[reportImplicitOverride]
+        message = "no write today"
+        raise RuntimeError(message)
+
+
+class _ShortReads:
+    """A file whose reads stop short of the line size, so the port must top the chunk up as the stdlib does."""
+
+    def __init__(self, pieces: list[object]) -> None:
+        self.pieces: list[object] = list(pieces)
+
+    def read(self, _size: int) -> object:
+        return self.pieces.pop(0) if self.pieces else b""
+
+
+# Fresh pieces per call: `s += ns` mutates a bytearray in place, so the two runs must not share one.
+@pytest.mark.parametrize(
+    "make",
+    [
+        lambda: [b"abc", b"de"],
+        lambda: [b"a" * 57, b"b" * 57],
+        lambda: [b"a" * 56, b"b"],
+        lambda: [b"a" * 100],
+        lambda: [b"", b"never read"],
+        lambda: [bytearray(b"ab"), bytearray(b"cd")],
+        lambda: [memoryview(b"abc")],
+        lambda: [b"ab", memoryview(b"cd")],
+    ],
+    ids=lambda make: repr(make()),  # pyright: ignore[reportAny]
+)
+def test_encode_tops_up_short_reads_like_the_stdlib(make: Callable[[], list[object]]) -> None:
+    ours, theirs = io.BytesIO(), io.BytesIO()
+    assert _outcome(_ours("encode"), _ShortReads(make()), ours) == _outcome(
+        _theirs("encode"), _ShortReads(make()), theirs
+    )
+    assert ours.getvalue() == theirs.getvalue()
+
+
+def test_legacy_files_pass_their_own_failures_on() -> None:
+    """A read, a write or a line that fails is the file's error, not reworded."""
+    assert _outcome(_ours("encode"), io.BytesIO(b"abc"), _RaisingWrite()) == _outcome(
+        _theirs("encode"), io.BytesIO(b"abc"), _RaisingWrite()
+    )
+    assert _outcome(_ours("decode"), io.BytesIO(b"YWJj\n"), _RaisingWrite()) == _outcome(
+        _theirs("decode"), io.BytesIO(b"YWJj\n"), _RaisingWrite()
+    )
+    for missing in (object(), None, 42):
+        assert _outcome(_ours("encode"), missing, io.BytesIO()) == _outcome(_theirs("encode"), missing, io.BytesIO())
+        assert _outcome(_ours("decode"), missing, io.BytesIO()) == _outcome(_theirs("decode"), missing, io.BytesIO())
+
+
+@pytest.mark.parametrize(
+    ("text", "binary"),
+    [(io.StringIO, io.BytesIO), (io.BytesIO, io.StringIO), (io.StringIO, io.StringIO)],
+    ids=repr,
+)
+def test_legacy_text_files_match(text: Callable[..., object], binary: Callable[..., object]) -> None:
+    """A text file on either side is the stdlib's TypeError, or its ValueError for non-ASCII input."""
+    for name, payload in (("encode", "abc"), ("decode", "eA==\n")):
+        for maker, other in ((text, binary), (binary, text)):
+            ours = _outcome(_ours(name), maker(payload if maker is io.StringIO else payload.encode()), other())
+            theirs = _outcome(_theirs(name), maker(payload if maker is io.StringIO else payload.encode()), other())
+            assert ours == theirs, (name, maker, other)
+    assert _outcome(_ours("decode"), io.StringIO("\xe9\n"), io.BytesIO()) == _outcome(
+        _theirs("decode"), io.StringIO("\xe9\n"), io.BytesIO()
+    )
 
 
 @pytest.mark.parametrize("make", [lambda: 5, list, lambda: 3.5, lambda: decimal.Decimal(1), _ClassLiar, _RaisingBuffer])
