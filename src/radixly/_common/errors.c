@@ -95,8 +95,13 @@ decode_error_init(PyObject *self, PyObject *args, PyObject *kwargs)
 }
 
 static PyMemberDef decode_error_members[] = {
-    {"position", Py_T_PYSSIZET, offsetof(RadixlyDecodeErrorObject, position), Py_READONLY,
-     PyDoc_STR("Index of the offending character in the input.")},
+    {
+        "position",
+        Py_T_PYSSIZET,
+        offsetof(RadixlyDecodeErrorObject, position),
+        Py_READONLY,
+        PyDoc_STR("Index of the offending character in the input."),
+    },
     {NULL, 0, 0, 0, NULL},
 };
 
@@ -129,10 +134,14 @@ decode_error_get_message(PyObject *self, void *Py_UNUSED(closure))
 }
 
 static PyGetSetDef decode_error_getset[] = {
-    {"message", decode_error_get_message, NULL,
-     PyDoc_STR(
-         "Human-readable description of the failure, or None if the exception was built without arguments."),
-     NULL},
+    {
+        "message",
+        decode_error_get_message,
+        NULL,
+        PyDoc_STR("Human-readable description of the failure, or None if the exception was built without "
+                  "arguments."),
+        NULL,
+    },
     {NULL, NULL, NULL, NULL, NULL},
 };
 
@@ -208,7 +217,7 @@ static PyType_Slot decode_error_slots[] = {
 static PyType_Spec decode_error_spec = {
     .name = "radixly._core.DecodeError",
     .basicsize = sizeof(RadixlyDecodeErrorObject),
-    // NOLINTNEXTLINE(hicpp-signed-bitwise)
+    // NOLINTNEXTLINE(bugprone-signed-bitwise): CPython's own flag macros, signed by its headers.
     .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC,
     .slots = decode_error_slots,
 };

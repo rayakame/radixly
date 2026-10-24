@@ -203,7 +203,7 @@ input_from_encode(PyObject *arg, radixly_compat_input *input)
                                                 "string argument should contain only ASCII characters");
         return raise_with_context(error, context, 0);
     }
-    // NOLINTNEXTLINE(hicpp-signed-bitwise)
+    // NOLINTNEXTLINE(bugprone-signed-bitwise): CPython's own flag macros, signed by its headers.
     if (PyObject_GetBuffer(encoded, &input->view, PyBUF_FULL_RO) < 0 || input_from_view(input) < 0) {
         Py_DECREF(encoded);
         return -1;
@@ -276,7 +276,7 @@ radixly_compat_decode_input(PyObject *arg, radixly_compat_input *input)
                      Py_TYPE(arg)->tp_name);
         return raise_not_bytes_like(arg, take_raised());
     }
-    // NOLINTNEXTLINE(hicpp-signed-bitwise)
+    // NOLINTNEXTLINE(bugprone-signed-bitwise): CPython's own flag macros, signed by its headers.
     if (PyObject_GetBuffer(arg, &input->view, PyBUF_FULL_RO) < 0) {
         /* The stdlib rewords only the TypeError out of memoryview(s); anything else is the object's own. */
         if (!PyErr_ExceptionMatches(PyExc_TypeError)) {
@@ -306,7 +306,7 @@ radixly_compat_buffer_input(PyObject *arg, radixly_compat_input *input)
                      Py_TYPE(arg)->tp_name);
         return -1;
     }
-    // NOLINTNEXTLINE(hicpp-signed-bitwise)
+    // NOLINTNEXTLINE(bugprone-signed-bitwise): CPython's own flag macros, signed by its headers.
     if (PyObject_GetBuffer(arg, &input->view, PyBUF_FULL_RO) < 0) {
         return -1;
     }

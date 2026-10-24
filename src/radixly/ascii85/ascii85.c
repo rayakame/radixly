@@ -168,7 +168,8 @@ radixly_a85encode(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t n
     PyObject *pad = NULL;
     PyObject *adobe = NULL;
     radixly_param params[] = {
-        {"b", &arg}, {"foldspaces", &foldspaces}, {"wrapcol", &wrapcol}, {"pad", &pad}, {"adobe", &adobe}};
+        {"b", &arg}, {"foldspaces", &foldspaces}, {"wrapcol", &wrapcol}, {"pad", &pad}, {"adobe", &adobe},
+    };
     if (radixly_bind_args("a85encode", args, nargs, kwnames, params, RADIXLY_ARRAY_SIZE(params), 1, 1) < 0) {
         return NULL;
     }
@@ -366,7 +367,11 @@ radixly_a85decode(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t n
     PyObject *adobe = NULL;
     PyObject *ignorechars = NULL;
     radixly_param params[] = {
-        {"b", &arg}, {"foldspaces", &foldspaces}, {"adobe", &adobe}, {"ignorechars", &ignorechars}};
+        {"b", &arg},
+        {"foldspaces", &foldspaces},
+        {"adobe", &adobe},
+        {"ignorechars", &ignorechars},
+    };
     if (radixly_bind_args("a85decode", args, nargs, kwnames, params, RADIXLY_ARRAY_SIZE(params), 1, 1) < 0) {
         return NULL;
     }

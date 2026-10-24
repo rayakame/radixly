@@ -77,6 +77,7 @@ myst_heading_anchors = 3
 nitpicky = True
 nitpick_ignore = [
     ("py:class", "ReadableBuffer"),  # typeshed alias, no public docs target
+    ("py:class", "_typeshed.ReadableBuffer"),  # the same alias, qualified inside Callable
     ("py:class", "collections.abc.Callable"),
 ]
 

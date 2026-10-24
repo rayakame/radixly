@@ -21,7 +21,7 @@
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 import pathlib
 import platform
 import subprocess  # ruff: ignore[suspicious-subprocess-import] -- fixed argv, git only
@@ -87,5 +87,5 @@ def capture() -> model.Environment:
         commit=commit,
         dirty=dirty,
         optimized=bool(_core.OPTIMIZED),
-        timestamp=datetime.datetime.now(tz=datetime.UTC).isoformat(timespec="seconds"),
+        timestamp=dt.datetime.now(tz=dt.UTC).isoformat(timespec="seconds"),
     )

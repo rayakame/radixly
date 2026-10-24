@@ -322,8 +322,12 @@ radixly_base64_decode_with(PyObject *arg, int url)
     if (num_chars == 0) {
         return PyBytes_FromStringAndSize("", 0);
     }
-    const text_source source = {PyUnicode_KIND(arg), PyUnicode_DATA(arg), TABLES[url].rev,
-                                url ? "base64url" : "base64"};
+    const text_source source = {
+        PyUnicode_KIND(arg),
+        PyUnicode_DATA(arg),
+        TABLES[url].rev,
+        url ? "base64url" : "base64",
+    };
     const Py_ssize_t num_groups = num_chars / GROUP_CHARS;
     const Py_ssize_t remainder = num_chars % GROUP_CHARS;
 
