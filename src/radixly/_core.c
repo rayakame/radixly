@@ -70,26 +70,58 @@ static PyMethodDef radixly_methods[] = {
     {"b16decode", _PyCFunction_CAST(radixly_b16decode), METH_FASTCALL | METH_KEYWORDS, radixly_b16decode_doc},
     {"b32encode", _PyCFunction_CAST(radixly_b32encode), METH_FASTCALL | METH_KEYWORDS, radixly_b32encode_doc},
     {"b32decode", _PyCFunction_CAST(radixly_b32decode), METH_FASTCALL | METH_KEYWORDS, radixly_b32decode_doc},
-    {"b32hexencode", _PyCFunction_CAST(radixly_b32hexencode), METH_FASTCALL | METH_KEYWORDS,
-     radixly_b32hexencode_doc},
-    {"b32hexdecode", _PyCFunction_CAST(radixly_b32hexdecode), METH_FASTCALL | METH_KEYWORDS,
-     radixly_b32hexdecode_doc},
+    {
+        "b32hexencode",
+        _PyCFunction_CAST(radixly_b32hexencode),
+        METH_FASTCALL | METH_KEYWORDS,
+        radixly_b32hexencode_doc,
+    },
+    {
+        "b32hexdecode",
+        _PyCFunction_CAST(radixly_b32hexdecode),
+        METH_FASTCALL | METH_KEYWORDS,
+        radixly_b32hexdecode_doc,
+    },
     {"b64encode", _PyCFunction_CAST(radixly_b64encode), METH_FASTCALL | METH_KEYWORDS, radixly_b64encode_doc},
     {"b64decode", _PyCFunction_CAST(radixly_b64decode), METH_FASTCALL | METH_KEYWORDS, radixly_b64decode_doc},
-    {"standard_b64encode", _PyCFunction_CAST(radixly_standard_b64encode), METH_FASTCALL | METH_KEYWORDS,
-     radixly_standard_b64encode_doc},
-    {"standard_b64decode", _PyCFunction_CAST(radixly_standard_b64decode), METH_FASTCALL | METH_KEYWORDS,
-     radixly_standard_b64decode_doc},
-    {"urlsafe_b64encode", _PyCFunction_CAST(radixly_urlsafe_b64encode), METH_FASTCALL | METH_KEYWORDS,
-     radixly_urlsafe_b64encode_doc},
-    {"urlsafe_b64decode", _PyCFunction_CAST(radixly_urlsafe_b64decode), METH_FASTCALL | METH_KEYWORDS,
-     radixly_urlsafe_b64decode_doc},
+    {
+        "standard_b64encode",
+        _PyCFunction_CAST(radixly_standard_b64encode),
+        METH_FASTCALL | METH_KEYWORDS,
+        radixly_standard_b64encode_doc,
+    },
+    {
+        "standard_b64decode",
+        _PyCFunction_CAST(radixly_standard_b64decode),
+        METH_FASTCALL | METH_KEYWORDS,
+        radixly_standard_b64decode_doc,
+    },
+    {
+        "urlsafe_b64encode",
+        _PyCFunction_CAST(radixly_urlsafe_b64encode),
+        METH_FASTCALL | METH_KEYWORDS,
+        radixly_urlsafe_b64encode_doc,
+    },
+    {
+        "urlsafe_b64decode",
+        _PyCFunction_CAST(radixly_urlsafe_b64decode),
+        METH_FASTCALL | METH_KEYWORDS,
+        radixly_urlsafe_b64decode_doc,
+    },
     {"encode", _PyCFunction_CAST(radixly_encode), METH_FASTCALL | METH_KEYWORDS, radixly_encode_doc},
     {"decode", _PyCFunction_CAST(radixly_decode), METH_FASTCALL | METH_KEYWORDS, radixly_decode_doc},
-    {"encodebytes", _PyCFunction_CAST(radixly_encodebytes), METH_FASTCALL | METH_KEYWORDS,
-     radixly_encodebytes_doc},
-    {"decodebytes", _PyCFunction_CAST(radixly_decodebytes), METH_FASTCALL | METH_KEYWORDS,
-     radixly_decodebytes_doc},
+    {
+        "encodebytes",
+        _PyCFunction_CAST(radixly_encodebytes),
+        METH_FASTCALL | METH_KEYWORDS,
+        radixly_encodebytes_doc,
+    },
+    {
+        "decodebytes",
+        _PyCFunction_CAST(radixly_decodebytes),
+        METH_FASTCALL | METH_KEYWORDS,
+        radixly_decodebytes_doc,
+    },
     {"a2b_base64_variant", radixly_a2b_base64_variant, METH_O, radixly_a2b_base64_variant_doc},
     {"a85encode", _PyCFunction_CAST(radixly_a85encode), METH_FASTCALL | METH_KEYWORDS, radixly_a85encode_doc},
     {"a85decode", _PyCFunction_CAST(radixly_a85decode), METH_FASTCALL | METH_KEYWORDS, radixly_a85decode_doc},
@@ -154,7 +186,7 @@ static PyModuleDef_Slot radixly_execs[] = {
 
 static struct PyModuleDef radixly_module = {
     /* CPython 3.14 ORs signed operands in the static immortal refcount macro. */
-    // NOLINTNEXTLINE(hicpp-signed-bitwise)
+    // NOLINTNEXTLINE(bugprone-signed-bitwise): CPython's own flag macros, signed by its headers.
     .m_base = PyModuleDef_HEAD_INIT,
     .m_name = "radixly._core",
     .m_doc = "C implementations of radixly's encode/decode routines. Private "

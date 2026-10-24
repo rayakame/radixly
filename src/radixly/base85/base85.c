@@ -299,8 +299,12 @@ radixly_base85_decode_with(PyObject *arg, int zeromq)
     if (num_chars == 0) {
         return PyBytes_FromStringAndSize("", 0);
     }
-    const text_source source = {PyUnicode_KIND(arg), PyUnicode_DATA(arg), zeromq ? REV_Z85 : REV_B85,
-                                zeromq ? "z85" : "base85"};
+    const text_source source = {
+        PyUnicode_KIND(arg),
+        PyUnicode_DATA(arg),
+        zeromq ? REV_Z85 : REV_B85,
+        zeromq ? "z85" : "base85",
+    };
     const Py_ssize_t num_groups = num_chars / GROUP_CHARS;
     const Py_ssize_t remainder = num_chars % GROUP_CHARS;
     const Py_ssize_t out_len = (GROUP_BYTES * num_groups) + (remainder != 0 ? remainder - 1 : 0);

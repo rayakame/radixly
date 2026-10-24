@@ -271,8 +271,12 @@ radixly_base32_decode_with(PyObject *arg, int hex)
     if (num_chars == 0) {
         return PyBytes_FromStringAndSize("", 0);
     }
-    const text_source source = {PyUnicode_KIND(arg), PyUnicode_DATA(arg), TABLES[hex].rev,
-                                hex ? "base32hex" : "base32"};
+    const text_source source = {
+        PyUnicode_KIND(arg),
+        PyUnicode_DATA(arg),
+        TABLES[hex].rev,
+        hex ? "base32hex" : "base32",
+    };
     const Py_ssize_t num_groups = num_chars / GROUP_CHARS;
     const Py_ssize_t remainder = num_chars % GROUP_CHARS;
 
