@@ -53,12 +53,18 @@ whether ascii85 gets one is undecided.
   picks the variant at import from `Py_Version`, never at compile time.
   3.15 rebuilt `base64` over new `binascii` functions (keywords `padded`,
   `wrapcol`, `ignorechars`, `canonical`, `pad` on `z85encode`; asserts became
-  ValueErrors; the 85 family raises `binascii.Error`): `_common/binascii15.c`
-  ports that
-  `binascii` line for line, each codec file carries its `_py315` wrappers,
-  and `_core.c` installs one of two compat method tables at import. CPython
-  3.15's `test_base64` is vendored next to the 3.14 one; each runs on its
-  own interpreters.
+  ValueErrors; the 85 family raises `binascii.Error`); the drop-in follows it
+  on 3.15, and `_core.c` installs one of two compat method tables at import.
+  CPython 3.15's `test_base64` is vendored next to the 3.14 one; each runs on
+  its own interpreters.
+- One engine per codec: `<codec>/<codec>.c` holds the tables, the group
+  kernels (encode and decode of whole groups, a fast path the drop-in resumes
+  between the characters it judges one by one) and the strict codec;
+  `<codec>/compat.c` holds the drop-in for every interpreter, 3.15's binascii
+  port included. Shared helpers (argument binding, input coercion, the
+  ignore set, wraplines, the size_t converter) live in `_common/`. Reverse
+  tables map `=` to the pad value and everything else to 0xFF, one table per
+  alphabet; a group kernel stops at anything that is not plain data.
 - Performance bars are the committed record
   (`benchmarks/results/i9-14900KF-performance.json`), rendered into README and
   docs; regressions need a reason, CI gates the C-vs-reference ratio.

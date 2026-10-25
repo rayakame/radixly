@@ -60,7 +60,7 @@ const char radixly_base64url_encode_doc[] =
 PyObject *
 radixly_base64url_encode(PyObject *Py_UNUSED(self), PyObject *arg)
 {
-    return radixly_base64_encode_with(arg, 1);
+    return radixly_base64_encode_with(arg, RADIXLY_B64_URL);
 }
 
 const char radixly_base64url_decode_doc[] =
@@ -103,7 +103,7 @@ const char radixly_base64url_decode_doc[] =
 PyObject *
 radixly_base64url_decode(PyObject *Py_UNUSED(self), PyObject *arg)
 {
-    return radixly_base64_decode_with(arg, 1);
+    return radixly_base64_decode_with(arg, RADIXLY_B64_URL);
 }
 
 const char radixly_urlsafe_b64encode_doc[] =

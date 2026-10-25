@@ -21,6 +21,7 @@
  */
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
+#include <string.h>
 #include "ascii85.h"
 
 #include "base85/base85.h"
@@ -28,7 +29,6 @@
 #include "_common/args.h"
 #include "_common/compat.h"
 #include "_common/internal.h"
-#include "_common/binascii15.h"
 
 enum {
     GROUP_BYTES = 4,
@@ -36,15 +36,17 @@ enum {
     BASE = 85,
     FIRST = '!', /* the alphabet is the 85 characters from '!' */
     LAST = 'u',
+    TOP_DIGIT = 84,
     TABLE_SIZE = 256,
     FRAME = 2,      /* the "<~" and "~>" markers */
     FRAME_BOTH = 4, /* both of them */
+    PREFIX = '<',
+    AFFIX = '~',
+    SUFFIX = '>',
 };
 
 static const uint64_t WORD_MAX = 0xFFFFFFFFU;
 static const uint32_t FOUR_SPACES = 0x20202020U;
-static const char ALPHABET_A85[] =
-    "!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstu";
 static const char DEFAULT_IGNORED[] = " \t\n\r\v";
 
 /* The stdlib's max(2 if adobe else 1, wrapcol) then range(0, n, wrapcol): the comparison's own TypeError for
@@ -178,7 +180,7 @@ radixly_a85encode(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t n
     if (radixly_compat_buffer_input(arg, &source) < 0) {
         return NULL;
     }
-    PyObject *raw = radixly_85_encode(source.data, source.len, ALPHABET_A85, pad, 1, foldspaces);
+    PyObject *raw = radixly_85_encode(source.data, source.len, RADIXLY_B85_A85, pad, 1, foldspaces);
     radixly_compat_input_release(&source);
     if (raw == NULL) {
         return NULL;
@@ -282,15 +284,6 @@ typedef struct {
     ignore_set ignored;
 } a85_state;
 
-static void
-put_word(a85_state *state, uint32_t word)
-{
-    for (int i = 0; i < GROUP_BYTES; i++) {
-        *state->out++ =
-            (unsigned char)((word >> (BITS_PER_BYTE * (unsigned)(GROUP_BYTES - 1 - i))) & BYTE_MASK);
-    }
-}
-
 /* One byte of the stdlib's loop; -1 with the exception set. */
 static int
 take_byte(a85_state *state, unsigned char code)
@@ -304,7 +297,8 @@ take_byte(a85_state *state, unsigned char code)
                 radixly_raise_from(PyExc_ValueError, message, context);
                 return -1;
             }
-            put_word(state, (uint32_t)state->acc);
+            radixly_b85_put_word(state->out, (uint32_t)state->acc, GROUP_BYTES);
+            state->out += GROUP_BYTES;
             state->acc = 0;
             state->digits = 0;
         }
@@ -315,7 +309,8 @@ take_byte(a85_state *state, unsigned char code)
             PyErr_SetString(PyExc_ValueError, "z inside Ascii85 5-tuple");
             return -1;
         }
-        put_word(state, 0);
+        radixly_b85_put_word(state->out, 0, GROUP_BYTES);
+        state->out += GROUP_BYTES;
         return 0;
     }
     if (state->folded_spaces < 0) {
@@ -329,7 +324,8 @@ take_byte(a85_state *state, unsigned char code)
             PyErr_SetString(PyExc_ValueError, "y inside Ascii85 5-tuple");
             return -1;
         }
-        put_word(state, FOUR_SPACES);
+        radixly_b85_put_word(state->out, FOUR_SPACES, GROUP_BYTES);
+        state->out += GROUP_BYTES;
         return 0;
     }
     const int ignored = ignore_set_has(&state->ignored, code);
@@ -338,6 +334,31 @@ take_byte(a85_state *state, unsigned char code)
     }
     PyErr_Format(PyExc_ValueError, "Non-Ascii85 digit found: %c", (int)code);
     return -1;
+}
+
+/* binascii's bound for an Ascii85 decode, which the pure-Python decoder shares: every 'y' and 'z' is a word
+ * of its own, the digits whole groups rounded up. -1 with the error set when it does not fit. */
+static Py_ssize_t
+decode_bound(const unsigned char *data, Py_ssize_t len, PyObject *(*too_much)(const char *))
+{
+    size_t count_yz = 0;
+    for (Py_ssize_t i = 0; i < len; i++) {
+        if (data[i] == 'y' || data[i] == 'z') {
+            count_yz++;
+        }
+    }
+    const size_t words = ((size_t)len - count_yz + (size_t)GROUP_BYTES) / (size_t)GROUP_CHARS;
+    if (count_yz > (((size_t)PY_SSIZE_T_MAX / GROUP_BYTES) - words)) {
+        too_much("Too much Ascii85 data");
+        return -1;
+    }
+    return (Py_ssize_t)((words + count_yz) * GROUP_BYTES);
+}
+
+static PyObject *
+no_memory(const char *Py_UNUSED(message))
+{
+    return PyErr_NoMemory();
 }
 
 const char radixly_a85decode_doc[] =
@@ -388,49 +409,263 @@ radixly_a85decode(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t n
         return NULL;
     }
     if (framed) {
-        if (len < FRAME || data[len - 2] != '~' || data[len - 1] != '>') {
+        if (len < FRAME || data[len - 2] != AFFIX || data[len - 1] != SUFFIX) {
             radixly_compat_input_release(&source);
             PyErr_SetString(PyExc_ValueError, "Ascii85 encoded byte sequences must end with b'~>'");
             return NULL;
         }
         len -= FRAME;
-        if (len >= FRAME && data[0] == '<' && data[1] == '~') {
+        if (len >= FRAME && data[0] == PREFIX && data[1] == AFFIX) {
             data += FRAME;
             len -= FRAME;
         }
     }
-    if (len > (PY_SSIZE_T_MAX / GROUP_BYTES) - GROUP_BYTES) {
+    const Py_ssize_t bound = decode_bound(data, len, no_memory);
+    if (bound < 0) {
         radixly_compat_input_release(&source);
-        return PyErr_NoMemory();
+        return NULL;
     }
-    /* Every byte may be a 'z' worth four; the four 'u' the stdlib appends complete the last group. */
-    PyObject *result = PyBytes_FromStringAndSize(NULL, GROUP_BYTES * (len + GROUP_BYTES));
+    PyObject *result = PyBytes_FromStringAndSize(NULL, bound);
     if (result == NULL) {
         radixly_compat_input_release(&source);
         return NULL;
     }
-    a85_state state = {0, 0, (unsigned char *)PyBytes_AS_STRING(result), -1, foldspaces, {NULL, {0}, 0}};
+    unsigned char *start = (unsigned char *)PyBytes_AS_STRING(result);
+    a85_state state = {0, 0, start, -1, foldspaces, {NULL, {0}, 0}};
     ignore_set_init(&state.ignored, ignorechars);
-    for (Py_ssize_t i = 0; i < len + GROUP_BYTES; i++) {
-        if (take_byte(&state, i < len ? data[i] : (unsigned char)LAST) < 0) {
+    const unsigned char *table = radixly_b85_table(RADIXLY_B85_A85);
+    /* Whole groups of digits at speed; the four 'u' the stdlib appends complete the last group. */
+    Py_ssize_t index = 0;
+    while (index < len + GROUP_BYTES) {
+        if (state.digits == 0 && index < len) {
+            const Py_ssize_t consumed = radixly_b85_groups(data + index, len - index, state.out, table, 0);
+            index += consumed;
+            state.out += (consumed / GROUP_CHARS) * GROUP_BYTES;
+        }
+        if (take_byte(&state, index < len ? data[index] : (unsigned char)LAST) < 0) {
             radixly_compat_input_release(&source);
             Py_DECREF(result);
             return NULL;
         }
+        index++;
     }
     radixly_compat_input_release(&source);
-    Py_ssize_t out_len = state.out - (unsigned char *)PyBytes_AS_STRING(result);
+    Py_ssize_t out_len = state.out - start;
     const Py_ssize_t padding = GROUP_BYTES - state.digits;
     if (padding != 0) {
         out_len = Py_MAX(0, out_len - padding);
     }
-    if (out_len != PyBytes_GET_SIZE(result) && _PyBytes_Resize(&result, out_len) < 0) {
-        return NULL; /* result already cleared and the exception set */
-    }
-    return result;
+    return radixly_compat_finish(result, out_len);
 }
 
 /* Python 3.15 made a85encode and a85decode shells over binascii.b2a_ascii85 and a2b_ascii85. */
+
+static const uint32_t A85_Z = 0x00000000U;
+static const uint32_t A85_Y = 0x20202020U;
+
+/* Strip the Adobe frame; -1 with the error set when the "~>" is missing. */
+static int
+unframe(const unsigned char **data, Py_ssize_t *len)
+{
+    if (*len < FRAME || (*data)[*len - 2] != AFFIX || (*data)[*len - 1] != SUFFIX) {
+        radixly_binascii_error("Ascii85 encoded byte sequences must end with b'~>'");
+        return -1;
+    }
+    *len -= FRAME;
+    if (*len >= FRAME && (*data)[0] == PREFIX && (*data)[1] == AFFIX) {
+        *data += FRAME;
+        *len -= FRAME;
+    }
+    return 0;
+}
+
+typedef struct {
+    unsigned char *out;
+    uint32_t leftchar;
+    int group_pos;
+    int from_z; /* the current group came from 'z' */
+} a2b_state;
+
+/* One character of a2b_ascii85: the digit, a shorthand, something ignored, or -1 with the error set. */
+static int
+a2b_step(a2b_state *state, unsigned char this_ch, unsigned digit, int foldspaces, radixly_ignore_set *skip)
+{
+    if (digit < BASE) {
+        if (radixly_b85_take_digit(&state->leftchar, &state->group_pos, digit) != 0) {
+            radixly_binascii_error("Ascii85 overflow");
+            return -1;
+        }
+        return 0;
+    }
+    if ((this_ch == 'y' && foldspaces != 0) || this_ch == 'z') {
+        if (state->group_pos != 0) {
+            radixly_binascii_error_format("'%c' inside Ascii85 5-tuple", (int)this_ch);
+            return -1;
+        }
+        state->leftchar = this_ch == 'y' ? A85_Y : A85_Z;
+        state->from_z = this_ch == 'z';
+        state->group_pos = GROUP_CHARS;
+        return 0;
+    }
+    if (radixly_ignored(skip, this_ch) == 0) {
+        radixly_binascii_error_format("Non-Ascii85 digit found: %c", (int)this_ch);
+        return -1;
+    }
+    return 0;
+}
+
+/* The canonical readings binascii enforces on a full group: 'z' for zero words, the encoder's own tail
+ * digits.
+ */
+static int
+a2b_canonical(const a2b_state *state, int chunk_len)
+{
+    if (chunk_len == GROUP_BYTES && state->leftchar == 0 && state->from_z == 0) {
+        radixly_binascii_error("Non-canonical encoding, use 'z' for all-zero groups");
+        return -1;
+    }
+    if (chunk_len < GROUP_BYTES && radixly_b85_canonical_tail(state->leftchar, chunk_len) == 0) {
+        radixly_binascii_error("Non-zero padding bits");
+        return -1;
+    }
+    return 0;
+}
+
+/* binascii.a2b_ascii85: whole groups of digits at speed, the shorthands and everything else one character at
+ * a time, the input padded with the top digit to a whole last group. */
+static PyObject *
+a2b_ascii85(const unsigned char *data, Py_ssize_t len, int foldspaces, int adobe, const unsigned char *ignore,
+            Py_ssize_t ignore_len, int canonical)
+{
+    if (adobe != 0 && unframe(&data, &len) < 0) {
+        return NULL;
+    }
+    radixly_ignore_set skip;
+    radixly_ignore_set_init(&skip, ignore, ignore_len);
+    const Py_ssize_t bound = decode_bound(data, len, radixly_binascii_error);
+    if (bound < 0) {
+        return NULL;
+    }
+    PyObject *result = PyBytes_FromStringAndSize(NULL, bound);
+    if (result == NULL) {
+        return NULL;
+    }
+    const unsigned char *table = radixly_b85_table(RADIXLY_B85_A85);
+    unsigned char *start = (unsigned char *)PyBytes_AS_STRING(result);
+    a2b_state state = {start, 0, 0, 0};
+    for (; len > 0 || state.group_pos != 0; len--) {
+        if (state.group_pos == 0 && len > 0) {
+            const Py_ssize_t consumed = radixly_b85_groups(data, len, state.out, table, canonical);
+            data += consumed;
+            len -= consumed;
+            state.out += (consumed / GROUP_CHARS) * GROUP_BYTES;
+            if (len == 0) {
+                break;
+            }
+        }
+        unsigned char this_ch = 0;
+        unsigned digit = TOP_DIGIT;
+        if (len > 0) {
+            this_ch = *data++;
+            digit = table[this_ch];
+        }
+        if (a2b_step(&state, this_ch, digit, foldspaces, &skip) < 0) {
+            Py_DECREF(result);
+            return NULL;
+        }
+        if (state.group_pos != GROUP_CHARS) {
+            continue;
+        }
+        const int chunk_len = radixly_b85_chunk_length(len);
+        if (chunk_len == 0) {
+            Py_DECREF(result);
+            return radixly_binascii_error("Incomplete Ascii85 group");
+        }
+        radixly_b85_put_word(state.out, state.leftchar, chunk_len);
+        state.out += chunk_len;
+        if (canonical != 0 && a2b_canonical(&state, chunk_len) < 0) {
+            Py_DECREF(result);
+            return NULL;
+        }
+        state.from_z = 0;
+        state.group_pos = 0;
+        state.leftchar = 0;
+    }
+    return radixly_compat_finish(result, state.out - start);
+}
+
+/* The words of the input as Ascii85 digits or the z and y shorthands; returns the cursor after them. */
+static unsigned char *
+words(unsigned char *out, const unsigned char *data, Py_ssize_t len, int foldspaces, int pad)
+{
+    for (; len >= GROUP_BYTES; len -= GROUP_BYTES, data += GROUP_BYTES) {
+        const uint32_t word =
+            ((uint32_t)data[0] << 24U) | ((uint32_t)data[1] << 16U) | ((uint32_t)data[2] << 8U) | data[3];
+        if (word == A85_Z) {
+            *out++ = 'z';
+        }
+        else if (foldspaces != 0 && word == A85_Y) {
+            *out++ = 'y';
+        }
+        else {
+            radixly_b85_digits(word, out, RADIXLY_B85_A85);
+            out += GROUP_CHARS;
+        }
+    }
+    if (len > 0) {
+        const uint32_t word = radixly_b85_word(data, len);
+        if (pad != 0 && word == A85_Z) {
+            *out++ = 'z';
+        }
+        else {
+            unsigned char digits[GROUP_CHARS];
+            radixly_b85_digits(word, digits, RADIXLY_B85_A85);
+            const Py_ssize_t group_len = pad != 0 ? GROUP_CHARS : len + 1;
+            memcpy(out, digits, (size_t)group_len);
+            out += group_len;
+        }
+    }
+    return out;
+}
+
+/* binascii.b2a_ascii85: foldspaces, wrapcol, pad and the Adobe frame. */
+static PyObject *
+b2a_ascii85(const unsigned char *data, Py_ssize_t len, int foldspaces, size_t wrapcol, int pad, int adobe)
+{
+    if (adobe != 0 && wrapcol == 1) {
+        wrapcol = 2;
+    }
+    const size_t out_len = radixly_b85_bound(len, wrapcol, pad, adobe != 0 ? FRAME_BOTH : 0);
+    if (out_len > (size_t)PY_SSIZE_T_MAX) {
+        return radixly_binascii_error("Too much data for Ascii85");
+    }
+    PyObject *result = PyBytes_FromStringAndSize(NULL, (Py_ssize_t)out_len);
+    if (result == NULL) {
+        return NULL;
+    }
+    unsigned char *start = (unsigned char *)PyBytes_AS_STRING(result);
+    unsigned char *out = start;
+    if (adobe != 0) {
+        *out++ = PREFIX;
+        *out++ = AFFIX;
+    }
+    out = words(out, data, len, foldspaces, pad);
+    if (adobe != 0) {
+        *out++ = AFFIX;
+        *out++ = SUFFIX;
+    }
+    if (wrapcol != 0 && out_len != 0) {
+        out = start + radixly_compat_wraplines(start, out - start, wrapcol);
+        /* The "~>" goes on a line of its own when the wrap split it from its text. */
+        if (adobe != 0 && out[-2] == '\n') {
+            assert(out[-1] == SUFFIX);
+            assert(out[-3] == AFFIX);
+            out[-3] = '\n';
+            out[-2] = AFFIX;
+        }
+    }
+    return radixly_compat_finish(result, out - start);
+}
 
 const char radixly_a85encode_py315_doc[] =
     PyDoc_STR("a85encode($module, /, b, *, foldspaces=False, wrapcol=0, pad=False, adobe=False)\n"
@@ -475,11 +710,11 @@ radixly_a85encode_py315(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssi
     PyObject *result = NULL;
     size_t width = 0;
     const int fold = radixly_compat_truth(foldspaces);
-    if (fold >= 0 && (wrapcol == NULL || radixly_py315_size_t(wrapcol, &width) == 0)) {
+    if (fold >= 0 && (wrapcol == NULL || radixly_compat_size_t(wrapcol, &width) == 0)) {
         const int padding = radixly_compat_truth(pad);
         const int framed = padding < 0 ? -1 : radixly_compat_truth(adobe);
         if (framed >= 0) {
-            result = radixly_py315_b2a_ascii85(view.buf, view.len, fold, width, padding, framed);
+            result = b2a_ascii85(view.buf, view.len, fold, width, padding, framed);
         }
     }
     PyBuffer_Release(&view);
@@ -540,8 +775,7 @@ radixly_a85decode_py315(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssi
                                                  (Py_ssize_t)(sizeof(DEFAULT_IGNORED) - 1)) == 0) {
         const int strict = radixly_compat_truth(canonical);
         if (strict >= 0) {
-            result = radixly_py315_a2b_ascii85(source.data, source.len, fold, framed, ignore.data, ignore.len,
-                                               strict);
+            result = a2b_ascii85(source.data, source.len, fold, framed, ignore.data, ignore.len, strict);
         }
         radixly_compat_bytes_release(&ignore);
     }

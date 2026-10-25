@@ -112,4 +112,34 @@ int radixly_compat_optimized(void);
  * check of the buffer: 0 when both pass; -1 with the AssertionError, or with maketrans's ValueError. */
 int radixly_compat_check_length(const radixly_compat_input *input, Py_ssize_t expected);
 
+/* binascii's ignorechars: memchr asked once per byte value, the answer remembered. A length of zero ignores
+ * nothing. */
+enum { RADIXLY_IGNORE_CACHE_BYTES = 32 }; /* one bit per byte value */
+
+typedef struct {
+    const unsigned char *chars;
+    Py_ssize_t len;
+    unsigned char cache[RADIXLY_IGNORE_CACHE_BYTES];
+} radixly_ignore_set;
+
+void radixly_ignore_set_init(radixly_ignore_set *set, const unsigned char *chars, Py_ssize_t len);
+int radixly_ignored(radixly_ignore_set *set, unsigned char code);
+
+/* Argument Clinic's size_t converter as 3.15 has it: __index__ accepted, a negative value a ValueError, one
+ * past size_t an OverflowError. 0 on success, -1 with the exception set. */
+int radixly_compat_size_t(PyObject *arg, size_t *value);
+
+/* binascii's wraplines: a newline after every width characters, the data moved right in place; the new size.
+ */
+Py_ssize_t radixly_compat_wraplines(unsigned char *data, Py_ssize_t size, size_t width);
+
+/* A flag whose truth is read without running code (absent, a bool, an exact int), and a buffer whose export
+ * runs none (absent, bytes, bytearray, memoryview). The stdlib reads its flags while binascii holds the copy
+ * its translate() or upper() made, not s itself; where no flag could edit s, the drop-in skips that copy. */
+int radixly_compat_inert_flag(PyObject *flag);
+int radixly_compat_inert_buffer(PyObject *arg);
+
+/* The result trimmed to what was written; NULL with the exception set when the shrink fails. */
+PyObject *radixly_compat_finish(PyObject *result, Py_ssize_t written);
+
 #endif // RADIXLY_COMPAT_H

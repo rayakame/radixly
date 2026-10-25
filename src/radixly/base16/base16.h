@@ -25,22 +25,34 @@
 
 extern int radixly_base16_exec(PyObject *module);
 
+/* The engine every base16 shape shares. */
+
+enum { RADIXLY_HEX_UPPER, RADIXLY_HEX_ANY };
+
+/* The reverse table: RADIXLY_HEX_UPPER reads 0-9 and A-F, RADIXLY_HEX_ANY a-f as well; a cell of 16 or more
+ * is not a digit. */
+const uint8_t *radixly_hex_table(int which);
+
+/* The two uppercase digits of every byte. */
+void radixly_hex_fill(const unsigned char *data, Py_ssize_t len, unsigned char *out);
+
+/* Decode whole pairs from the start; returns the digits consumed, an even count, stopping before the first
+ * pair that holds a non-digit. */
+Py_ssize_t radixly_hex_pairs(const unsigned char *digits, Py_ssize_t len, unsigned char *out,
+                             const uint8_t *rev);
+
 extern const char radixly_base16_encode_doc[];
 PyObject *radixly_base16_encode(PyObject *self, PyObject *arg);
-
 extern const char radixly_base16_decode_doc[];
 PyObject *radixly_base16_decode(PyObject *self, PyObject *arg);
 
+/* The drop-in: base16/compat.c. */
 extern const char radixly_b16encode_doc[];
 PyObject *radixly_b16encode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
-
 extern const char radixly_b16decode_doc[];
 PyObject *radixly_b16decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
-
-/* The shapes 3.15's base64 gives these functions, installed in place of the ones above on 3.15 and later. */
 extern const char radixly_b16encode_py315_doc[];
 PyObject *radixly_b16encode_py315(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
-
 extern const char radixly_b16decode_py315_doc[];
 PyObject *radixly_b16decode_py315(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 

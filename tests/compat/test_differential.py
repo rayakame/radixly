@@ -1772,6 +1772,11 @@ _PY315_PINNED_CASES: list[tuple[str, tuple[object, ...], dict[str, object]]] = [
     ("b32decode", (b"MY======XW6YTBMYXW6Y====",), {"ignorechars": b"="}),
     ("b32hexdecode", (b"CO======NMUOJ1CO",), {"ignorechars": b"="}),
     ("b32hexdecode", (b"CO======NMUOJ1CONMUO====",), {"ignorechars": b"="}),
+    # pads counted before any data: the whole-group fast path may not start while they are pending
+    ("b32decode", (b"=NBUQNBUQNB=====",), {"ignorechars": b"="}),
+    ("b32decode", (b"=NBUQNBUQNBUQ===",), {"ignorechars": b"="}),
+    ("b32decode", (b"==NBUQNBUQNBUQNBUQ",), {"ignorechars": b"=", "padded": False}),
+    ("b32hexdecode", (b"=D1IMD1IMD1=====",), {"ignorechars": b"="}),
     # the alphabet bytes + altchars built is whatever altchars' __radd__ says
     ("b64decode", (b"QUJD", _OwnRadd(b"-_", None)), {"ignorechars": b""}),
     ("b64decode", (b"QUJD", _OwnRadd(b"-_", 42)), {"ignorechars": b""}),

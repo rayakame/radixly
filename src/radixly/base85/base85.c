@@ -21,165 +21,147 @@
  */
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
+#include <string.h>
 #include "base85.h"
 
-#include "_common/args.h"
-#include "_common/compat.h"
 #include "_common/errors.h"
 #include "_common/internal.h"
-#include "_common/binascii15.h"
+#include "_common/text.h"
 
 enum {
     GROUP_BYTES = 4,
     GROUP_CHARS = 5,
     BASE = 85,
-    REV_INVALID = 0xFF,
-    TABLE_SIZE = 256,
-    PAD_DIGIT = 84, /* the '~' b85decode appends, the largest digit */
+    NUM_ALPHABETS = 3,
+    PAIR_TABLE_SIZE = BASE * BASE, /* every two-digit value: two characters */
     ASCII_MAX = 0x7F,
 };
+
+static const unsigned NOT_DIGIT = 0x80U; /* set in an invalid cell, clear in every digit */
 
 /* 85 to the power of the digits a tail drops: the span of words that share the tail's digits. */
 enum { SPAN_1 = BASE, SPAN_2 = BASE * BASE, SPAN_3 = BASE * BASE * BASE, SPAN_4 = BASE * BASE * BASE * BASE };
 static const uint64_t DROPPED_SPAN[GROUP_CHARS] = {1, SPAN_1, SPAN_2, SPAN_3, SPAN_4};
-
+static const uint32_t POW85[GROUP_CHARS] = {1, SPAN_1, SPAN_2, SPAN_3, SPAN_4};
 static const uint64_t WORD_MAX = 0xFFFFFFFFU;
-static const uint32_t FOUR_SPACES = 0x20202020U;
 
-static const char ALPHABET_B85[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+static const char ALPHABET_STD[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                                    "abcdefghijklmnopqrstuvwxyz!#$%&()*+-;<=>?@^_`{|}~";
 static const char ALPHABET_Z85[] = "0123456789abcdefghijklmnopqrstuvwxyz"
                                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ.-:+=^!/*?&<>()[]{}@%$#";
-static unsigned char REV_B85[TABLE_SIZE];
-static unsigned char REV_Z85[TABLE_SIZE];
-/* binascii's reverse tables for the 3.15 shapes; the same cells, built its way. */
-static unsigned char PY315_REV_B85[RADIXLY_PY315_TABLE_SIZE];
-static unsigned char PY315_REV_Z85[RADIXLY_PY315_TABLE_SIZE];
+static const char ALPHABET_A85[] =
+    "!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstu";
+static const char *const ALPHABETS[NUM_ALPHABETS] = {ALPHABET_STD, ALPHABET_Z85, ALPHABET_A85};
+
+static uint16_t PAIRS[NUM_ALPHABETS]
+                     [PAIR_TABLE_SIZE]; /* both digits of a two-digit value, one 16-bit store */
+static unsigned char REV[NUM_ALPHABETS][RADIXLY_B85_TABLE_SIZE];
 
 int
 radixly_base85_exec(PyObject *Py_UNUSED(module))
 {
-    for (unsigned code = 0; code < TABLE_SIZE; code++) {
-        REV_B85[code] = REV_INVALID;
-        REV_Z85[code] = REV_INVALID;
+    memset(REV, RADIXLY_B85_INVALID, sizeof(REV));
+    for (int which = 0; which < NUM_ALPHABETS; which++) {
+        const char *alphabet = ALPHABETS[which];
+        for (unsigned value = 0; value < PAIR_TABLE_SIZE; value++) {
+            const unsigned char pair[2] = {
+                (unsigned char)alphabet[value / BASE],
+                (unsigned char)alphabet[value % BASE],
+            };
+            memcpy(&PAIRS[which][value], pair, sizeof(pair));
+        }
+        for (unsigned value = 0; value < BASE; value++) {
+            REV[which][(unsigned char)alphabet[value]] = (unsigned char)value;
+        }
     }
-    for (unsigned value = 0; value < BASE; value++) {
-        REV_B85[(unsigned char)ALPHABET_B85[value]] = (unsigned char)value;
-        REV_Z85[(unsigned char)ALPHABET_Z85[value]] = (unsigned char)value;
-    }
-    radixly_py315_reverse_table((const unsigned char *)ALPHABET_B85, BASE, -1, PY315_REV_B85);
-    radixly_py315_reverse_table((const unsigned char *)ALPHABET_Z85, BASE, -1, PY315_REV_Z85);
     return 0;
 }
 
-/* Up to four bytes as one big-endian word, the missing ones zero. */
-static uint32_t
-pack(const unsigned char *source, Py_ssize_t count)
+const char *
+radixly_b85_alphabet(int which)
+{
+    return ALPHABETS[which];
+}
+
+const unsigned char *
+radixly_b85_table(int which)
+{
+    return REV[which];
+}
+
+uint32_t
+radixly_b85_word(const unsigned char *data, Py_ssize_t count)
 {
     uint32_t word = 0;
     for (Py_ssize_t i = 0; i < GROUP_BYTES; i++) {
-        word = (word << BITS_PER_BYTE) | (i < count ? source[i] : 0U);
+        word = (word << BITS_PER_BYTE) | (i < count ? data[i] : 0U);
     }
     return word;
 }
 
-/* The five digits of a word, most significant first. */
-static void
-put_digits(uint32_t word, unsigned char *out, const char *alphabet)
+void
+radixly_b85_put_word(unsigned char *out, uint32_t word, int count)
 {
-    for (int i = GROUP_CHARS - 1; i >= 0; i--) {
-        out[i] = (unsigned char)alphabet[word % BASE];
-        word /= BASE;
+    for (int i = 0; i < count; i++) {
+        out[i] = (unsigned char)((word >> (BITS_PER_BYTE * (unsigned)(GROUP_BYTES - 1 - i))) & BYTE_MASK);
     }
 }
 
-/* The encoder's cursor and the two folds the stdlib's list comprehension applies per word. */
-typedef struct {
-    unsigned char *out;
-    int last_chunk_len;
-    int folded_spaces; /* -1 until the first word that is not zero, when the stdlib reads foldspaces */
-    int fold_nuls;
-    PyObject *fold_spaces;
-    const char *alphabet;
-} encoder;
-
-/* One word as 'z', 'y' or five digits; -1 when reading foldspaces fails. */
-static int
-put_word(encoder *state, uint32_t word)
+void
+radixly_b85_digits(uint32_t word, unsigned char *out, int which)
 {
-    if (state->fold_nuls && word == 0) {
-        *state->out++ = 'z';
-        state->last_chunk_len = 1;
-        return 0;
-    }
-    if (state->folded_spaces < 0) {
-        state->folded_spaces = radixly_compat_truth(state->fold_spaces);
-        if (state->folded_spaces < 0) {
-            return -1;
-        }
-    }
-    if (state->folded_spaces && word == FOUR_SPACES) {
-        *state->out++ = 'y';
-        state->last_chunk_len = 1;
-        return 0;
-    }
-    put_digits(word, state->out, state->alphabet);
-    state->out += GROUP_CHARS;
-    state->last_chunk_len = GROUP_CHARS;
-    return 0;
+    const uint16_t *pairs = PAIRS[which];
+    const uint32_t upper = word / PAIR_TABLE_SIZE;
+    const uint32_t low = word - (upper * PAIR_TABLE_SIZE);
+    const uint32_t top = upper / PAIR_TABLE_SIZE;
+    const uint32_t middle = upper - (top * PAIR_TABLE_SIZE);
+    out[0] = (unsigned char)ALPHABETS[which][top];
+    memcpy(out + 1, &pairs[middle], sizeof(uint16_t));
+    memcpy(out + 3, &pairs[low], sizeof(uint16_t));
 }
 
-/* Drop the tail's padding characters; a folded 'z' is spelled out first, as the stdlib does. */
-static void
-cut_padding(encoder *state, Py_ssize_t padding)
+Py_ssize_t
+radixly_b85_fill(const unsigned char *data, Py_ssize_t len, unsigned char *out, int which)
 {
-    if (state->last_chunk_len == 1) {
-        unsigned char *chunk = state->out - 1;
+    const unsigned char *cursor = data;
+    const unsigned char *end = data + (len - (len % GROUP_BYTES));
+    for (; cursor < end; cursor += GROUP_BYTES, out += GROUP_CHARS) {
+        const uint32_t word = ((uint32_t)cursor[0] << 24U) | ((uint32_t)cursor[1] << 16U) |
+                              ((uint32_t)cursor[2] << 8U) | cursor[3];
+        radixly_b85_digits(word, out, which);
+    }
+    return cursor - data;
+}
+
+Py_ssize_t
+radixly_b85_groups(const unsigned char *text, Py_ssize_t len, unsigned char *out, const unsigned char *rev,
+                   int zero_stops)
+{
+    const unsigned char *cursor = text;
+    const unsigned char *end = text + (len - (len % GROUP_CHARS));
+    for (; cursor < end; cursor += GROUP_CHARS, out += GROUP_BYTES) {
+        uint64_t word = 0;
+        unsigned seen = 0;
         for (int i = 0; i < GROUP_CHARS; i++) {
-            chunk[i] = (unsigned char)state->alphabet[0];
+            const unsigned digit = rev[cursor[i]];
+            seen |= digit;
+            word = (word * BASE) + digit;
         }
-        state->out = chunk + GROUP_CHARS;
+        if ((seen & NOT_DIGIT) != 0 || word > WORD_MAX || (zero_stops != 0 && word == 0)) {
+            break;
+        }
+        radixly_b85_put_word(out, (uint32_t)word, GROUP_BYTES);
     }
-    state->out -= padding;
+    return cursor - text;
 }
 
-PyObject *
-radixly_85_encode(const unsigned char *data, Py_ssize_t len, const char *alphabet, PyObject *pad,
-                  int fold_nuls, PyObject *fold_spaces)
+int
+radixly_b85_canonical_tail(uint32_t word, int chunk_len)
 {
-    if (len > (PY_SSIZE_T_MAX / GROUP_CHARS) * GROUP_BYTES) {
-        return PyErr_NoMemory();
-    }
-    const Py_ssize_t padding = (GROUP_BYTES - (len % GROUP_BYTES)) % GROUP_BYTES;
-    const Py_ssize_t words = (len + padding) / GROUP_BYTES;
-    PyObject *result = PyBytes_FromStringAndSize(NULL, GROUP_CHARS * words);
-    if (result == NULL) {
-        return NULL;
-    }
-    unsigned char *out = (unsigned char *)PyBytes_AS_STRING(result);
-    encoder state = {out, 0, -1, fold_nuls, fold_spaces, alphabet};
-    for (Py_ssize_t index = 0; index < words; index++) {
-        const Py_ssize_t offset = GROUP_BYTES * index;
-        if (put_word(&state, pack(data + offset, Py_MIN(GROUP_BYTES, len - offset))) < 0) {
-            Py_DECREF(result);
-            return NULL;
-        }
-    }
-    if (padding != 0) {
-        const int keep_padding = radixly_compat_truth(pad);
-        if (keep_padding < 0) {
-            Py_DECREF(result);
-            return NULL;
-        }
-        if (!keep_padding) {
-            cut_padding(&state, padding);
-        }
-    }
-    const Py_ssize_t written = state.out - out;
-    if (written != GROUP_CHARS * words && _PyBytes_Resize(&result, written) < 0) {
-        return NULL; /* result already cleared and the exception set */
-    }
-    return result;
+    const int n_pad = GROUP_BYTES - chunk_len;
+    const unsigned shift = BITS_PER_BYTE * (unsigned)n_pad;
+    const uint32_t canonical_top = (word >> shift) << shift;
+    return canonical_top / POW85[n_pad] == word / POW85[n_pad];
 }
 
 static Py_ssize_t
@@ -191,7 +173,7 @@ encoded_len(Py_ssize_t num_bytes)
 
 /* The strict encoder: full groups, then a tail of one character more than its bytes. */
 PyObject *
-radixly_base85_encode_with(PyObject *arg, int zeromq)
+radixly_base85_encode_with(PyObject *arg, int which)
 {
     Py_buffer view;
     if (PyObject_GetBuffer(arg, &view, PyBUF_SIMPLE) == -1) {
@@ -210,29 +192,21 @@ radixly_base85_encode_with(PyObject *arg, int zeromq)
         PyBuffer_Release(&view);
         return NULL;
     }
-    const char *alphabet = zeromq ? ALPHABET_Z85 : ALPHABET_B85;
     const unsigned char *data = view.buf;
     unsigned char *out = PyUnicode_1BYTE_DATA(result);
-    Py_ssize_t offset = 0;
-    for (; offset + GROUP_BYTES <= view.len; offset += GROUP_BYTES) {
-        put_digits(pack(data + offset, GROUP_BYTES), out, alphabet);
-        out += GROUP_CHARS;
-    }
-    const Py_ssize_t tail = view.len - offset;
+    const Py_ssize_t whole = radixly_b85_fill(data, view.len, out, which);
+    const Py_ssize_t tail = view.len - whole;
     if (tail != 0) {
         unsigned char digits[GROUP_CHARS];
-        put_digits(pack(data + offset, tail), digits, alphabet);
-        for (Py_ssize_t i = 0; i <= tail; i++) {
-            out[i] = digits[i];
-        }
+        radixly_b85_digits(radixly_b85_word(data + whole, tail), digits, which);
+        memcpy(out + ((whole / GROUP_BYTES) * GROUP_CHARS), digits, (size_t)tail + 1U);
     }
     PyBuffer_Release(&view);
     return result;
 }
 
 typedef struct {
-    int kind;
-    const void *data;
+    const radixly_text *text;
     const unsigned char *rev;
     const char *codec;
 } text_source;
@@ -246,26 +220,18 @@ read_group(const text_source *source, Py_ssize_t start, Py_ssize_t count, uint64
     for (Py_ssize_t i = 0; i < GROUP_CHARS; i++) {
         unsigned value = 0;
         if (i < count) {
-            const Py_UCS4 code_point = PyUnicode_READ(source->kind, source->data, start + i);
-            if (code_point > ASCII_MAX || source->rev[code_point] == REV_INVALID) {
-                radixly_raise_decode_error(start + i, "invalid %s character U+%x at index %zd", source->codec,
-                                           (unsigned)code_point, start + i);
+            const Py_ssize_t index = start + i;
+            value = source->rev[source->text->text[index]];
+            if (value == RADIXLY_B85_INVALID) {
+                const Py_UCS4 code_point = radixly_text_code_point(source->text, index);
+                radixly_raise_decode_error(index, "invalid %s character U+%x at index %zd", source->codec,
+                                           (unsigned)code_point, index);
                 return -1;
             }
-            value = source->rev[code_point];
         }
         *word = (*word * BASE) + value;
     }
     return 0;
-}
-
-/* Write the top count bytes of a word, big-endian. */
-static void
-unpack(uint64_t word, unsigned char *out, Py_ssize_t count)
-{
-    for (Py_ssize_t i = 0; i < count; i++) {
-        out[i] = (unsigned char)((word >> (BITS_PER_BYTE * (unsigned)(GROUP_BYTES - 1 - i))) & BYTE_MASK);
-    }
 }
 
 /* A tail's payload is the one word with zero low bytes among those sharing its digits: the encoder made it,
@@ -281,52 +247,30 @@ finish_tail(uint64_t word, Py_ssize_t count, Py_ssize_t last, unsigned char *out
         radixly_raise_decode_error(last, "the tail ending at index %zd is not the encoder's spelling", last);
         return -1;
     }
-    unpack(rounded, out, payload);
+    radixly_b85_put_word(out, (uint32_t)rounded, (int)payload);
     return 0;
 }
 
 /* Strict: characters raise left to right at their own index, a group at its last character. */
-PyObject *
-radixly_base85_decode_with(PyObject *arg, int zeromq)
+static PyObject *
+decode_text(const text_source *source)
 {
-    if (!PyUnicode_Check(arg)) {
-        PyErr_Format(PyExc_TypeError, "expected str, not %.200s", Py_TYPE(arg)->tp_name);
-        return NULL;
-    }
-#if PY_VERSION_HEX < 0x030C0000
-    /* 3.11 can still meet legacy, non-ready strings from other C extensions;
-     * GET_LENGTH/KIND/DATA on one is UB. Deprecated call, compiles out on
-     * 3.12+; a 3.11 -Werror build may need a suppression. */
-    if (PyUnicode_READY(arg) == -1) {
-        return NULL;
-    }
-#endif
-    const Py_ssize_t num_chars = PyUnicode_GET_LENGTH(arg);
-    if (num_chars == 0) {
-        return PyBytes_FromStringAndSize("", 0);
-    }
-    const text_source source = {
-        PyUnicode_KIND(arg),
-        PyUnicode_DATA(arg),
-        zeromq ? REV_Z85 : REV_B85,
-        zeromq ? "z85" : "base85",
-    };
-    const Py_ssize_t num_groups = num_chars / GROUP_CHARS;
+    const Py_ssize_t num_chars = source->text->len;
     const Py_ssize_t remainder = num_chars % GROUP_CHARS;
-    const Py_ssize_t out_len = (GROUP_BYTES * num_groups) + (remainder != 0 ? remainder - 1 : 0);
+    const Py_ssize_t out_len =
+        (GROUP_BYTES * (num_chars / GROUP_CHARS)) + (remainder != 0 ? remainder - 1 : 0);
     PyObject *result = PyBytes_FromStringAndSize(NULL, out_len);
     if (result == NULL) {
         return NULL;
     }
     unsigned char *out = (unsigned char *)PyBytes_AS_STRING(result);
-    for (Py_ssize_t group = 0; group <= num_groups; group++) {
-        const Py_ssize_t start = GROUP_CHARS * group;
-        const Py_ssize_t count = group < num_groups ? GROUP_CHARS : remainder;
-        if (count == 0) {
-            break;
-        }
+    /* Whole groups of digits at speed; the group that stops the run, and the tail, one character at a time.
+     */
+    Py_ssize_t start = radixly_b85_groups(source->text->text, num_chars, out, source->rev, 0);
+    for (; start < num_chars; start += GROUP_CHARS) {
+        const Py_ssize_t count = Py_MIN(GROUP_CHARS, num_chars - start);
         uint64_t word;
-        if (read_group(&source, start, count, &word) < 0) {
+        if (read_group(source, start, count, &word) < 0) {
             Py_DECREF(result);
             return NULL;
         }
@@ -340,14 +284,34 @@ radixly_base85_decode_with(PyObject *arg, int zeromq)
             Py_DECREF(result);
             return radixly_raise_decode_error(last, "the group ending at index %zd exceeds 32 bits", last);
         }
+        unsigned char *target = out + (GROUP_BYTES * (start / GROUP_CHARS));
         if (count == GROUP_CHARS) {
-            unpack(word, out + (GROUP_BYTES * group), GROUP_BYTES);
+            radixly_b85_put_word(target, (uint32_t)word, GROUP_BYTES);
         }
-        else if (finish_tail(word, count, last, out + (GROUP_BYTES * group)) < 0) {
+        else if (finish_tail(word, count, last, target) < 0) {
             Py_DECREF(result);
             return NULL;
         }
     }
+    return result;
+}
+
+PyObject *
+radixly_base85_decode_with(PyObject *arg, int which)
+{
+    radixly_text text;
+    if (radixly_text_init(&text, arg, GROUP_CHARS) < 0) {
+        return NULL;
+    }
+    PyObject *result;
+    if (text.len == 0) {
+        result = PyBytes_FromStringAndSize("", 0);
+    }
+    else {
+        const text_source source = {&text, REV[which], which == RADIXLY_B85_Z85 ? "z85" : "base85"};
+        result = decode_text(&source);
+    }
+    radixly_text_release(&text);
     return result;
 }
 
@@ -387,7 +351,7 @@ const char radixly_base85_encode_doc[] =
 PyObject *
 radixly_base85_encode(PyObject *Py_UNUSED(self), PyObject *arg)
 {
-    return radixly_base85_encode_with(arg, 0);
+    return radixly_base85_encode_with(arg, RADIXLY_B85_STD);
 }
 
 const char radixly_base85_decode_doc[] =
@@ -429,291 +393,5 @@ const char radixly_base85_decode_doc[] =
 PyObject *
 radixly_base85_decode(PyObject *Py_UNUSED(self), PyObject *arg)
 {
-    return radixly_base85_decode_with(arg, 0);
-}
-
-/* The stdlib's `raise ValueError(...) from None` inside its except clauses: the TypeError or struct.error it
- * caught rides along as the hidden context. */
-static PyObject *
-raise_decode_error(const char *format, Py_ssize_t position, const char *codec, PyObject *context)
-{
-    if (context == NULL) {
-        return NULL;
-    }
-    PyObject *message = PyUnicode_FromFormat(format, codec, position);
-    return radixly_raise_from(PyExc_ValueError, message, context);
-}
-
-PyObject *
-radixly_85_decode(const unsigned char *data, Py_ssize_t len, const unsigned char *rev, const char *codec)
-{
-    if (len > PY_SSIZE_T_MAX - GROUP_CHARS) {
-        return PyErr_NoMemory();
-    }
-    const Py_ssize_t padding = (GROUP_CHARS - (len % GROUP_CHARS)) % GROUP_CHARS;
-    const Py_ssize_t chunks = (len + padding) / GROUP_CHARS;
-    PyObject *result = PyBytes_FromStringAndSize(NULL, GROUP_BYTES * chunks);
-    if (result == NULL) {
-        return NULL;
-    }
-    unsigned char *out = (unsigned char *)PyBytes_AS_STRING(result);
-    for (Py_ssize_t chunk = 0; chunk < chunks; chunk++) {
-        const Py_ssize_t start = GROUP_CHARS * chunk;
-        uint64_t acc = 0;
-        for (Py_ssize_t j = 0; j < GROUP_CHARS; j++) {
-            const Py_ssize_t position = start + j;
-            const unsigned value = position < len ? rev[data[position]] : PAD_DIGIT;
-            if (value == REV_INVALID) {
-                Py_DECREF(result);
-                PyObject *context = PyObject_CallFunction(
-                    PyExc_TypeError, "s", "unsupported operand type(s) for +: 'int' and 'NoneType'");
-                return raise_decode_error("bad %s character at position %zd", position, codec, context);
-            }
-            acc = (acc * BASE) + value;
-        }
-        if (acc > WORD_MAX) {
-            Py_DECREF(result);
-            PyObject *context = radixly_struct_error("'I' format requires 0 <= number <= 4294967295");
-            return raise_decode_error("%s overflow in hunk starting at byte %zd", start, codec, context);
-        }
-        for (int i = 0; i < GROUP_BYTES; i++) {
-            out[(GROUP_BYTES * chunk) + i] =
-                (unsigned char)((acc >> (BITS_PER_BYTE * (unsigned)(GROUP_BYTES - 1 - i))) & BYTE_MASK);
-        }
-    }
-    const Py_ssize_t out_len = Py_MAX(0, (GROUP_BYTES * chunks) - padding);
-    if (out_len != GROUP_BYTES * chunks && _PyBytes_Resize(&result, out_len) < 0) {
-        return NULL; /* result already cleared and the exception set */
-    }
-    return result;
-}
-
-/* The stdlib's b85encode and z85encode: memoryview(b).tobytes() for the input, no folding. */
-static PyObject *
-encode_85(const char *function, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames,
-          const char *alphabet, const char *param, int with_pad)
-{
-    PyObject *arg = NULL;
-    PyObject *pad = NULL;
-    radixly_param params[] = {{param, &arg}, {"pad", &pad}};
-    const Py_ssize_t num_params = with_pad ? 2 : 1;
-    if (radixly_bind_args(function, args, nargs, kwnames, params, num_params, 1, num_params) < 0) {
-        return NULL;
-    }
-    radixly_compat_input source;
-    if (radixly_compat_buffer_input(arg, &source) < 0) {
-        return NULL;
-    }
-    PyObject *result = radixly_85_encode(source.data, source.len, alphabet, pad, 0, NULL);
-    radixly_compat_input_release(&source);
-    return result;
-}
-
-const char radixly_b85encode_doc[] =
-    PyDoc_STR("b85encode($module, /, b, pad=False)\n"
-              "--\n"
-              "\n"
-              "Encode bytes-like object b in base85 format and return a bytes object.\n"
-              "\n"
-              "The input is padded with b'\\0' so its length is a multiple of 4\n"
-              "bytes before encoding.  If pad is true, all the resulting\n"
-              "characters are retained in the output, which will always be a\n"
-              "multiple of 5 bytes.");
-PyObject *
-radixly_b85encode(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
-{
-    return encode_85("b85encode", args, nargs, kwnames, ALPHABET_B85, "b", 1);
-}
-
-const char radixly_b85decode_doc[] =
-    PyDoc_STR("b85decode($module, /, b)\n"
-              "--\n"
-              "\n"
-              "Decode the base85-encoded bytes-like object or ASCII string b\n"
-              "\n"
-              "The result is returned as a bytes object.");
-PyObject *
-radixly_b85decode(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
-{
-    PyObject *arg = NULL;
-    radixly_param params[] = {{"b", &arg}};
-    if (radixly_bind_args("b85decode", args, nargs, kwnames, params, 1, 1, 1) < 0) {
-        return NULL;
-    }
-    radixly_compat_input source;
-    if (radixly_compat_decode_input(arg, &source) < 0) {
-        return NULL;
-    }
-    PyObject *result = radixly_85_decode(source.data, source.len, REV_B85, "base85");
-    radixly_compat_input_release(&source);
-    return result;
-}
-
-const char radixly_z85encode_doc[] =
-    PyDoc_STR("z85encode($module, /, s)\n"
-              "--\n"
-              "\n"
-              "Encode bytes-like object b in z85 format and return a bytes object.");
-PyObject *
-radixly_z85encode(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
-{
-    return encode_85("z85encode", args, nargs, kwnames, ALPHABET_Z85, "s", 0);
-}
-
-const char radixly_z85decode_doc[] = PyDoc_STR("z85decode($module, /, s)\n"
-                                               "--\n"
-                                               "\n"
-                                               "Decode the z85-encoded bytes-like object or ASCII string b\n"
-                                               "\n"
-                                               "The result is returned as a bytes object.");
-PyObject *
-radixly_z85decode(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
-{
-    PyObject *arg = NULL;
-    radixly_param params[] = {{"s", &arg}};
-    if (radixly_bind_args("z85decode", args, nargs, kwnames, params, 1, 1, 1) < 0) {
-        return NULL;
-    }
-    radixly_compat_input source;
-    if (radixly_compat_decode_input(arg, &source) < 0) {
-        return NULL;
-    }
-    /* The stdlib decodes as base85 and rewords the ValueError with `from None`, the base85 one as context. */
-    PyObject *result = radixly_85_decode(source.data, source.len, REV_Z85, "base85");
-    radixly_compat_input_release(&source);
-    if (result != NULL || !PyErr_ExceptionMatches(PyExc_ValueError)) {
-        return result;
-    }
-    PyObject *inner = radixly_compat_take_raised();
-    PyObject *text = PyObject_Str(inner);
-    PyObject *message = text == NULL ? NULL : PyObject_CallMethod(text, "replace", "ss", "base85", "z85");
-    Py_XDECREF(text);
-    return radixly_raise_from(PyExc_ValueError, message, inner);
-}
-
-/* Python 3.15 made the 85 pair shells over binascii.b2a_base85 and a2b_base85. */
-
-/* b85encode(b, pad=False, *, wrapcol=0) and z85encode(s, pad=False, *, wrapcol=0). */
-static PyObject *
-encode_85_py315(const char *function, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames,
-                const char *alphabet, const char *param)
-{
-    PyObject *arg = NULL;
-    PyObject *pad = NULL;
-    PyObject *wrapcol = NULL;
-    radixly_param params[] = {{param, &arg}, {"pad", &pad}, {"wrapcol", &wrapcol}};
-    if (radixly_bind_args(function, args, nargs, kwnames, params, 3, 1, 2) < 0) {
-        return NULL;
-    }
-    Py_buffer view;
-    if (PyObject_GetBuffer(arg, &view, PyBUF_SIMPLE) < 0) {
-        return NULL;
-    }
-    PyObject *result = NULL;
-    size_t width = 0;
-    const int padding = radixly_compat_truth(pad);
-    if (padding >= 0 && (wrapcol == NULL || radixly_py315_size_t(wrapcol, &width) == 0)) {
-        result =
-            radixly_py315_b2a_base85(view.buf, view.len, padding, width, (const unsigned char *)alphabet);
-    }
-    PyBuffer_Release(&view);
-    return result;
-}
-
-/* b85decode(b, *, ignorechars=b'', canonical=False) and z85decode(s, *, ignorechars=b'', canonical=False). */
-static PyObject *
-decode_85_py315(const char *function, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames,
-                const unsigned char *table, const char *param)
-{
-    PyObject *arg = NULL;
-    PyObject *ignorechars = NULL;
-    PyObject *canonical = NULL;
-    radixly_param params[] = {{param, &arg}, {"ignorechars", &ignorechars}, {"canonical", &canonical}};
-    if (radixly_bind_args(function, args, nargs, kwnames, params, 3, 1, 1) < 0) {
-        return NULL;
-    }
-    radixly_compat_input source;
-    if (radixly_compat_ascii_buffer_input(arg, &source) < 0) {
-        return NULL;
-    }
-    PyObject *result = NULL;
-    radixly_compat_bytes ignore;
-    if (radixly_compat_bytes_init(&ignore, ignorechars, NULL, 0) == 0) {
-        const int strict_tail = radixly_compat_truth(canonical);
-        if (strict_tail >= 0) {
-            result = radixly_py315_a2b_base85(source.data, source.len, table, ignore.data, ignore.len,
-                                              strict_tail);
-        }
-        radixly_compat_bytes_release(&ignore);
-    }
-    radixly_compat_input_release(&source);
-    return result;
-}
-
-const char radixly_b85encode_py315_doc[] =
-    PyDoc_STR("b85encode($module, /, b, pad=False, *, wrapcol=0)\n"
-              "--\n"
-              "\n"
-              "Encode bytes-like object b in base85 format and return a bytes object.\n"
-              "\n"
-              "If wrapcol is non-zero, insert a newline (b'\\n') character after at most\n"
-              "every wrapcol characters.\n"
-              "\n"
-              "The input is padded with b'\\0' so its length is a multiple of 4\n"
-              "bytes before encoding.  If pad is true, all the resulting\n"
-              "characters are retained in the output, which will always be a\n"
-              "multiple of 5 bytes.");
-PyObject *
-radixly_b85encode_py315(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
-{
-    return encode_85_py315("b85encode", args, nargs, kwnames, ALPHABET_B85, "b");
-}
-
-const char radixly_b85decode_py315_doc[] =
-    PyDoc_STR("b85decode($module, /, b, *, ignorechars=b'', canonical=False)\n"
-              "--\n"
-              "\n"
-              "Decode the base85-encoded bytes-like object or ASCII string b\n"
-              "\n"
-              "If canonical is true, non-canonical encodings are rejected.\n"
-              "\n"
-              "The result is returned as a bytes object.");
-PyObject *
-radixly_b85decode_py315(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
-{
-    return decode_85_py315("b85decode", args, nargs, kwnames, PY315_REV_B85, "b");
-}
-
-const char radixly_z85encode_py315_doc[] =
-    PyDoc_STR("z85encode($module, /, s, pad=False, *, wrapcol=0)\n"
-              "--\n"
-              "\n"
-              "Encode bytes-like object b in z85 format and return a bytes object.\n"
-              "\n"
-              "If wrapcol is non-zero, insert a newline (b'\\n') character after at most\n"
-              "every wrapcol characters.\n"
-              "\n"
-              "The input is padded with b'\\0' so its length is a multiple of\n"
-              "bytes before encoding.  If pad is true, all the resulting\n"
-              "characters are retained in the output, which will always be a\n"
-              "multiple of 5 bytes, as required by the ZeroMQ standard.");
-PyObject *
-radixly_z85encode_py315(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
-{
-    return encode_85_py315("z85encode", args, nargs, kwnames, ALPHABET_Z85, "s");
-}
-
-const char radixly_z85decode_py315_doc[] =
-    PyDoc_STR("z85decode($module, /, s, *, ignorechars=b'', canonical=False)\n"
-              "--\n"
-              "\n"
-              "Decode the z85-encoded bytes-like object or ASCII string b\n"
-              "\n"
-              "If canonical is true, non-canonical encodings are rejected.\n"
-              "\n"
-              "The result is returned as a bytes object.");
-PyObject *
-radixly_z85decode_py315(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
-{
-    return decode_85_py315("z85decode", args, nargs, kwnames, PY315_REV_Z85, "s");
+    return radixly_base85_decode_with(arg, RADIXLY_B85_STD);
 }

@@ -60,7 +60,7 @@ const char radixly_base32hex_encode_doc[] =
 PyObject *
 radixly_base32hex_encode(PyObject *Py_UNUSED(self), PyObject *arg)
 {
-    return radixly_base32_encode_with(arg, 1);
+    return radixly_base32_encode_with(arg, RADIXLY_B32_HEX);
 }
 
 const char radixly_base32hex_decode_doc[] =
@@ -102,7 +102,7 @@ const char radixly_base32hex_decode_doc[] =
 PyObject *
 radixly_base32hex_decode(PyObject *Py_UNUSED(self), PyObject *arg)
 {
-    return radixly_base32_decode_with(arg, 1);
+    return radixly_base32_decode_with(arg, RADIXLY_B32_HEX);
 }
 
 const char radixly_b32hexencode_doc[] =
@@ -113,7 +113,7 @@ const char radixly_b32hexencode_doc[] =
 PyObject *
 radixly_b32hexencode(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
 {
-    return radixly_b32encode_with("b32hexencode", args, nargs, kwnames, 1);
+    return radixly_b32encode_with("b32hexencode", args, nargs, kwnames, RADIXLY_B32_HEX);
 }
 
 const char radixly_b32hexdecode_doc[] =
@@ -131,7 +131,7 @@ const char radixly_b32hexdecode_doc[] =
 PyObject *
 radixly_b32hexdecode(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
 {
-    return radixly_b32decode_with("b32hexdecode", args, nargs, kwnames, 1);
+    return radixly_b32decode_with("b32hexdecode", args, nargs, kwnames, RADIXLY_B32_HEX);
 }
 
 const char radixly_b32hexencode_py315_doc[] =
@@ -148,7 +148,7 @@ PyObject *
 radixly_b32hexencode_py315(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs,
                            PyObject *kwnames)
 {
-    return radixly_b32encode_with_py315("b32hexencode", args, nargs, kwnames, 1);
+    return radixly_b32encode_with_py315("b32hexencode", args, nargs, kwnames, RADIXLY_B32_HEX);
 }
 
 const char radixly_b32hexdecode_py315_doc[] = PyDoc_STR(
@@ -172,5 +172,5 @@ PyObject *
 radixly_b32hexdecode_py315(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs,
                            PyObject *kwnames)
 {
-    return radixly_b32decode_with_py315("b32hexdecode", args, nargs, kwnames, 1);
+    return radixly_b32decode_with_py315("b32hexdecode", args, nargs, kwnames, RADIXLY_B32_HEX);
 }
