@@ -10,7 +10,8 @@ import pathlib
 import re
 import tokenize
 
-_BLOCK = re.compile(r"^```python\n(.*?)^```", re.DOTALL | re.MULTILINE)
+# A closing fence repeats the opener's backticks, at least as many, and nothing else on its line.
+_BLOCK = re.compile(r"^(?P<fence>`{3,})python[ \t]*\n(?P<code>.*?)^(?P=fence)`*[ \t]*$", re.DOTALL | re.MULTILINE)
 _UNSET = object()
 
 
@@ -80,9 +81,10 @@ def check(docs: pathlib.Path) -> None:
         text = page.read_text(encoding="utf-8")
         namespace: dict[str, object] = {}  # a page's blocks build on each other, like a reader's session
         for match in _BLOCK.finditer(text):
-            if "sys.modules" in match.group(1):
+            code = match.group("code")
+            if "sys.modules" in code:
                 continue  # swapping modules would swap them under Sphinx too
-            offset = text.count("\n", 0, match.start(1))
-            failures += _check_block(match.group(1), str(page.relative_to(docs)), offset, namespace)
+            offset = text.count("\n", 0, match.start("code"))
+            failures += _check_block(code, str(page.relative_to(docs)), offset, namespace)
     if failures:
         raise RuntimeError("examples disagree with the code:\n" + "\n".join(failures))

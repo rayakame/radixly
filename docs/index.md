@@ -22,8 +22,9 @@ no dependencies. Decoding is strict: one payload, one spelling, and a
 
 ## Pick a codec
 
-Start from the channel. If it counts characters, a Unicode codec carries two to
-four times what base64 does; if it only takes ASCII, pick by alphabet.
+Start from the channel. If it counts characters, the densest Unicode codecs
+carry about two and a half times what base64 does; if it only takes ASCII, pick
+by alphabet.
 
 ```{eval-rst}
 .. raw:: html

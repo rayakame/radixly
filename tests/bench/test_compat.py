@@ -41,6 +41,7 @@ from radixly.compat import base64 as compat_base64
 from tests.bench import factories
 
 if typing.TYPE_CHECKING:
+    import io
     import pathlib
 
 
@@ -80,6 +81,19 @@ def test_a_disagreement_refuses_to_be_timed() -> None:
 
     with pytest.raises(ValueError, match="disagree"):
         compat.check(dataclasses.replace(real, ours=wrong), b"hello")
+
+
+def test_a_file_pair_disagreement_refuses_to_be_timed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The file pair returns nothing; its output stream is what must agree."""
+    (pair,) = compat.pairs((compat.Function("encode", "encode", file_pair=True),))
+    compat.check(pair, b"hello")
+
+    def wrong(source: io.BytesIO, output: io.BytesIO) -> None:
+        output.write(base64.b64encode(source.read()))
+
+    monkeypatch.setattr(compat_base64, "encode", wrong)
+    with pytest.raises(ValueError, match="disagree"):
+        compat.check(pair, b"hello")
 
 
 def test_measure_covers_sizes_and_directions() -> None:

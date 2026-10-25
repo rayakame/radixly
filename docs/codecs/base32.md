@@ -35,7 +35,7 @@ base32.decode("nbuq====")     # DecodeError: lowercase is not base32
 
 ## Alphabet
 
-`A` to `Z` and `2` to `7`, with `=` as padding. The digits `0`, `1`, `8` and `9` are left out because they look like `O`, `I` and `B`. Lowercase letters, characters outside the alphabet, misplaced padding and nonzero pad bits are errors. Text that comes back lowercased goes through `str.upper` first, or through the drop-in's `b32decode` with `casefold=True`.
+`A` to `Z` and `2` to `7`, with `=` as padding. The digits run from `2` to `7`, which leaves out `0` and `1`, the two most easily mistaken for `O` and `I`. Lowercase letters, characters outside the alphabet, misplaced padding and nonzero pad bits are errors. Text that comes back lowercased goes through `str.upper` first, or through the drop-in's `b32decode` with `casefold=True`.
 
 ::::{grid} 1 2 2 2
 :gutter: 2

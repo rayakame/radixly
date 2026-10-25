@@ -83,8 +83,9 @@ from radixly.compat import base64
 ```
 
 The standard library's `base64` with the same names, arguments, results and
-errors, every one of its 22 functions in C, on CPython 3.11 through 3.15 with
-the behavior of the interpreter it runs on. CPython's own `test_base64` passes
+errors, every function in C, on CPython 3.11 through 3.15 with the behavior of
+the interpreter it runs on: 22 functions from 3.13, 20 before, where the
+standard library has no z85. CPython's own `test_base64` passes
 against it. What the swap buys, function by function, is on
 [the drop-in page](https://radixly.rayakame.dev/en/latest/compat.html).
 

@@ -113,12 +113,20 @@ def prepare(function: Function, payload: bytes) -> bytes:
     return encode(payload)
 
 
+def _file_output(function: Callable[..., object], value: bytes) -> bytes:
+    output = io.BytesIO()
+    function(io.BytesIO(value), output)
+    return output.getvalue()
+
+
 def check(pair: Pair, value: bytes) -> None:
     """Refuse to time two calls that disagree: the comparison is only fair on equal work."""
     if pair.function.file_pair:
-        return  # the file pair's result lives in the output stream; the differential tests cover it
-    ours = pair.ours(value)
-    theirs = pair.stdlib(value)
+        ours = _file_output(typing.cast("Callable[..., object]", getattr(compat_base64, pair.function.name)), value)
+        theirs = _file_output(typing.cast("Callable[..., object]", getattr(base64, pair.function.name)), value)
+    else:
+        ours = pair.ours(value)
+        theirs = pair.stdlib(value)
     if ours != theirs:
         msg = f"compat.{pair.function.name} and base64.{pair.function.name} disagree on a {len(value)}-byte input"
         raise ValueError(msg)
