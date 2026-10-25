@@ -27,6 +27,7 @@
 #include "_common/compat.h"
 #include "_common/errors.h"
 #include "_common/internal.h"
+#include "_common/binascii15.h"
 
 enum {
     GROUP_BYTES = 3,
@@ -66,6 +67,8 @@ static alphabet_tables TABLES[NUM_ALPHABETS];
 /* The stdlib's table_a2b_base64 with '=' marked; [1] is it behind urlsafe_b64decode's translate, so '-' and
  * '_' decode next to '+' and '/'. */
 static uint8_t COMPAT_REV[NUM_ALPHABETS][TABLE_SIZE];
+/* binascii's own reverse table for the 3.15 shapes, '=' mapped to 64. */
+static unsigned char PY315_REV_STD[RADIXLY_PY315_TABLE_SIZE];
 
 /* Data characters a padded final group may hold, mapped to the payload bytes they carry; -1 is not a shape.
  */
@@ -131,6 +134,7 @@ radixly_base64_exec(PyObject *Py_UNUSED(module))
         COMPAT_REV[1][(unsigned char)ALPHABET_URL[value]] = (uint8_t)value;
     }
     A2B_VARIANT = a2b_variant_for(Py_Version);
+    radixly_py315_reverse_table((const unsigned char *)ALPHABET_STD, SIX_BIT_LIMIT, PAD, PY315_REV_STD);
     return 0;
 }
 
@@ -1292,4 +1296,488 @@ radixly_standard_b64decode(PyObject *Py_UNUSED(self), PyObject *const *args, Py_
                            PyObject *kwnames)
 {
     return radixly_b64decode_with("standard_b64decode", args, nargs, kwnames, 0, 0);
+}
+
+/* Python 3.15 made the base64 family shells over binascii.b2a_base64 and a2b_base64, which grew padded,
+ * wrapcol, ignorechars, canonical and an alphabet of their own. */
+
+enum { ALTCHARS_LEN = 2, STD_ALPHABET_PREFIX = 62 };
+
+/* The stdlib's `if len(altchars) != 2: raise ValueError(f'invalid altchars: {altchars!r}')`. */
+static int
+check_altchars_py315(PyObject *altchars)
+{
+    const Py_ssize_t length = PyObject_Size(altchars);
+    if (length < 0) {
+        return -1;
+    }
+    if (length != ALTCHARS_LEN) {
+        PyErr_Format(PyExc_ValueError, "invalid altchars: %R", altchars);
+        return -1;
+    }
+    return 0;
+}
+
+/* binascii.BASE64_ALPHABET[:-2] + altchars, with bytes.__add__'s own type errors. */
+static PyObject *
+alphabet_with_altchars(PyObject *altchars)
+{
+    PyObject *prefix = PyBytes_FromStringAndSize(ALPHABET_STD, STD_ALPHABET_PREFIX);
+    if (prefix == NULL) {
+        return NULL;
+    }
+    PyObject *alphabet = PyNumber_Add(prefix, altchars);
+    Py_DECREF(prefix);
+    return alphabet;
+}
+
+/* The stdlib's s.translate(bytes.maketrans(pair, b'+/')): the pair mapped back, later maketrans entries
+ * winning, or maketrans's ValueError when the pair's buffer is not two bytes. */
+static PyObject *
+translated_from_pair(const radixly_compat_input *source, PyObject *pair, const unsigned char *into)
+{
+    Py_buffer view;
+    if (PyObject_GetBuffer(pair, &view, PyBUF_SIMPLE) < 0) {
+        return NULL;
+    }
+    if (view.len != ALTCHARS_LEN) {
+        PyBuffer_Release(&view);
+        PyErr_SetString(PyExc_ValueError, "maketrans arguments must have same length");
+        return NULL;
+    }
+    unsigned char table[TABLE_SIZE];
+    for (unsigned code = 0; code < TABLE_SIZE; code++) {
+        table[code] = (unsigned char)code;
+    }
+    table[((const unsigned char *)view.buf)[0]] = into[0];
+    table[((const unsigned char *)view.buf)[1]] = into[1];
+    PyBuffer_Release(&view);
+    PyObject *copy = PyBytes_FromStringAndSize(NULL, source->len);
+    if (copy == NULL) {
+        return NULL;
+    }
+    unsigned char *out = (unsigned char *)PyBytes_AS_STRING(copy);
+    for (Py_ssize_t i = 0; i < source->len; i++) {
+        out[i] = table[source->data[i]];
+    }
+    return copy;
+}
+
+/* The '+' or '/' the stdlib still decodes next to altchars that do not cover it, and warns about; -1 for
+ * none, -2 with an exception set. */
+static int
+stray_standard_char(const radixly_compat_input *source, PyObject *altchars)
+{
+    for (int i = 0; i < ALTCHARS_LEN; i++) {
+        const unsigned char code = (unsigned char)"+/"[i];
+        PyObject *value = PyLong_FromLong(code);
+        if (value == NULL) {
+            return -2;
+        }
+        const int covered = PySequence_Contains(altchars, value);
+        Py_DECREF(value);
+        if (covered < 0) {
+            return -2;
+        }
+        if (covered == 0 && memchr(source->data, code, (size_t)source->len) != NULL) {
+            return code;
+        }
+    }
+    return -1;
+}
+
+/* The stdlib's warnings.warn after a decode that met a stray standard character; NULL when the warning is an
+ * error, the result otherwise. */
+static PyObject *
+warn_stray_char(PyObject *result, int code, int strict, PyObject *altchars)
+{
+    PyObject *shown = PyObject_Repr(altchars);
+    if (shown == NULL) {
+        Py_DECREF(result);
+        return NULL;
+    }
+    const int failed =
+        strict != 0
+            ? PyErr_WarnFormat(PyExc_DeprecationWarning, 1,
+                               "invalid character '%c' in Base64 data with altchars=%U and validate=True "
+                               "will be an error in future Python versions",
+                               code, shown)
+            : PyErr_WarnFormat(PyExc_FutureWarning, 1,
+                               "invalid character '%c' in Base64 data with altchars=%U and validate=False "
+                               "will be discarded in future Python versions",
+                               code, shown);
+    Py_DECREF(shown);
+    if (failed < 0) {
+        Py_DECREF(result);
+        return NULL;
+    }
+    return result;
+}
+
+PyObject *
+radixly_b64encode_with_py315(const char *function, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames,
+                             radixly_b64_shape shape)
+{
+    PyObject *arg = NULL;
+    PyObject *altchars = NULL;
+    PyObject *padded = NULL;
+    PyObject *wrapcol = NULL;
+    radixly_param full[] = {
+        {"s", &arg},
+        {"altchars", &altchars},
+        {"padded", &padded},
+        {"wrapcol", &wrapcol},
+    };
+    radixly_param standard[] = {{"s", &arg}};
+    radixly_param urlsafe[] = {{"s", &arg}, {"padded", &padded}};
+    int bound;
+    switch (shape) {
+    case RADIXLY_B64_FULL:
+        bound = radixly_bind_args(function, args, nargs, kwnames, full, RADIXLY_ARRAY_SIZE(full), 1, 2);
+        break;
+    case RADIXLY_B64_STANDARD:
+        bound = radixly_bind_args(function, args, nargs, kwnames, standard, 1, 1, 1);
+        break;
+    default:
+        bound = radixly_bind_args(function, args, nargs, kwnames, urlsafe, 2, 1, 1);
+        break;
+    }
+    if (bound < 0) {
+        return NULL;
+    }
+    /* altchars is judged, and joined to the alphabet, before b2a_base64 sees s. */
+    PyObject *alphabet_obj = NULL;
+    if (altchars != NULL && altchars != Py_None) {
+        if (check_altchars_py315(altchars) < 0) {
+            return NULL;
+        }
+        alphabet_obj = alphabet_with_altchars(altchars);
+        if (alphabet_obj == NULL) {
+            return NULL;
+        }
+    }
+    Py_buffer view;
+    if (PyObject_GetBuffer(arg, &view, PyBUF_SIMPLE) < 0) {
+        Py_XDECREF(alphabet_obj);
+        return NULL;
+    }
+    /* binascii's keywords in its own order: padded, wrapcol, newline, alphabet. */
+    PyObject *result = NULL;
+    size_t width = 0;
+    radixly_compat_bytes alphabet;
+    const int pad = padded == NULL ? 1 : PyObject_IsTrue(padded);
+    if (pad >= 0 && (wrapcol == NULL || radixly_py315_size_t(wrapcol, &width) == 0) &&
+        radixly_compat_bytes_init(
+            &alphabet, alphabet_obj,
+            (const unsigned char *)(shape == RADIXLY_B64_URLSAFE ? ALPHABET_URL : ALPHABET_STD),
+            SIX_BIT_LIMIT) == 0) {
+        if (alphabet.len != SIX_BIT_LIMIT) {
+            PyErr_SetString(PyExc_ValueError, "alphabet must have length 64");
+        }
+        else {
+            result = radixly_py315_b2a_base64(view.buf, view.len, pad, width, 0, alphabet.data);
+        }
+        radixly_compat_bytes_release(&alphabet);
+    }
+    Py_XDECREF(alphabet_obj);
+    PyBuffer_Release(&view);
+    return result;
+}
+
+/* What b64decode holds between its argument handling and the a2b_base64 call. */
+typedef struct {
+    PyObject *altchars; /* _bytes_from_decode_data(altchars), or NULL */
+    PyObject *copy;     /* s with the altchars mapped back, or NULL for s itself */
+    PyObject *alphabet; /* BASE64_ALPHABET[:-2] + altchars when ignorechars is given, or NULL */
+    int stray;          /* the standard character to warn about, or -1 */
+} b64decode_prelude;
+
+static void
+prelude_clear(b64decode_prelude *prelude)
+{
+    Py_CLEAR(prelude->altchars);
+    Py_CLEAR(prelude->copy);
+    Py_CLEAR(prelude->alphabet);
+}
+
+/* The stdlib's altchars handling, in its order: coercion, the length check, then either the translation back
+ * to
+ * '+/' or the alphabet for binascii. -1 with the exception set. */
+static int
+prelude_altchars(b64decode_prelude *prelude, const radixly_compat_input *source, PyObject *altchars,
+                 int ignore_given)
+{
+    radixly_compat_input pair;
+    if (radixly_compat_decode_input(altchars, &pair) < 0) {
+        return -1;
+    }
+    prelude->altchars = radixly_compat_input_object(&pair);
+    radixly_compat_input_release(&pair);
+    if (prelude->altchars == NULL || check_altchars_py315(prelude->altchars) < 0) {
+        return -1;
+    }
+    if (ignore_given != 0) {
+        prelude->alphabet = alphabet_with_altchars(prelude->altchars);
+        return prelude->alphabet == NULL ? -1 : 0;
+    }
+    prelude->stray = stray_standard_char(source, prelude->altchars);
+    if (prelude->stray == -2) {
+        return -1;
+    }
+    prelude->copy = translated_from_pair(source, prelude->altchars, (const unsigned char *)"+/");
+    return prelude->copy == NULL ? -1 : 0;
+}
+
+/* a2b_base64 with the keywords read in binascii's order: strict_mode, padded, alphabet, ignorechars,
+ * canonical; the alphabet's length is judged last, as the implementation judges it after the converters ran.
+ */
+static PyObject *
+a2b_base64_py315(const b64decode_prelude *prelude, const radixly_compat_input *source, int strict,
+                 PyObject *padded, PyObject *ignorechars, PyObject *canonical)
+{
+    const int pad = padded == NULL ? 1 : PyObject_IsTrue(padded);
+    if (pad < 0) {
+        return NULL;
+    }
+    radixly_compat_bytes ignore;
+    if (radixly_compat_bytes_init(&ignore, ignorechars, NULL, 0) < 0) {
+        return NULL;
+    }
+    PyObject *result = NULL;
+    const int strict_pad_bits = radixly_compat_truth(canonical);
+    if (strict_pad_bits >= 0) {
+        unsigned char table[RADIXLY_PY315_TABLE_SIZE];
+        const unsigned char *rev = PY315_REV_STD;
+        if (prelude->alphabet != NULL) {
+            if (!PyBytes_Check(prelude->alphabet)) {
+                PyErr_Format(PyExc_TypeError, "a2b_base64() argument 'alphabet' must be bytes, not %.50s",
+                             prelude->alphabet == Py_None ? "None" : Py_TYPE(prelude->alphabet)->tp_name);
+                radixly_compat_bytes_release(&ignore);
+                return NULL;
+            }
+            if (PyBytes_GET_SIZE(prelude->alphabet) != SIX_BIT_LIMIT) {
+                PyErr_SetString(PyExc_ValueError, "alphabet must have length 64");
+                radixly_compat_bytes_release(&ignore);
+                return NULL;
+            }
+            radixly_py315_reverse_table((const unsigned char *)PyBytes_AS_STRING(prelude->alphabet),
+                                        SIX_BIT_LIMIT, PAD, table);
+            rev = table;
+        }
+        const unsigned char *data =
+            prelude->copy != NULL ? (const unsigned char *)PyBytes_AS_STRING(prelude->copy) : source->data;
+        const Py_ssize_t len = prelude->copy != NULL ? PyBytes_GET_SIZE(prelude->copy) : source->len;
+        result =
+            radixly_py315_a2b_base64(data, len, strict, pad, rev, ignore.data, ignore.len, strict_pad_bits);
+    }
+    radixly_compat_bytes_release(&ignore);
+    return result;
+}
+
+/* The stdlib's b64decode once s is coerced; releases source. */
+static PyObject *
+b64decode_py315(radixly_compat_input *source, PyObject *altchars, PyObject *validate, PyObject *padded,
+                PyObject *ignorechars, PyObject *canonical)
+{
+    const int validate_given = radixly_compat_specified(validate);
+    const int ignore_given = radixly_compat_specified(ignorechars);
+    b64decode_prelude prelude = {NULL, NULL, NULL, -1};
+    PyObject *result = NULL;
+    if (altchars != NULL && altchars != Py_None &&
+        prelude_altchars(&prelude, source, altchars, ignore_given) < 0) {
+        goto done;
+    }
+    /* The stdlib decodes the copy its translate() made, so a hook in the flags may resize s from here on. */
+    if (prelude.copy != NULL) {
+        radixly_compat_input_release(source);
+    }
+    /* validate defaults to whether ignorechars was given; a given one is read where binascii reads
+     * strict_mode. */
+    const int strict = validate_given != 0 ? PyObject_IsTrue(validate) : ignore_given;
+    if (strict < 0) {
+        goto done;
+    }
+    result =
+        a2b_base64_py315(&prelude, source, strict, padded, ignore_given != 0 ? ignorechars : NULL, canonical);
+    if (result != NULL && prelude.stray >= 0) {
+        result = warn_stray_char(result, prelude.stray, strict, prelude.altchars);
+    }
+done:
+    prelude_clear(&prelude);
+    radixly_compat_input_release(source); /* a second release is a no-op */
+    return result;
+}
+
+/* The stdlib's urlsafe_b64decode once s is coerced: '-_' mapped to '+/', a stray '+' or '/' warned about;
+ * releases source. */
+static PyObject *
+urlsafe_b64decode_py315(radixly_compat_input *source, PyObject *padded)
+{
+    int stray = -1;
+    for (int i = 0; i < ALTCHARS_LEN && stray < 0; i++) {
+        const unsigned char code = (unsigned char)"+/"[i];
+        if (memchr(source->data, code, (size_t)source->len) != NULL) {
+            stray = code;
+        }
+    }
+    PyObject *copy = PyBytes_FromStringAndSize("-_", ALTCHARS_LEN);
+    PyObject *translated =
+        copy == NULL ? NULL : translated_from_pair(source, copy, (const unsigned char *)"+/");
+    Py_XDECREF(copy);
+    radixly_compat_input_release(source);
+    if (translated == NULL) {
+        return NULL;
+    }
+    PyObject *result = NULL;
+    const int pad = radixly_compat_truth(padded);
+    if (pad >= 0) {
+        result = radixly_py315_a2b_base64((const unsigned char *)PyBytes_AS_STRING(translated),
+                                          PyBytes_GET_SIZE(translated), 0, pad, PY315_REV_STD, NULL, 0, 0);
+    }
+    Py_DECREF(translated);
+    if (result != NULL && stray >= 0 &&
+        PyErr_WarnFormat(PyExc_FutureWarning, 1,
+                         "invalid character '%c' in URL-safe Base64 data will be discarded in future Python "
+                         "versions",
+                         stray) < 0) {
+        Py_CLEAR(result);
+    }
+    return result;
+}
+
+PyObject *
+radixly_b64decode_with_py315(const char *function, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames,
+                             radixly_b64_shape shape)
+{
+    PyObject *arg = NULL;
+    PyObject *altchars = NULL;
+    PyObject *validate = NULL;
+    PyObject *padded = NULL;
+    PyObject *ignorechars = NULL;
+    PyObject *canonical = NULL;
+    radixly_param full[] = {
+        {"s", &arg},         {"altchars", &altchars},       {"validate", &validate},
+        {"padded", &padded}, {"ignorechars", &ignorechars}, {"canonical", &canonical},
+    };
+    radixly_param standard[] = {{"s", &arg}};
+    radixly_param urlsafe[] = {{"s", &arg}, {"padded", &padded}};
+    int bound;
+    switch (shape) {
+    case RADIXLY_B64_FULL:
+        bound = radixly_bind_args(function, args, nargs, kwnames, full, RADIXLY_ARRAY_SIZE(full), 1, 3);
+        break;
+    case RADIXLY_B64_STANDARD:
+        bound = radixly_bind_args(function, args, nargs, kwnames, standard, 1, 1, 1);
+        break;
+    default:
+        bound = radixly_bind_args(function, args, nargs, kwnames, urlsafe, 2, 1, 1);
+        break;
+    }
+    if (bound < 0) {
+        return NULL;
+    }
+    radixly_compat_input source;
+    if (radixly_compat_decode_input(arg, &source) < 0) {
+        return NULL;
+    }
+    if (shape == RADIXLY_B64_URLSAFE) {
+        return urlsafe_b64decode_py315(&source, padded);
+    }
+    return b64decode_py315(&source, altchars, validate, padded, ignorechars, canonical);
+}
+
+const char radixly_b64encode_py315_doc[] =
+    PyDoc_STR("b64encode($module, /, s, altchars=None, *, padded=True, wrapcol=0)\n"
+              "--\n"
+              "\n"
+              "Encode the bytes-like object s using Base64 and return a bytes object.\n"
+              "\n"
+              "Optional altchars should be a byte string of length 2 which specifies an\n"
+              "alternative alphabet for the '+' and '/' characters.  This allows an\n"
+              "application to e.g. generate url or filesystem safe Base64 strings.\n"
+              "\n"
+              "If padded is false, omit padding in the output.\n"
+              "\n"
+              "If wrapcol is non-zero, insert a newline (b'\\n') character after at most\n"
+              "every wrapcol characters.");
+PyObject *
+radixly_b64encode_py315(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+{
+    return radixly_b64encode_with_py315("b64encode", args, nargs, kwnames, RADIXLY_B64_FULL);
+}
+
+const char radixly_b64decode_py315_doc[] =
+    PyDoc_STR("b64decode($module, /, s, altchars=None, validate=['NOT SPECIFIED'], *, padded=True, "
+              "ignorechars=['NOT SPECIFIED'], canonical=False)\n"
+              "--\n"
+              "\n"
+              "Decode the Base64 encoded bytes-like object or ASCII string s.\n"
+              "\n"
+              "Optional altchars must be a bytes-like object or ASCII string of length 2\n"
+              "which specifies the alternative alphabet used instead of the '+' and '/'\n"
+              "characters.\n"
+              "\n"
+              "If padded is false, padding in input is not required.\n"
+              "\n"
+              "The result is returned as a bytes object.  A binascii.Error is raised if\n"
+              "s is incorrectly padded.\n"
+              "\n"
+              "If ignorechars is specified, it should be a byte string containing\n"
+              "characters to ignore from the input.  The default value of validate is\n"
+              "True if ignorechars is specified, False otherwise.\n"
+              "\n"
+              "If validate is false, characters that are neither in the normal base-64\n"
+              "alphabet nor the alternative alphabet are discarded prior to the\n"
+              "padding check.  If validate is true, these non-alphabet characters in\n"
+              "the input result in a binascii.Error if they are not in ignorechars.\n"
+              "For more information about the strict base64 check, see:\n"
+              "\n"
+              "https://docs.python.org/3.11/library/binascii.html#binascii.a2b_base64");
+PyObject *
+radixly_b64decode_py315(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+{
+    return radixly_b64decode_with_py315("b64decode", args, nargs, kwnames, RADIXLY_B64_FULL);
+}
+
+PyObject *
+radixly_standard_b64encode_py315(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs,
+                                 PyObject *kwnames)
+{
+    return radixly_b64encode_with_py315("standard_b64encode", args, nargs, kwnames, RADIXLY_B64_STANDARD);
+}
+
+PyObject *
+radixly_standard_b64decode_py315(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs,
+                                 PyObject *kwnames)
+{
+    return radixly_b64decode_with_py315("standard_b64decode", args, nargs, kwnames, RADIXLY_B64_STANDARD);
+}
+
+/* The stdlib's encodebytes on 3.15: one b2a_base64 call wrapped at 76, b'' for the lone newline of empty
+ * input. */
+PyObject *
+radixly_encodebytes_py315(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs,
+                          PyObject *kwnames)
+{
+    PyObject *arg = NULL;
+    radixly_param params[] = {{"s", &arg}};
+    if (radixly_bind_args("encodebytes", args, nargs, kwnames, params, 1, 1, 1) < 0) {
+        return NULL;
+    }
+    Py_ssize_t length = 0;
+    if (input_type_check(arg, &length) < 0) {
+        return NULL;
+    }
+    Py_buffer view;
+    if (PyObject_GetBuffer(arg, &view, PyBUF_SIMPLE) < 0) {
+        return NULL;
+    }
+    PyObject *result =
+        radixly_py315_b2a_base64(view.buf, view.len, 1, MAXLINESIZE, 1, (const unsigned char *)ALPHABET_STD);
+    PyBuffer_Release(&view);
+    if (result != NULL && PyBytes_GET_SIZE(result) == 1) {
+        Py_DECREF(result);
+        return PyBytes_FromStringAndSize("", 0);
+    }
+    return result;
 }

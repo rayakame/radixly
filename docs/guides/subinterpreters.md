@@ -19,7 +19,7 @@ Ordinary threads are fine. `encode` and `decode` hold the GIL for the
 duration of a call, which for these functions is microseconds, so threads
 share the work but do not run it in parallel. For real parallelism across
 cores use processes; every process imports its own copy of the extension.
-Free-threaded CPython builds (`3.13t`, `3.14t`) are a different story: the
+Free-threaded CPython builds (`3.13t`, `3.14t`, `3.15t`) are a different story: the
 import succeeds, but the module does not declare itself safe without the
 GIL, so CPython switches the GIL back on for that interpreter and prints a
 `RuntimeWarning` saying so. radixly works; the rest of the program running

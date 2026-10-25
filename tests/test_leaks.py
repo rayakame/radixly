@@ -29,6 +29,7 @@ import io
 import pickle  # ruff: ignore[suspicious-pickle-import] -- PickleBuffer is the stdlib's buffer exporter
 import sys
 import typing
+import warnings
 
 import pytest
 
@@ -224,13 +225,79 @@ def test_legacy_file_functions_keep_nothing() -> None:
 
     assert retained(encode_once) <= TOLERANCE
     assert retained(decode_once) <= TOLERANCE
-    assert retained(raising(compat.encodebytes, pickle.PickleBuffer(PAYLOAD))) <= TOLERANCE
+    # 3.15's encodebytes takes any buffer; before it, the slicing path rejected one without __getitem__.
+    exporter = functools.partial(compat.encodebytes, pickle.PickleBuffer(PAYLOAD))
+    assert retained(exporter if sys.version_info >= (3, 15) else raising(exporter)) <= TOLERANCE
     # A file that cannot be written to fails halfway through the loop, where the line is still owned; the
     # input is rebuilt per call, since an exhausted one would return b"" and never reach the write.
     encode = typing.cast("Callable[..., object]", compat.encode)
     decode = typing.cast("Callable[..., object]", compat.decode)
     assert retained(raising(lambda: encode(io.BytesIO(PAYLOAD), object()))) <= TOLERANCE
     assert retained(raising(lambda: decode(io.BytesIO(lines), object()))) <= TOLERANCE
+
+
+def _compat(name: str) -> Callable[..., object]:
+    """Return a drop-in function untyped: the stub describes the 3.11 shapes, this test the 3.15 ones."""
+    return typing.cast("Callable[..., object]", getattr(compat, name))
+
+
+@pytest.mark.skipif(sys.version_info < (3, 15), reason="the keywords 3.15's base64 grew")
+def test_py315_keywords_keep_nothing() -> None:
+    """Every new keyword, on its success path and on the error paths that build a message or a table."""
+    b64 = base64.b64encode(PAYLOAD)
+    urlsafe = base64.urlsafe_b64encode(PAYLOAD)
+    b32 = base64.b32encode(PAYLOAD)
+    z85 = typing.cast("Callable[..., bytes]", getattr(base64, "z85encode"))  # ruff: ignore[get-attr-with-constant] -- absent from the 3.11 stub
+    successes: list[tuple[str, tuple[object, ...], dict[str, object]]] = [
+        ("b64encode", (PAYLOAD,), {"padded": False, "wrapcol": 76}),
+        ("b64encode", (PAYLOAD,), {"altchars": b"-_", "wrapcol": 4}),
+        ("b64decode", (b64.rstrip(b"="),), {"padded": False, "ignorechars": b"\n", "canonical": True}),
+        ("b64decode", (urlsafe,), {"altchars": b"-_", "ignorechars": b""}),  # the alphabet path
+        ("b64decode", (urlsafe,), {"altchars": b"-_"}),  # the translation path
+        ("urlsafe_b64encode", (PAYLOAD,), {"padded": False}),
+        ("urlsafe_b64decode", (base64.urlsafe_b64encode(PAYLOAD).rstrip(b"="),), {}),
+        ("b32encode", (PAYLOAD,), {"padded": False, "wrapcol": 8}),
+        ("b32decode", (b32.lower(),), {"casefold": True, "map01": "L", "ignorechars": b"\n", "canonical": True}),
+        ("b32hexdecode", (base64.b32hexencode(PAYLOAD),), {"padded": True, "ignorechars": b" "}),
+        ("b16encode", (PAYLOAD,), {"wrapcol": 5}),
+        ("b16decode", (base64.b16encode(PAYLOAD).lower(),), {"ignorechars": b"abcdef"}),
+        ("b16decode", (base64.b16encode(PAYLOAD).lower(),), {"casefold": True, "ignorechars": b" "}),
+        ("a85decode", (base64.a85encode(PAYLOAD),), {"canonical": True}),
+        ("b85encode", (PAYLOAD, True), {"wrapcol": 10}),
+        ("b85decode", (base64.b85encode(PAYLOAD),), {"ignorechars": b" ", "canonical": True}),
+        ("z85encode", (PAYLOAD,), {"wrapcol": 1}),
+        ("z85decode", (z85(PAYLOAD),), {"canonical": True}),
+    ]
+    for name, args, kwargs in successes:
+        assert retained(functools.partial(_compat(name), *args, **kwargs)) <= TOLERANCE, (name, kwargs)
+    failures: list[tuple[str, tuple[object, ...], dict[str, object]]] = [
+        ("b64encode", (PAYLOAD,), {"wrapcol": -1}),
+        ("b64encode", (PAYLOAD,), {"wrapcol": "x"}),
+        ("b64encode", (PAYLOAD,), {"wrapcol": 2**1000}),
+        ("b64encode", (PAYLOAD,), {"altchars": b"abc"}),
+        ("b64encode", (PAYLOAD,), {"altchars": "-_"}),
+        ("b64decode", (b64,), {"altchars": b"abc"}),
+        ("b64decode", (b64,), {"altchars": "\xe9", "ignorechars": b""}),
+        ("b64decode", (b64,), {"ignorechars": "x"}),
+        ("b64decode", (b64 + b"=",), {"padded": False, "validate": True}),
+        ("b16encode", (PAYLOAD,), {"wrapcol": -3}),
+        ("b16encode", (PAYLOAD,), {"wrapcol": 3.0}),
+        ("b16decode", (b"aB",), {}),
+        ("b16decode", (b"",), {"ignorechars": "x"}),
+        ("b32decode", (b"MF======",), {"canonical": True}),
+        ("b32decode", (b"",), {"map01": b"LI"}),
+        ("b85decode", (b"0",), {}),
+        ("b85decode", (b"001",), {"canonical": True}),
+        ("a85decode", (b"!!!!!",), {"canonical": True}),
+        ("a85encode", (PAYLOAD,), {"wrapcol": -7, "adobe": True}),
+    ]
+    for name, args, kwargs in failures:
+        assert retained(raising(_compat(name), *args, **kwargs)) <= TOLERANCE, (name, kwargs)
+    # The stray '+' warning builds a message per call; the registry remembers the location once.
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        assert retained(functools.partial(_compat("b64decode"), b"++++", altchars=b"-_")) <= TOLERANCE
+        assert retained(functools.partial(_compat("urlsafe_b64decode"), b"////")) <= TOLERANCE
 
 
 def test_registry_and_errors_keep_nothing() -> None:

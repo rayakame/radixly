@@ -29,4 +29,11 @@ PyObject *radixly_a85encode(PyObject *self, PyObject *const *args, Py_ssize_t na
 extern const char radixly_a85decode_doc[];
 PyObject *radixly_a85decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 
+/* The shapes 3.15's base64 gives these functions, installed in place of the ones above on 3.15 and later. */
+extern const char radixly_a85encode_py315_doc[];
+PyObject *radixly_a85encode_py315(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
+
+extern const char radixly_a85decode_py315_doc[];
+PyObject *radixly_a85decode_py315(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
+
 #endif // RADIXLY_ASCII85_H

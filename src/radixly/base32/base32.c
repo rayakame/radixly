@@ -27,6 +27,7 @@
 #include "_common/compat.h"
 #include "_common/errors.h"
 #include "_common/internal.h"
+#include "_common/binascii15.h"
 
 enum {
     GROUP_BYTES = 5,
@@ -52,6 +53,8 @@ typedef struct {
 static const char ALPHABET_STD[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 static const char ALPHABET_HEX[] = "0123456789ABCDEFGHIJKLMNOPQRSTUV";
 static alphabet_tables TABLES[NUM_ALPHABETS];
+/* binascii's reverse tables, '=' mapped to 32, for the 3.15 shapes. */
+static unsigned char PY315_REV[NUM_ALPHABETS][RADIXLY_PY315_TABLE_SIZE];
 
 /* Data characters a padded final group may hold, mapped to the payload bytes they carry; -1 is not a shape.
  */
@@ -79,6 +82,8 @@ radixly_base32_exec(PyObject *Py_UNUSED(module))
                 tables->rev_fold[code - 'A' + 'a'] = (uint8_t)value;
             }
         }
+        radixly_py315_reverse_table((const unsigned char *)alphabets[which], 1U << BITS_PER_CHAR, PAD,
+                                    PY315_REV[which]);
     }
     return 0;
 }
@@ -592,4 +597,255 @@ PyObject *
 radixly_b32decode(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
 {
     return radixly_b32decode_with("b32decode", args, nargs, kwnames, 0);
+}
+
+/* Python 3.15 made the base32 functions shells over binascii.b2a_base32 and a2b_base32. */
+
+PyObject *
+radixly_b32encode_with_py315(const char *function, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames,
+                             int hex)
+{
+    PyObject *arg = NULL;
+    PyObject *padded = NULL;
+    PyObject *wrapcol = NULL;
+    radixly_param params[] = {{"s", &arg}, {"padded", &padded}, {"wrapcol", &wrapcol}};
+    if (radixly_bind_args(function, args, nargs, kwnames, params, 3, 1, 1) < 0) {
+        return NULL;
+    }
+    Py_buffer view;
+    if (PyObject_GetBuffer(arg, &view, PyBUF_SIMPLE) < 0) {
+        return NULL;
+    }
+    PyObject *result = NULL;
+    size_t width = 0;
+    const int pad = padded == NULL ? 1 : PyObject_IsTrue(padded);
+    if (pad >= 0 && (wrapcol == NULL || radixly_py315_size_t(wrapcol, &width) == 0)) {
+        result = radixly_py315_b2a_base32(view.buf, view.len, pad, width,
+                                          (const unsigned char *)TABLES[hex].alphabet);
+    }
+    PyBuffer_Release(&view);
+    return result;
+}
+
+/* The stdlib's bytes.maketrans(b'01', b'O' + map01): map01 through _bytes_from_decode_data, joined by
+ * bytes.__add__, and refused by maketrans unless the pair is two bytes long. */
+static int
+map01_translation_py315(PyObject *map01, unsigned char *translate)
+{
+    radixly_compat_input source;
+    if (radixly_compat_decode_input(map01, &source) < 0) {
+        return -1;
+    }
+    PyObject *letter = radixly_compat_input_object(&source);
+    radixly_compat_input_release(&source);
+    if (letter == NULL) {
+        return -1;
+    }
+    PyObject *prefix = PyBytes_FromStringAndSize("O", 1);
+    PyObject *joined = prefix == NULL ? NULL : PyNumber_Add(prefix, letter);
+    Py_XDECREF(prefix);
+    Py_DECREF(letter);
+    if (joined == NULL) {
+        return -1;
+    }
+    Py_buffer pair;
+    if (PyObject_GetBuffer(joined, &pair, PyBUF_SIMPLE) < 0) {
+        Py_DECREF(joined);
+        return -1;
+    }
+    int outcome = 0;
+    if (pair.len != 2) {
+        PyErr_SetString(PyExc_ValueError, "maketrans arguments must have same length");
+        outcome = -1;
+    }
+    else {
+        translate['0'] = ((const unsigned char *)pair.buf)[0];
+        translate['1'] = ((const unsigned char *)pair.buf)[1];
+    }
+    PyBuffer_Release(&pair);
+    Py_DECREF(joined);
+    return outcome;
+}
+
+/* The copy the stdlib's translate() makes before it reads casefold; NULL with the exception set. */
+static PyObject *
+translated_copy(const radixly_compat_input *source, const unsigned char *translate)
+{
+    PyObject *copy = PyBytes_FromStringAndSize(NULL, source->len);
+    if (copy == NULL) {
+        return NULL;
+    }
+    unsigned char *out = (unsigned char *)PyBytes_AS_STRING(copy);
+    for (Py_ssize_t i = 0; i < source->len; i++) {
+        out[i] = translate[source->data[i]];
+    }
+    return copy;
+}
+
+/* s.upper(): a fresh copy of the live buffer, or the translated copy uppercased in place. */
+static PyObject *
+uppercased(const radixly_compat_input *source, PyObject *copy)
+{
+    if (copy == NULL) {
+        /* Never from the data: a one-byte bytes is a shared singleton, and the loop below writes into it. */
+        copy = PyBytes_FromStringAndSize(NULL, source->len);
+        if (copy == NULL) {
+            return NULL;
+        }
+        memcpy(PyBytes_AS_STRING(copy), source->data, (size_t)source->len);
+    }
+    unsigned char *out = (unsigned char *)PyBytes_AS_STRING(copy);
+    for (Py_ssize_t i = 0; i < PyBytes_GET_SIZE(copy); i++) {
+        out[i] = Py_TOUPPER(out[i]);
+    }
+    return copy;
+}
+
+/* The stdlib's translate() and upper() before the decode: the copy they make, or NULL for the live buffer
+ * when neither applies; -1 with the exception set. */
+static int
+b32decode_copy_py315(const radixly_compat_input *source, PyObject *map01, PyObject *casefold, PyObject **copy)
+{
+    *copy = NULL;
+    if (map01 != NULL && map01 != Py_None) {
+        unsigned char translate[TABLE_SIZE];
+        for (unsigned code = 0; code < TABLE_SIZE; code++) {
+            translate[code] = (unsigned char)code;
+        }
+        if (map01_translation_py315(map01, translate) < 0) {
+            return -1;
+        }
+        *copy = translated_copy(source, translate);
+        if (*copy == NULL) {
+            return -1;
+        }
+    }
+    const int fold = radixly_compat_truth(casefold);
+    if (fold < 0) {
+        Py_CLEAR(*copy);
+        return -1;
+    }
+    if (fold != 0) {
+        *copy = uppercased(source, *copy);
+        if (*copy == NULL) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+/* a2b_base32 with the keywords read in binascii's order: padded, ignorechars, canonical. */
+static PyObject *
+a2b_base32_py315(const unsigned char *data, Py_ssize_t len, int hex, PyObject *padded, PyObject *ignorechars,
+                 PyObject *canonical)
+{
+    const int pad = padded == NULL ? 1 : PyObject_IsTrue(padded);
+    if (pad < 0) {
+        return NULL;
+    }
+    radixly_compat_bytes ignore;
+    if (radixly_compat_bytes_init(&ignore, ignorechars, NULL, 0) < 0) {
+        return NULL;
+    }
+    PyObject *result = NULL;
+    const int strict_pad_bits = radixly_compat_truth(canonical);
+    if (strict_pad_bits >= 0) {
+        result = radixly_py315_a2b_base32(data, len, pad, PY315_REV[hex], ignore.data, ignore.len,
+                                          strict_pad_bits);
+    }
+    radixly_compat_bytes_release(&ignore);
+    return result;
+}
+
+PyObject *
+radixly_b32decode_with_py315(const char *function, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames,
+                             int hex)
+{
+    PyObject *arg = NULL;
+    PyObject *casefold = NULL;
+    PyObject *map01 = NULL;
+    PyObject *padded = NULL;
+    PyObject *ignorechars = NULL;
+    PyObject *canonical = NULL;
+    radixly_param standard[] = {
+        {"s", &arg},         {"casefold", &casefold},       {"map01", &map01},
+        {"padded", &padded}, {"ignorechars", &ignorechars}, {"canonical", &canonical},
+    };
+    radixly_param hexadecimal[] = {
+        {"s", &arg},
+        {"casefold", &casefold},
+        {"padded", &padded},
+        {"ignorechars", &ignorechars},
+        {"canonical", &canonical},
+    };
+    const int bound = hex != 0 ? radixly_bind_args(function, args, nargs, kwnames, hexadecimal,
+                                                   RADIXLY_ARRAY_SIZE(hexadecimal), 1, 2)
+                               : radixly_bind_args(function, args, nargs, kwnames, standard,
+                                                   RADIXLY_ARRAY_SIZE(standard), 1, 3);
+    if (bound < 0) {
+        return NULL;
+    }
+    radixly_compat_input source;
+    if (radixly_compat_decode_input(arg, &source) < 0) {
+        return NULL;
+    }
+    PyObject *copy = NULL;
+    PyObject *result = NULL;
+    if (b32decode_copy_py315(&source, map01, casefold, &copy) == 0) {
+        const unsigned char *data =
+            copy != NULL ? (const unsigned char *)PyBytes_AS_STRING(copy) : source.data;
+        const Py_ssize_t len = copy != NULL ? PyBytes_GET_SIZE(copy) : source.len;
+        result = a2b_base32_py315(data, len, hex, padded, ignorechars, canonical);
+    }
+    Py_XDECREF(copy);
+    radixly_compat_input_release(&source);
+    return result;
+}
+
+const char radixly_b32encode_py315_doc[] =
+    PyDoc_STR("b32encode($module, /, s, *, padded=True, wrapcol=0)\n"
+              "--\n"
+              "\n"
+              "Encode the bytes-like objects using base32 and return a bytes object.\n"
+              "\n"
+              "If padded is false, omit padding in the output.\n"
+              "\n"
+              "If wrapcol is non-zero, insert a newline (b'\\n') character after at most\n"
+              "every wrapcol characters.");
+PyObject *
+radixly_b32encode_py315(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+{
+    return radixly_b32encode_with_py315("b32encode", args, nargs, kwnames, 0);
+}
+
+const char radixly_b32decode_py315_doc[] =
+    PyDoc_STR("b32decode($module, /, s, casefold=False, map01=None, *, padded=True, ignorechars=b'', "
+              "canonical=False)\n"
+              "--\n"
+              "\n"
+              "Decode the base32 encoded bytes-like object or ASCII string s.\n"
+              "\n"
+              "Optional casefold is a flag specifying whether a lowercase alphabet is\n"
+              "acceptable as input.  For security purposes, the default is False.\n"
+              "\n"
+              "If padded is false, padding in input is not required.\n"
+              "\n"
+              "ignorechars should be a byte string containing characters to ignore\n"
+              "from the input.\n"
+              "\n"
+              "RFC 4648 allows for optional mapping of the digit 0 (zero) to the\n"
+              "letter O (oh), and for optional mapping of the digit 1 (one) to\n"
+              "either the letter I (eye) or letter L (el).  The optional argument\n"
+              "map01 when not None, specifies which letter the digit 1 should be\n"
+              "mapped to (when map01 is not None, the digit 0 is always mapped to\n"
+              "the letter O).  For security purposes the default is None, so that\n"
+              "0 and 1 are not allowed in the input.\n"
+              "\n"
+              "The result is returned as a bytes object.  A binascii.Error is raised if\n"
+              "the input is incorrectly padded or if there are non-alphabet\n"
+              "characters present in the input.");
+PyObject *
+radixly_b32decode_py315(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+{
+    return radixly_b32decode_with_py315("b32decode", args, nargs, kwnames, 0);
 }

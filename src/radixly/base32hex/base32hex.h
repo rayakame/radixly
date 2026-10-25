@@ -35,4 +35,12 @@ PyObject *radixly_b32hexencode(PyObject *self, PyObject *const *args, Py_ssize_t
 extern const char radixly_b32hexdecode_doc[];
 PyObject *radixly_b32hexdecode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 
+extern const char radixly_b32hexencode_py315_doc[];
+PyObject *radixly_b32hexencode_py315(PyObject *self, PyObject *const *args, Py_ssize_t nargs,
+                                     PyObject *kwnames);
+
+extern const char radixly_b32hexdecode_py315_doc[];
+PyObject *radixly_b32hexdecode_py315(PyObject *self, PyObject *const *args, Py_ssize_t nargs,
+                                     PyObject *kwnames);
+
 #endif // RADIXLY_BASE32HEX_H

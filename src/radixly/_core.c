@@ -65,7 +65,12 @@ static PyMethodDef radixly_methods[] = {
     {"hexagram_decode", radixly_hexagram_decode, METH_O, radixly_hexagram_decode_doc},
     {"uro14_encode", radixly_uro14_encode, METH_O, radixly_uro14_encode_doc},
     {"uro14_decode", radixly_uro14_decode, METH_O, radixly_uro14_decode_doc},
-    /* The stdlib base64 drop-in: stdlib names, arguments, results and errors. */
+    {"a2b_base64_variant", radixly_a2b_base64_variant, METH_O, radixly_a2b_base64_variant_doc},
+    {NULL, NULL, 0, NULL},
+};
+
+/* The drop-in for 3.11 to 3.14: the standard library's pure-Python base64, function for function. */
+static PyMethodDef compat_methods[] = {
     {"b16encode", _PyCFunction_CAST(radixly_b16encode), METH_FASTCALL | METH_KEYWORDS, radixly_b16encode_doc},
     {"b16decode", _PyCFunction_CAST(radixly_b16decode), METH_FASTCALL | METH_KEYWORDS, radixly_b16decode_doc},
     {"b32encode", _PyCFunction_CAST(radixly_b32encode), METH_FASTCALL | METH_KEYWORDS, radixly_b32encode_doc},
@@ -122,7 +127,6 @@ static PyMethodDef radixly_methods[] = {
         METH_FASTCALL | METH_KEYWORDS,
         radixly_decodebytes_doc,
     },
-    {"a2b_base64_variant", radixly_a2b_base64_variant, METH_O, radixly_a2b_base64_variant_doc},
     {"a85encode", _PyCFunction_CAST(radixly_a85encode), METH_FASTCALL | METH_KEYWORDS, radixly_a85encode_doc},
     {"a85decode", _PyCFunction_CAST(radixly_a85decode), METH_FASTCALL | METH_KEYWORDS, radixly_a85decode_doc},
     {"b85encode", _PyCFunction_CAST(radixly_b85encode), METH_FASTCALL | METH_KEYWORDS, radixly_b85encode_doc},
@@ -131,6 +135,152 @@ static PyMethodDef radixly_methods[] = {
     {"z85decode", _PyCFunction_CAST(radixly_z85decode), METH_FASTCALL | METH_KEYWORDS, radixly_z85decode_doc},
     {NULL, NULL, 0, NULL},
 };
+
+/* The drop-in for 3.15 and later: the standard library's base64 as a shell over the new binascii, so every
+ * function grew keywords and some changed their errors; encode, decode and decodebytes kept their shapes. */
+static PyMethodDef compat_methods_py315[] = {
+    {
+        "b16encode",
+        _PyCFunction_CAST(radixly_b16encode_py315),
+        METH_FASTCALL | METH_KEYWORDS,
+        radixly_b16encode_py315_doc,
+    },
+    {
+        "b16decode",
+        _PyCFunction_CAST(radixly_b16decode_py315),
+        METH_FASTCALL | METH_KEYWORDS,
+        radixly_b16decode_py315_doc,
+    },
+    {
+        "b32encode",
+        _PyCFunction_CAST(radixly_b32encode_py315),
+        METH_FASTCALL | METH_KEYWORDS,
+        radixly_b32encode_py315_doc,
+    },
+    {
+        "b32decode",
+        _PyCFunction_CAST(radixly_b32decode_py315),
+        METH_FASTCALL | METH_KEYWORDS,
+        radixly_b32decode_py315_doc,
+    },
+    {
+        "b32hexencode",
+        _PyCFunction_CAST(radixly_b32hexencode_py315),
+        METH_FASTCALL | METH_KEYWORDS,
+        radixly_b32hexencode_py315_doc,
+    },
+    {
+        "b32hexdecode",
+        _PyCFunction_CAST(radixly_b32hexdecode_py315),
+        METH_FASTCALL | METH_KEYWORDS,
+        radixly_b32hexdecode_py315_doc,
+    },
+    {
+        "b64encode",
+        _PyCFunction_CAST(radixly_b64encode_py315),
+        METH_FASTCALL | METH_KEYWORDS,
+        radixly_b64encode_py315_doc,
+    },
+    {
+        "b64decode",
+        _PyCFunction_CAST(radixly_b64decode_py315),
+        METH_FASTCALL | METH_KEYWORDS,
+        radixly_b64decode_py315_doc,
+    },
+    {
+        "standard_b64encode",
+        _PyCFunction_CAST(radixly_standard_b64encode_py315),
+        METH_FASTCALL | METH_KEYWORDS,
+        radixly_standard_b64encode_doc,
+    },
+    {
+        "standard_b64decode",
+        _PyCFunction_CAST(radixly_standard_b64decode_py315),
+        METH_FASTCALL | METH_KEYWORDS,
+        radixly_standard_b64decode_doc,
+    },
+    {
+        "urlsafe_b64encode",
+        _PyCFunction_CAST(radixly_urlsafe_b64encode_py315),
+        METH_FASTCALL | METH_KEYWORDS,
+        radixly_urlsafe_b64encode_py315_doc,
+    },
+    {
+        "urlsafe_b64decode",
+        _PyCFunction_CAST(radixly_urlsafe_b64decode_py315),
+        METH_FASTCALL | METH_KEYWORDS,
+        radixly_urlsafe_b64decode_py315_doc,
+    },
+    {
+        "encode",
+        _PyCFunction_CAST(radixly_encode),
+        METH_FASTCALL | METH_KEYWORDS,
+        radixly_encode_doc,
+    },
+    {
+        "decode",
+        _PyCFunction_CAST(radixly_decode),
+        METH_FASTCALL | METH_KEYWORDS,
+        radixly_decode_doc,
+    },
+    {
+        "encodebytes",
+        _PyCFunction_CAST(radixly_encodebytes_py315),
+        METH_FASTCALL | METH_KEYWORDS,
+        radixly_encodebytes_doc,
+    },
+    {
+        "decodebytes",
+        _PyCFunction_CAST(radixly_decodebytes),
+        METH_FASTCALL | METH_KEYWORDS,
+        radixly_decodebytes_doc,
+    },
+    {
+        "a85encode",
+        _PyCFunction_CAST(radixly_a85encode_py315),
+        METH_FASTCALL | METH_KEYWORDS,
+        radixly_a85encode_py315_doc,
+    },
+    {
+        "a85decode",
+        _PyCFunction_CAST(radixly_a85decode_py315),
+        METH_FASTCALL | METH_KEYWORDS,
+        radixly_a85decode_py315_doc,
+    },
+    {
+        "b85encode",
+        _PyCFunction_CAST(radixly_b85encode_py315),
+        METH_FASTCALL | METH_KEYWORDS,
+        radixly_b85encode_py315_doc,
+    },
+    {
+        "b85decode",
+        _PyCFunction_CAST(radixly_b85decode_py315),
+        METH_FASTCALL | METH_KEYWORDS,
+        radixly_b85decode_py315_doc,
+    },
+    {
+        "z85encode",
+        _PyCFunction_CAST(radixly_z85encode_py315),
+        METH_FASTCALL | METH_KEYWORDS,
+        radixly_z85encode_py315_doc,
+    },
+    {
+        "z85decode",
+        _PyCFunction_CAST(radixly_z85decode_py315),
+        METH_FASTCALL | METH_KEYWORDS,
+        radixly_z85decode_py315_doc,
+    },
+    {NULL, NULL, 0, NULL},
+};
+
+/* One wheel per minor version meets one standard library, but the choice stays a runtime one from Py_Version,
+ * as the a2b_base64 readings are. */
+static int
+radixly_compat_methods_exec(PyObject *module)
+{
+    return PyModule_AddFunctions(module, radixly_compat_py315() != 0 ? compat_methods_py315 : compat_methods);
+}
 
 static int
 radixly_meta_exec(PyObject *module)
@@ -181,6 +331,7 @@ static PyModuleDef_Slot radixly_execs[] = {
     {Py_mod_exec, (void *)radixly_base64_exec},
     {Py_mod_exec, (void *)radixly_base85_exec},
     {Py_mod_exec, (void *)radixly_base65536_exec},
+    {Py_mod_exec, (void *)radixly_compat_methods_exec},
     {0, NULL},
 };
 

@@ -21,6 +21,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Programming Language :: Python :: Implementation :: CPython",
     "Topic :: Software Development :: Libraries",
     "Topic :: Text Processing",
@@ -88,14 +89,14 @@ pyright = [
 typeCheckingMode = "recommended"
 include = ["noxfile.py", "src", "tests", "scripts", "benchmarks"]
 # CPython's own base64 suite, vendored verbatim; typed to its own standards, not ours.
-exclude = ["tests/compat/test_stdlib_base64.py"]
+exclude = ["tests/compat/test_stdlib_base64.py", "tests/compat/test_stdlib_base64_py315.py"]
 # Resolve radixly from src/ so the checker sees the working tree, not the
 # installed copy; consumers get types via py.typed + the verifytypes gate.
 extraPaths = ["src"]
 executionEnvironments = [
     { root = "tests", extraPaths = [".", "src"], pythonVersion = "3.11" },
     { root = "src", pythonVersion = "3.11" },
-    { root = "scripts", pythonVersion = "3.14" },
+    { root = "scripts", pythonVersion = "3.15" },
     { root = "benchmarks", extraPaths = [".", "src"], pythonVersion = "3.11"  },
 ]
 
@@ -146,7 +147,7 @@ version = { attr = "radixly._about.__version__" }
 
 [tool.setuptools]
 ext-modules = [
-  {name = "radixly._core", sources=["src/radixly/_core.c", "src/radixly/ascii85/ascii85.c", "src/radixly/base16/base16.c", "src/radixly/base2048/base2048.c", "src/radixly/base32/base32.c", "src/radixly/base32768/base32768.c", "src/radixly/base32hex/base32hex.c", "src/radixly/base64/base64.c", "src/radixly/base64url/base64url.c", "src/radixly/base65536/base65536.c", "src/radixly/base85/base85.c", "src/radixly/z85/z85.c", "src/radixly/braille/braille.c", "src/radixly/hexagram/hexagram.c", "src/radixly/uro14/uro14.c", "src/radixly/_common/args.c", "src/radixly/_common/block.c", "src/radixly/_common/compat.c", "src/radixly/_common/errors.c"], include-dirs=["src/radixly"], extra-compile-args=["-std=c11"]}
+  {name = "radixly._core", sources=["src/radixly/_core.c", "src/radixly/ascii85/ascii85.c", "src/radixly/base16/base16.c", "src/radixly/base2048/base2048.c", "src/radixly/base32/base32.c", "src/radixly/base32768/base32768.c", "src/radixly/base32hex/base32hex.c", "src/radixly/base64/base64.c", "src/radixly/base64url/base64url.c", "src/radixly/base65536/base65536.c", "src/radixly/base85/base85.c", "src/radixly/z85/z85.c", "src/radixly/braille/braille.c", "src/radixly/hexagram/hexagram.c", "src/radixly/uro14/uro14.c", "src/radixly/_common/args.c", "src/radixly/_common/binascii15.c", "src/radixly/_common/block.c", "src/radixly/_common/compat.c", "src/radixly/_common/errors.c"], include-dirs=["src/radixly"], extra-compile-args=["-std=c11"]}
 ]
 
 # Keep C sources and headers out of binary wheels for every (sub)package;
@@ -163,7 +164,7 @@ radixly = ["py.typed", "*.pyi"]
 # Warning flags (-Wall/-Wextra) are dev-only: MSVC rejects them, and the
 # Linux CI matrix already enforces them. 64-bit only; no win32.
 [tool.cibuildwheel]
-build = "cp311-* cp312-* cp313-* cp314-*"
+build = "cp311-* cp312-* cp313-* cp314-* cp315-*"
 skip = "*t-* *-win32 *_i686"
 build-verbosity = 1
 test-requires = ["pytest>=9.1.1", "hypothesis>=6.100"]

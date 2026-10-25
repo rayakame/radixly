@@ -53,6 +53,22 @@ with the `base64` next to it on every patch release.
 
 The strict codecs in the rest of radixly are a different contract, see below.
 
+## Python 3.15
+
+CPython 3.15 rebuilt `base64` as a thin shell over new C functions in
+`binascii`, and the module's surface moved with it: every function takes the
+keywords that release added (`padded` and `wrapcol` on the encoders,
+`padded`, `ignorechars` and `canonical` on the decoders, `wrapcol` on
+`b16encode` and the 85 encoders), the length checks on `altchars` and `map01`
+raise `ValueError` where they used to assert, `urlsafe_b64decode` accepts
+unpadded input by default and warns about a stray `+` or `/`, a one-character
+85 tail is rejected instead of decoding to nothing, and the 85 family raises
+`binascii.Error` rather than a plain `ValueError`. The drop-in carries all of
+it: on 3.15 the port of that `binascii` runs underneath, with its exact
+messages, argument order and warnings, and CPython 3.15's own `test_base64`
+runs against it. The choice is made at import from the running interpreter,
+so one install behaves like the `base64` next to it on every release.
+
 ## What runs in C
 
 The port landed family by family, and is complete: nothing falls back to the

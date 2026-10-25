@@ -21,4 +21,18 @@ Edits against the original, and nothing else:
 The file is excluded from ruff, so it keeps upstream's formatting byte for byte; `diff` against the
 original shows only the edits above.
 
+- The module skips from 3.15 on: that release rewrote `base64`, and `test_stdlib_base64_py315.py` describes it.
+
+`test_stdlib_base64_py315.py` is `Lib/test/test_base64.py` from CPython v3.15.1 (upstream sha256
+`b112b3c06d757cb77ad9e74c20050a0c6619781b849166616fcc3108c75b2c3e`), vendored the same way and run from
+3.15 on. Its edits:
+
+- A five-line comment at the top names the source, the license and these edits.
+- `import base64` became `from radixly.compat import base64`; `os` and the `test.support` imports are gone,
+  and with them `LazyImportTest` and `TestMain`.
+- `from test.support.hypothesis_helper import hypothesis` became `import hypothesis` and
+  `import hypothesis.strategies`; the suite's property tests run on the real Hypothesis the project depends on.
+- `check_impl_detail` is a local function returning `True`: the suite runs on CPython only.
+- The module skips before 3.15 with `unittest.SkipTest`.
+
 To re-vendor: fetch the new file, reapply the edits without reformatting, run the suite.

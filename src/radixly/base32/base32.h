@@ -46,4 +46,16 @@ PyObject *radixly_b32encode(PyObject *self, PyObject *const *args, Py_ssize_t na
 extern const char radixly_b32decode_doc[];
 PyObject *radixly_b32decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 
+/* The shapes 3.15's base64 gives these functions, installed in place of the ones above on 3.15 and later. */
+PyObject *radixly_b32encode_with_py315(const char *function, PyObject *const *args, Py_ssize_t nargs,
+                                       PyObject *kwnames, int hex);
+PyObject *radixly_b32decode_with_py315(const char *function, PyObject *const *args, Py_ssize_t nargs,
+                                       PyObject *kwnames, int hex);
+
+extern const char radixly_b32encode_py315_doc[];
+PyObject *radixly_b32encode_py315(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
+
+extern const char radixly_b32decode_py315_doc[];
+PyObject *radixly_b32decode_py315(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
+
 #endif // RADIXLY_BASE32_H

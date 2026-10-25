@@ -141,3 +141,43 @@ radixly_urlsafe_b64decode(PyObject *Py_UNUSED(self), PyObject *const *args, Py_s
 {
     return radixly_b64decode_with("urlsafe_b64decode", args, nargs, kwnames, 1, 0);
 }
+
+const char radixly_urlsafe_b64encode_py315_doc[] =
+    PyDoc_STR("urlsafe_b64encode($module, /, s, *, padded=True)\n"
+              "--\n"
+              "\n"
+              "Encode bytes using the URL- and filesystem-safe Base64 alphabet.\n"
+              "\n"
+              "Argument s is a bytes-like object to encode.  The result is returned as a\n"
+              "bytes object.  The alphabet uses '-' instead of '+' and '_' instead of\n"
+              "'/'.\n"
+              "\n"
+              "If padded is false, omit padding in the output.");
+PyObject *
+radixly_urlsafe_b64encode_py315(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs,
+                                PyObject *kwnames)
+{
+    return radixly_b64encode_with_py315("urlsafe_b64encode", args, nargs, kwnames, RADIXLY_B64_URLSAFE);
+}
+
+const char radixly_urlsafe_b64decode_py315_doc[] =
+    PyDoc_STR("urlsafe_b64decode($module, /, s, *, padded=False)\n"
+              "--\n"
+              "\n"
+              "Decode bytes using the URL- and filesystem-safe Base64 alphabet.\n"
+              "\n"
+              "Argument s is a bytes-like object or ASCII string to decode.  The result\n"
+              "is returned as a bytes object.  A binascii.Error is raised if the input\n"
+              "is incorrectly padded.  Characters that are not in the URL-safe base-64\n"
+              "alphabet, and are not a plus '+' or slash '/', are discarded prior to the\n"
+              "padding check.\n"
+              "\n"
+              "If padded is false, padding in input is not required.\n"
+              "\n"
+              "The alphabet uses '-' instead of '+' and '_' instead of '/'.");
+PyObject *
+radixly_urlsafe_b64decode_py315(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs,
+                                PyObject *kwnames)
+{
+    return radixly_b64decode_with_py315("urlsafe_b64decode", args, nargs, kwnames, RADIXLY_B64_URLSAFE);
+}

@@ -26,6 +26,7 @@
 #include "_common/args.h"
 #include "_common/compat.h"
 #include "_common/errors.h"
+#include "_common/binascii15.h"
 
 enum {
     REV_INVALID = 0xFF,
@@ -337,4 +338,254 @@ radixly_b16decode(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t n
     (void)bad;
     radixly_compat_input_release(&source);
     return result;
+}
+
+/* Python 3.15 made b16encode and b16decode shells over hexlify and unhexlify. */
+
+static const char LOWER_HEX[] = "abcdef";
+
+const char radixly_b16encode_py315_doc[] =
+    PyDoc_STR("b16encode($module, /, s, *, wrapcol=0)\n"
+              "--\n"
+              "\n"
+              "Encode the bytes-like object s using Base16 and return a bytes object.\n"
+              "\n"
+              "If wrapcol is non-zero, insert a newline (b'\\n') character after at most\n"
+              "every wrapcol characters.");
+
+/* The stdlib's `-(wrapcol // 2)` after its two comparisons, as an object: hexlify converts it in its own
+ * turn. */
+static PyObject *
+hex_bytes_per_sep(PyObject *wrapcol)
+{
+    PyObject *zero = PyLong_FromLong(0);
+    if (zero == NULL) {
+        return NULL;
+    }
+    const int negative = PyObject_RichCompareBool(wrapcol, zero, Py_LT);
+    Py_DECREF(zero);
+    if (negative < 0) {
+        return NULL;
+    }
+    if (negative != 0) {
+        PyErr_SetString(PyExc_ValueError, "Negative wrapcol");
+        return NULL;
+    }
+    PyObject *two = PyLong_FromLong(2);
+    if (two == NULL) {
+        return NULL;
+    }
+    const int narrow = PyObject_RichCompareBool(wrapcol, two, Py_LT);
+    PyObject *half = narrow < 0 ? NULL : PyNumber_FloorDivide(narrow != 0 ? two : wrapcol, two);
+    Py_DECREF(two);
+    if (half == NULL) {
+        return NULL;
+    }
+    PyObject *per_sep = PyNumber_Negative(half);
+    Py_DECREF(half);
+    return per_sep;
+}
+
+/* hexlify's bytes_per_sep conversion: __index__, then a C ssize_t. */
+static int
+bytes_per_sep_value(PyObject *per_sep, Py_ssize_t *value)
+{
+    PyObject *index = PyNumber_Index(per_sep);
+    if (index == NULL) {
+        return -1;
+    }
+    *value = PyLong_AsSsize_t(index);
+    Py_DECREF(index);
+    return *value == -1 && PyErr_Occurred() ? -1 : 0;
+}
+
+PyObject *
+radixly_b16encode_py315(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+{
+    PyObject *arg = NULL;
+    PyObject *wrapcol = NULL;
+    radixly_param params[] = {{"s", &arg}, {"wrapcol", &wrapcol}};
+    if (radixly_bind_args("b16encode", args, nargs, kwnames, params, 2, 1, 1) < 0) {
+        return NULL;
+    }
+    /* `if not wrapcol` comes before hexlify sees s. */
+    const int wrapped = radixly_compat_truth(wrapcol);
+    if (wrapped < 0) {
+        return NULL;
+    }
+    PyObject *per_sep = NULL;
+    if (wrapped != 0) {
+        per_sep = hex_bytes_per_sep(wrapcol);
+        if (per_sep == NULL) {
+            return NULL;
+        }
+    }
+    Py_buffer view;
+    if (PyObject_GetBuffer(arg, &view, PyBUF_SIMPLE) < 0) {
+        Py_XDECREF(per_sep);
+        return NULL;
+    }
+    Py_ssize_t bytes_per_sep = 0;
+    if (per_sep != NULL) {
+        const int converted = bytes_per_sep_value(per_sep, &bytes_per_sep);
+        Py_DECREF(per_sep);
+        if (converted < 0) {
+            PyBuffer_Release(&view);
+            return NULL;
+        }
+    }
+    PyObject *result = radixly_py315_hexlify_upper(view.buf, view.len, bytes_per_sep);
+    PyBuffer_Release(&view);
+    return result;
+}
+
+const char radixly_b16decode_py315_doc[] =
+    PyDoc_STR("b16decode($module, /, s, casefold=False, *, ignorechars=b'')\n"
+              "--\n"
+              "\n"
+              "Decode the Base16 encoded bytes-like object or ASCII string s.\n"
+              "\n"
+              "Optional casefold is a flag specifying whether a lowercase alphabet is\n"
+              "acceptable as input.  For security purposes, the default is False.\n"
+              "\n"
+              "ignorechars should be a byte string containing characters to ignore\n"
+              "from the input.\n"
+              "\n"
+              "The result is returned as a bytes object.  A binascii.Error is raised if\n"
+              "s is incorrectly padded or if there are non-alphabet characters present\n"
+              "in the input.");
+
+/* With casefold the stdlib hands s and ignorechars straight to unhexlify. */
+static PyObject *
+b16decode_folded_py315(PyObject *arg, PyObject *ignorechars)
+{
+    radixly_compat_input source;
+    if (radixly_compat_ascii_buffer_input(arg, &source) < 0) {
+        return NULL;
+    }
+    radixly_compat_bytes ignore;
+    if (radixly_compat_bytes_init(&ignore, ignorechars, NULL, 0) < 0) {
+        radixly_compat_input_release(&source);
+        return NULL;
+    }
+    PyObject *result = radixly_py315_a2b_hex(source.data, source.len, ignore.data, ignore.len);
+    radixly_compat_bytes_release(&ignore);
+    radixly_compat_input_release(&source);
+    return result;
+}
+
+/* The stdlib's `bytes(memoryview(ignorechars))`, unless it already is bytes. */
+static PyObject *
+ignorechars_as_bytes(PyObject *ignorechars)
+{
+    if (ignorechars == NULL) {
+        return PyBytes_FromStringAndSize("", 0);
+    }
+    if (PyBytes_Check(ignorechars)) {
+        return Py_NewRef(ignorechars);
+    }
+    PyObject *view = PyMemoryView_FromObject(ignorechars);
+    if (view == NULL) {
+        return NULL;
+    }
+    PyObject *copy = PyBytes_FromObject(view);
+    Py_DECREF(view);
+    return copy;
+}
+
+/* The stdlib refuses a lowercase digit that ignorechars does not admit before it reads any digit. */
+static int
+refuse_lowercase(const radixly_compat_input *source, PyObject *ignore)
+{
+    for (size_t i = 0; i < sizeof(LOWER_HEX) - 1; i++) {
+        const unsigned char code = (unsigned char)LOWER_HEX[i];
+        if (memchr(source->data, code, (size_t)source->len) == NULL) {
+            continue;
+        }
+        PyObject *value = PyLong_FromLong(code);
+        if (value == NULL) {
+            return -1;
+        }
+        const int admitted = PySequence_Contains(ignore, value);
+        Py_DECREF(value);
+        if (admitted < 0) {
+            return -1;
+        }
+        if (admitted == 0) {
+            radixly_binascii_error("Non-base16 digit found");
+            return -1;
+        }
+    }
+    return 0;
+}
+
+/* s.translate(None, delete=b'abcdef'): the input without its lowercase digits. */
+static PyObject *
+without_lowercase(const radixly_compat_input *source)
+{
+    PyObject *stripped = PyBytes_FromStringAndSize(NULL, source->len);
+    if (stripped == NULL) {
+        return NULL;
+    }
+    unsigned char *out = (unsigned char *)PyBytes_AS_STRING(stripped);
+    Py_ssize_t kept = 0;
+    for (Py_ssize_t i = 0; i < source->len; i++) {
+        const unsigned char code = source->data[i];
+        if (code < 'a' || code > 'f') {
+            out[kept++] = code;
+        }
+    }
+    if (kept != source->len && _PyBytes_Resize(&stripped, kept) < 0) {
+        return NULL; /* stripped already cleared */
+    }
+    return stripped;
+}
+
+static PyObject *
+b16decode_strict_py315(PyObject *arg, PyObject *ignorechars)
+{
+    radixly_compat_input source;
+    if (radixly_compat_decode_input(arg, &source) < 0) {
+        return NULL;
+    }
+    PyObject *result = NULL;
+    PyObject *stripped = NULL;
+    PyObject *ignore = ignorechars_as_bytes(ignorechars);
+    if (ignore == NULL || refuse_lowercase(&source, ignore) < 0) {
+        goto done;
+    }
+    stripped = without_lowercase(&source);
+    if (stripped == NULL) {
+        goto done;
+    }
+    Py_buffer ignore_view;
+    if (PyObject_GetBuffer(ignore, &ignore_view, PyBUF_SIMPLE) < 0) {
+        goto done;
+    }
+    result = radixly_py315_a2b_hex((const unsigned char *)PyBytes_AS_STRING(stripped),
+                                   PyBytes_GET_SIZE(stripped), ignore_view.buf, ignore_view.len);
+    PyBuffer_Release(&ignore_view);
+done:
+    Py_XDECREF(stripped);
+    Py_XDECREF(ignore);
+    radixly_compat_input_release(&source);
+    return result;
+}
+
+PyObject *
+radixly_b16decode_py315(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+{
+    PyObject *arg = NULL;
+    PyObject *casefold = NULL;
+    PyObject *ignorechars = NULL;
+    radixly_param params[] = {{"s", &arg}, {"casefold", &casefold}, {"ignorechars", &ignorechars}};
+    if (radixly_bind_args("b16decode", args, nargs, kwnames, params, 3, 1, 2) < 0) {
+        return NULL;
+    }
+    /* `if not casefold` is the stdlib's first move, before it looks at s. */
+    const int fold = radixly_compat_truth(casefold);
+    if (fold < 0) {
+        return NULL;
+    }
+    return fold != 0 ? b16decode_folded_py315(arg, ignorechars) : b16decode_strict_py315(arg, ignorechars);
 }

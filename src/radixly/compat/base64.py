@@ -31,6 +31,11 @@ flag or a width that is not the plain ``bool`` or ``int`` it is meant to be: ``f
 the standard library reads it again per group, ``adobe`` once where it reads it two to four times, and
 ``wrapcol`` is converted once where the standard library threads the object through ``max``, ``range`` and the
 slice.
+
+Python 3.15 rebuilt ``base64`` over new ``binascii`` functions: every function grew keywords (``padded``,
+``wrapcol``, ``ignorechars``, ``canonical``), the length asserts became ``ValueError``, ``urlsafe_b64decode`` no
+longer requires padding and warns about a stray ``+`` or ``/``, and the 85 family raises ``binascii.Error``. The
+drop-in follows that standard library on 3.15, line for line, chosen at import from the running interpreter.
 """
 
 from __future__ import annotations
