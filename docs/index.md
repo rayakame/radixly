@@ -15,7 +15,7 @@ committed record from the benchmark suite that ships with the repository.
 **One interface.** Every codec offers `encode`, `decode` and the size math
 to plan around a length limit, with type stubs and no dependencies.
 
-**A drop-in for the standard library.** {doc}`compat` is the `base64`
+**A drop-in for the standard library.** {doc}`compat/index` is the `base64`
 module with the same names, arguments and errors, ported to C family by
 family.
 
@@ -143,7 +143,8 @@ codecs/hexagram
 :hidden:
 :caption: Standard library
 
-compat
+compat/index
+compat/performance
 ```
 
 ```{toctree}

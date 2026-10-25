@@ -5,15 +5,15 @@ module level, its exception type and the decoders' lookup tables, and that
 state exists once per process. Loading a second copy into a subinterpreter
 would have two interpreters sharing objects that belong to one.
 
-On Python 3.12 and later the module says so itself: importing radixly inside
-a subinterpreter raises
+The module says so itself: importing radixly inside a subinterpreter raises
 
 ```text
 ImportError: module radixly._core does not support loading in subinterpreters
 ```
 
-On Python 3.11 there is no way for an extension to refuse the import, and
-the behavior is undefined. Do not do it.
+On 3.12 and later that is CPython's own `Py_MOD_MULTIPLE_INTERPRETERS_NOT_SUPPORTED`
+slot refusing the load. On 3.11, which has no such slot, the module checks the
+interpreter itself and raises the same error.
 
 Ordinary threads are fine. `encode` and `decode` hold the GIL for the
 duration of a call, which for these functions is microseconds, so threads

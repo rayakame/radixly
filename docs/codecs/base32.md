@@ -57,7 +57,7 @@ its 16,384-byte window.
 
 `radixly.compat.base64.b32encode` and `b32decode` port the standard
 library's functions, `casefold` and `map01` included, onto this codec's C.
-See {doc}`../compat`.
+See {doc}`../compat/index`.
 
 ## Benchmarks
 

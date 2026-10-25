@@ -50,7 +50,7 @@ its 16,384-byte window.
 `radixly.compat.base64.b64encode`, `b64decode`, `standard_b64encode` and
 `standard_b64decode` port the standard library's functions, `altchars` and
 `validate` included, onto this codec's C, and so do the legacy four,
-`encodebytes`, `decodebytes`, `encode` and `decode`. See {doc}`../compat`.
+`encodebytes`, `decodebytes`, `encode` and `decode`. See {doc}`../compat/index`.
 
 ## Benchmarks
 

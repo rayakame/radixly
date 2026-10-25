@@ -55,7 +55,7 @@ its 16,384-byte window.
 `radixly.compat.base64.urlsafe_b64encode` and `urlsafe_b64decode` port the
 standard library's functions onto this codec's C, with the standard
 library's leniency: its decoder also takes `+` and `/`, and discards
-characters outside the alphabet. See {doc}`../compat`.
+characters outside the alphabet. See {doc}`../compat/index`.
 
 ## Benchmarks
 

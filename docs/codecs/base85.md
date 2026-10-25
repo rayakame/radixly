@@ -56,7 +56,7 @@ its 16,384-byte window.
 
 `radixly.compat.base64.b85encode` and `b85decode` port the standard
 library's functions, the `pad` flag and the lenient tail included, onto this
-codec's C. See {doc}`../compat`.
+codec's C. See {doc}`../compat/index`.
 
 ## Benchmarks
 
