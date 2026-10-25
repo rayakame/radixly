@@ -65,12 +65,33 @@ def make_measurement(  # ruff: ignore[too-many-arguments, too-many-positional-ar
     )
 
 
+def make_compat(
+    function: str = "b64decode",
+    size_label: str = "200 B",
+    size_bytes: int = 200,
+    ns_per_call: float = 80.0,
+    stdlib_ns_per_call: float = 200.0,
+) -> model.CompatMeasurement:
+    return model.CompatMeasurement(
+        function=function,
+        direction="decode" if "decode" in function else "encode",
+        size_label=size_label,
+        size_bytes=size_bytes,
+        ns_per_call=ns_per_call,
+        stdlib_ns_per_call=stdlib_ns_per_call,
+        number=1_000_000,
+        repeats=7,
+    )
+
+
 def make_result(
     measurements: tuple[model.Measurement, ...] | None = None,
     cpu: str = "TestCPU",
     governor: str = "performance",
     run: model.RunInfo | None = None,
+    compat: tuple[model.CompatMeasurement, ...] = (),
 ) -> model.RunResult:
     if measurements is None:
         measurements = (make_measurement(),)
-    return model.RunResult(model.SCHEMA_VERSION, make_environment(cpu, governor), measurements, run or model.RunInfo())
+    environment = make_environment(cpu, governor)
+    return model.RunResult(model.SCHEMA_VERSION, environment, measurements, run or model.RunInfo(), compat)

@@ -65,4 +65,12 @@ def render(result: model.RunResult) -> str:
         if reference_line:
             lines.append(reference_line)
         lines.append("")
+    if result.compat:
+        lines.append("radixly.compat.base64 vs the standard library (stdlib time / ours)")
+        lines.extend(
+            f"  {row.function:20} {row.size_label:8} {row.ns_per_call / 1e3:9.3f} us/call"
+            + f"   stdlib {row.stdlib_ns_per_call / 1e3:9.3f} us/call   {row.speedup:6.2f}x"
+            for row in result.compat
+        )
+        lines.append("")
     return "\n".join(lines)

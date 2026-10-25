@@ -35,6 +35,7 @@ class Theme:
     encode: str
     decode: str
     competitors: tuple[str, ...]  # stable ramp for comparison implementations
+    sizes: tuple[str, str]  # one hue, small payload to large, for the drop-in's speedup bars
 
 
 LIGHT = Theme(
@@ -45,6 +46,7 @@ LIGHT = Theme(
     encode="#2563eb",
     decode="#d97706",
     competitors=("#059669", "#dc2626", "#7c3aed"),
+    sizes=("#3b82f6", "#1e3a8a"),
 )
 
 DARK = Theme(
@@ -55,6 +57,7 @@ DARK = Theme(
     encode="#60a5fa",
     decode="#fbbf24",
     competitors=("#34d399", "#f87171", "#a78bfa"),
+    sizes=("#3b82f6", "#bfdbfe"),
 )
 
 THEMES: tuple[Theme, ...] = (LIGHT, DARK)

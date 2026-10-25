@@ -31,6 +31,7 @@ import matplotlib as mpl
 
 mpl.use("Agg")
 import matplotlib.pyplot as plt
+import matplotlib.ticker
 
 from benchmarks import registry
 from benchmarks.render import theme as theme_module
@@ -222,6 +223,73 @@ def _write_codec_sweeps(result: model.RunResult, directory: pathlib.Path) -> lis
     return written
 
 
+_SPEEDUP_TICKS: typing.Final = (0.1, 0.2, 0.5, 1, 2, 3, 5, 10, 20, 50, 100, 200, 500, 1000)
+
+
+def _times(value: float, _position: object) -> str:
+    return f"{value:g}x"
+
+
+def _compat_sizes(result: model.RunResult) -> list[str]:
+    """Pick the two sizes the speedup chart compares: the ratio size and the largest one."""
+    by_size = {row.size_label: row.size_bytes for row in result.compat}
+    largest = max(by_size, key=by_size.__getitem__)
+    small = registry.RATIO_SIZE_LABEL if registry.RATIO_SIZE_LABEL in by_size else min(by_size, key=by_size.__getitem__)
+    return [small] if small == largest else [small, largest]
+
+
+def _speedup_chart(path: pathlib.Path, theme: Theme, result: model.RunResult) -> None:
+    sizes = _compat_sizes(result)
+    functions = list(dict.fromkeys(row.function for row in result.compat))
+    speedups = {(row.function, row.size_label): row.speedup for row in result.compat}
+    band = 0.8 / len(sizes)
+    figure, axes = plt.subplots(figsize=(7.2, 0.9 + 0.3 * len(functions)))
+    figure.patch.set_alpha(0.0)
+    axes.set_facecolor("none")
+    for index, (label, color) in enumerate(zip(sizes, theme.sizes[-len(sizes) :], strict=True)):
+        rows = [
+            (position, speedups[name, label]) for position, name in enumerate(functions) if (name, label) in speedups
+        ]
+        offset = (index - (len(sizes) - 1) / 2) * band
+        axes.barh(
+            [position + offset for position, _ in rows],
+            [value - 1 for _, value in rows],
+            height=band * 0.9,
+            left=1,
+            color=color,
+            label=f"{label} payloads",
+        )
+    # A ratio's scale: 2x faster and 2x slower sit the same distance from the standard library.
+    axes.set_xscale("log")
+    low, high = min(*speedups.values(), 0.9), max(*speedups.values(), 1.1)
+    axes.set_xlim(low / 1.15, high * 1.15)
+    axes.xaxis.set_major_locator(
+        matplotlib.ticker.FixedLocator([t for t in _SPEEDUP_TICKS if low / 1.15 <= t <= high * 1.15])
+    )
+    axes.xaxis.set_minor_locator(matplotlib.ticker.NullLocator())
+    axes.xaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(_times))
+    axes.axvline(1, color=theme.muted, linewidth=1)
+    axes.text(1, -0.9, " standard library", color=theme.muted, fontsize=8, va="center")
+    axes.set_yticks(range(len(functions)), functions, fontfamily="monospace")
+    axes.set_ylim(len(functions) - 0.5, -1.4)
+    axes.set_title(
+        "radixly.compat.base64: speedup over the standard library", color=theme.text, fontsize=11, loc="left"
+    )
+    axes.tick_params(colors=theme.muted, labelsize=8, which="both")
+    axes.tick_params(axis="y", length=0)
+    axes.grid(axis="x", color=theme.grid, linewidth=0.6, which="major")
+    axes.set_axisbelow(True)
+    for spine in axes.spines.values():
+        spine.set_visible(False)
+    legend = axes.legend(loc="lower right", frameon=False, fontsize=8)
+    for text in legend.get_texts():
+        text.set_color(theme.text)
+    figure.tight_layout()
+    with plt.rc_context({"svg.hashsalt": "radixly"}):
+        figure.savefig(path, format="svg", transparent=True, metadata={"Date": None})
+    plt.close(figure)
+
+
 def write_charts(result: model.RunResult, directory: pathlib.Path) -> list[pathlib.Path]:
     """Both charts x both themes into ``directory``; returns what was written."""
     directory.mkdir(parents=True, exist_ok=True)
@@ -248,4 +316,10 @@ def write_charts(result: model.RunResult, directory: pathlib.Path) -> list[pathl
             _bar_chart(path, theme, chart)
             written.append(path)
     written.extend(_write_codec_sweeps(result, directory))
+    if result.compat:
+        (directory / "compat").mkdir(exist_ok=True)
+        for theme in theme_module.THEMES:
+            path = _target_path(directory / "compat", "speedup", theme)
+            _speedup_chart(path, theme, result)
+            written.append(path)
     return written
