@@ -108,6 +108,15 @@ class _SweepData:
     series: dict[tuple[str, str], list[tuple[int, float]]]
 
 
+# Curves further apart than this at the largest payload, fastest over slowest, get a log axis.
+_LOG_SPREAD: typing.Final = 5.0
+
+
+def _spread(series: dict[tuple[str, str], list[tuple[int, float]]]) -> float:
+    values = [points[-1][1] for points in series.values() if points and points[-1][1] > 0]
+    return max(values) / min(values) if values else 1.0
+
+
 def _sweep_series(
     result: model.RunResult, codec: str, *, as_mbps: bool
 ) -> dict[tuple[str, str], list[tuple[int, float]]]:
@@ -191,7 +200,15 @@ def _write_codec_sweeps(result: model.RunResult, directory: pathlib.Path) -> lis
         subdirectory = directory / codec
         subdirectory.mkdir(parents=True, exist_ok=True)
         charts = (
-            ("throughput", _SweepData(f"{codec}: throughput by payload size", "MB/s", log_y=False, series=throughput)),
+            (
+                "throughput",
+                _SweepData(
+                    f"{codec}: throughput by payload size",
+                    "MB/s",
+                    log_y=_spread(throughput) > _LOG_SPREAD,
+                    series=throughput,
+                ),
+            ),
             (
                 "latency",
                 _SweepData(f"{codec}: per-call latency by payload size", "μs/call", log_y=True, series=latency),
