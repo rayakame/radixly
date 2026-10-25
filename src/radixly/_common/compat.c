@@ -21,6 +21,7 @@
  */
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
+#include <string.h>
 #include "compat.h"
 
 #include "internal.h"
@@ -591,4 +592,95 @@ radixly_compat_check_length(const radixly_compat_input *input, Py_ssize_t expect
         return -1;
     }
     return 0;
+}
+
+static const unsigned THREE_BITS = 0x07U;
+
+void
+radixly_ignore_set_init(radixly_ignore_set *set, const unsigned char *chars, Py_ssize_t len)
+{
+    set->chars = len == 0 ? NULL : chars;
+    set->len = len;
+    memset(set->cache, 0, sizeof(set->cache));
+}
+
+int
+radixly_ignored(radixly_ignore_set *set, unsigned char code)
+{
+    if (set->chars == NULL) {
+        return 0;
+    }
+    const unsigned bit = 1U << (code & THREE_BITS);
+    const unsigned slot = code >> 3U;
+    if ((set->cache[slot] & bit) != 0) {
+        return 1;
+    }
+    if (memchr(set->chars, code, (size_t)set->len) != NULL) {
+        set->cache[slot] |= (unsigned char)bit;
+        return 1;
+    }
+    return 0;
+}
+
+int
+radixly_compat_size_t(PyObject *arg, size_t *value)
+{
+    PyObject *index = PyNumber_Index(arg);
+    if (index == NULL) {
+        return -1;
+    }
+    PyObject *zero = PyLong_FromLong(0);
+    if (zero == NULL) {
+        Py_DECREF(index);
+        return -1;
+    }
+    const int negative = PyObject_RichCompareBool(index, zero, Py_LT);
+    Py_DECREF(zero);
+    if (negative != 0) {
+        Py_DECREF(index);
+        if (negative > 0) {
+            PyErr_SetString(PyExc_ValueError, "Cannot convert negative int");
+        }
+        return -1;
+    }
+    const size_t converted = PyLong_AsSize_t(index);
+    Py_DECREF(index);
+    if (converted == (size_t)-1 && PyErr_Occurred()) {
+        if (PyErr_ExceptionMatches(PyExc_OverflowError)) {
+            PyErr_SetString(PyExc_OverflowError, "Python int too large for C size_t");
+        }
+        return -1;
+    }
+    *value = converted;
+    return 0;
+}
+
+Py_ssize_t
+radixly_compat_wraplines(unsigned char *data, Py_ssize_t size, size_t width)
+{
+    if ((size_t)size <= width) {
+        return size;
+    }
+    unsigned char *src = data + size;
+    const Py_ssize_t newlines = (size - 1) / (Py_ssize_t)width;
+    Py_ssize_t line_len = size - (newlines * (Py_ssize_t)width);
+    size += newlines;
+    unsigned char *dst = data + size;
+    while ((src -= line_len) != data) {
+        dst -= line_len;
+        memmove(dst, src, (size_t)line_len);
+        *--dst = '\n';
+        line_len = (Py_ssize_t)width;
+    }
+    assert(dst == data + width);
+    return size;
+}
+
+PyObject *
+radixly_compat_finish(PyObject *result, Py_ssize_t written)
+{
+    if (written != PyBytes_GET_SIZE(result) && _PyBytes_Resize(&result, written) < 0) {
+        return NULL; /* result already cleared */
+    }
+    return result;
 }

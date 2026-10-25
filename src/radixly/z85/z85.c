@@ -62,7 +62,7 @@ const char radixly_z85_encode_doc[] =
 PyObject *
 radixly_z85_encode(PyObject *Py_UNUSED(self), PyObject *arg)
 {
-    return radixly_base85_encode_with(arg, 1);
+    return radixly_base85_encode_with(arg, RADIXLY_B85_Z85);
 }
 
 const char radixly_z85_decode_doc[] =
@@ -104,5 +104,5 @@ const char radixly_z85_decode_doc[] =
 PyObject *
 radixly_z85_decode(PyObject *Py_UNUSED(self), PyObject *arg)
 {
-    return radixly_base85_decode_with(arg, 1);
+    return radixly_base85_decode_with(arg, RADIXLY_B85_Z85);
 }

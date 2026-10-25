@@ -329,6 +329,7 @@ static PyModuleDef_Slot radixly_execs[] = {
     {Py_mod_exec, (void *)radixly_base32_exec},
     {Py_mod_exec, (void *)radixly_base32768_exec},
     {Py_mod_exec, (void *)radixly_base64_exec},
+    {Py_mod_exec, (void *)radixly_b64_compat_exec},
     {Py_mod_exec, (void *)radixly_base85_exec},
     {Py_mod_exec, (void *)radixly_base65536_exec},
     {Py_mod_exec, (void *)radixly_compat_methods_exec},
