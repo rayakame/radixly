@@ -553,7 +553,7 @@ a2b_ascii85(const unsigned char *data, Py_ssize_t len, int foldspaces, int adobe
     const unsigned char *table = radixly_b85_table(RADIXLY_B85_A85);
     unsigned char *start = (unsigned char *)PyBytes_AS_STRING(result);
     a2b_state state = {start, 0, 0, 0};
-    for (; len > 0 || state.group_pos != 0; len--, data++) {
+    for (; len > 0 || state.group_pos != 0; len--) {
         if (state.group_pos == 0 && len > 0) {
             const Py_ssize_t consumed = radixly_b85_groups(data, len, state.out, table, canonical);
             data += consumed;
@@ -566,7 +566,7 @@ a2b_ascii85(const unsigned char *data, Py_ssize_t len, int foldspaces, int adobe
         unsigned char this_ch = 0;
         unsigned digit = TOP_DIGIT;
         if (len > 0) {
-            this_ch = *data;
+            this_ch = *data++;
             digit = table[this_ch];
         }
         if (a2b_step(&state, this_ch, digit, foldspaces, &skip) < 0) {

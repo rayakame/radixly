@@ -375,7 +375,7 @@ a2b_base85(const unsigned char *data, Py_ssize_t len, int which, const unsigned 
     uint32_t leftchar = 0;
     int group_pos = 0;
     const Py_ssize_t total = len;
-    for (; len > 0 || group_pos != 0; len--, data++) {
+    for (; len > 0 || group_pos != 0; len--) {
         if (group_pos == 0 && len > 0) {
             const Py_ssize_t consumed = radixly_b85_groups(data, len, out, rev, 0);
             data += consumed;
@@ -388,7 +388,7 @@ a2b_base85(const unsigned char *data, Py_ssize_t len, int which, const unsigned 
         unsigned char this_ch = 0;
         unsigned digit = TOP_DIGIT; /* the padding digit once the input is spent */
         if (len > 0) {
-            this_ch = *data;
+            this_ch = *data++;
             digit = rev[this_ch];
         }
         if (digit < BASE) {
