@@ -33,8 +33,9 @@ the standard library reads it again per group, ``adobe`` once where it reads it 
 slice.
 
 Python 3.15 rebuilt ``base64`` over new ``binascii`` functions: every function grew keywords (``padded``,
-``wrapcol``, ``ignorechars``, ``canonical``), the length asserts became ``ValueError``, ``urlsafe_b64decode`` no
-longer requires padding and warns about a stray ``+`` or ``/``, and the 85 family raises ``binascii.Error``. The
+``wrapcol``, ``ignorechars``, ``canonical``, ``pad`` on ``z85encode``), the length asserts became ``ValueError``,
+``urlsafe_b64decode`` no longer requires padding and warns about a stray ``+`` or ``/``, and the 85 family raises
+``binascii.Error``. The
 drop-in follows that standard library on 3.15, line for line, chosen at import from the running interpreter.
 """
 
