@@ -11,7 +11,8 @@ Checks: >
   readability-*,
   -bugprone-easily-swappable-parameters,
   -misc-include-cleaner,
-  -misc-use-internal-linkage
+  -misc-use-internal-linkage,
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling
 # bugprone-signed-bitwise (hicpp-signed-bitwise until clang-tidy 23, imported
 # individually then): shifts and masks on signed operands are this
 # codebase's core UB risk (bit-packing codecs); the check fired usefully
@@ -27,6 +28,10 @@ Checks: >
 #   contract is the opposite — include Python.h only, never its internals.
 # - misc-use-internal-linkage: wants PyInit__core static, which would hide
 #   it from dlsym and break importing entirely; export is the ABI contract.
+# - clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling:
+#   wants memcpy_s and friends (C11 Annex K), which glibc and Apple's libc do
+#   not ship; fired on Linux CI (2026-10) for every memcpy/memset/memmove in
+#   binascii15.c, whose lengths are the destination's own allocation.
 # Only diagnose our code, not Python.h internals.
 HeaderFilterRegex: 'src/radixly/.*'
 # Generated tables are exempt, mirroring .clang-format-ignore: they can

@@ -29,7 +29,7 @@ Documentation: <https://radixly.rayakame.dev/en/latest/>
 pip install radixly
 ```
 
-Releases ship wheels for CPython 3.11 to 3.14 on Linux, macOS and Windows.
+Releases ship wheels for CPython 3.11 to 3.15 on Linux, macOS and Windows.
 There is no pure-Python fallback; anywhere else pip builds from source and
 needs a C compiler.
 
@@ -82,7 +82,12 @@ trade-offs.
 arguments, results and errors, with every function in C: the `b16`, `b32`,
 `b32hex`, `b64`, `a85`, `b85` and (on 3.13 and later) `z85` encoders and
 decoders, and the four legacy functions `encode`, `decode`, `encodebytes` and
-`decodebytes`. CPython's own `test_base64` suite runs against it. See [the drop-in page](https://radixly.rayakame.dev/en/latest/compat.html).
+`decodebytes`. CPython's own `test_base64` suite runs against it. On Python
+3.15, where the standard library rebuilt `base64` over new `binascii`
+functions, the drop-in takes the keywords that release added (`padded`,
+`wrapcol`, `ignorechars`, `canonical`, `pad` on `z85encode`) and raises its
+changed errors. See
+[the drop-in page](https://radixly.rayakame.dev/en/latest/compat.html).
 
 ## Performance
 

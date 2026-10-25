@@ -34,6 +34,7 @@ import random
 import subprocess  # ruff: ignore[suspicious-subprocess-import] -- fixed argv, own interpreter
 import sys
 import typing
+import warnings
 
 import pytest
 from hypothesis import given
@@ -48,6 +49,9 @@ if typing.TYPE_CHECKING:
 
 STDLIB_ALL = typing.cast("list[str]", base64.__all__)
 PORTED = sorted(name for name in STDLIB_ALL if getattr(compat, name) is getattr(_core, name, None))
+# 3.15 rebuilt base64 over new binascii functions: every function grew keywords and some changed their errors.
+PY315 = sys.version_info >= (3, 15)
+py315_only = pytest.mark.skipif(not PY315, reason="the 3.15 shapes of the standard library's base64")
 
 
 def _ours(name: str) -> Callable[..., object]:
@@ -146,6 +150,8 @@ def test_keyword_calls_match_the_stdlib(name: str) -> None:
         "pad": True,
         "adobe": False,
         "ignorechars": b" ",
+        "padded": True,
+        "canonical": False,
     }
     by_name = {parameter: samples[parameter] for parameter in parameters}
     _assert_same(name, **by_name)
@@ -290,6 +296,8 @@ _IGNORECHARS = st.sampled_from(
         [32, 10],
         {32},
         b"\xff",
+        b"=",
+        b"= ",
     ]
 )
 _MAP01 = st.sampled_from(
@@ -495,6 +503,21 @@ def test_wrong_argument_shapes_match(name: str) -> None:
         "pad": {"a85encode", "b85encode"},
         "ignorechars": {"a85decode"},
     }
+    if PY315:
+        takers["wrapcol"] |= {"b16encode", "b32encode", "b32hexencode", "b64encode", "b85encode", "z85encode"}
+        takers["pad"] |= {"z85encode"}
+        takers["ignorechars"] |= {"b16decode", "b32decode", "b32hexdecode", "b64decode", "b85decode", "z85decode"}
+        takers["padded"] = {
+            "b32encode",
+            "b32hexencode",
+            "b64encode",
+            "urlsafe_b64encode",
+            "b32decode",
+            "b32hexdecode",
+            "b64decode",
+            "urlsafe_b64decode",
+        }
+        takers["canonical"] = {"b32decode", "b32hexdecode", "b64decode", "a85decode", "b85decode", "z85decode"}
     samples: dict[str, object] = {
         "map01": "L",
         "altchars": b"-_",
@@ -503,6 +526,8 @@ def test_wrong_argument_shapes_match(name: str) -> None:
         "wrapcol": 3,
         "pad": True,
         "ignorechars": b" ",
+        "padded": False,
+        "canonical": True,
     }
     shapes += [((b"",), {keyword: samples[keyword]}) for keyword, names in takers.items() if name not in names]
     if name in {"a85encode", "a85decode"}:
@@ -626,7 +651,12 @@ def test_resizing_hook_is_refused_not_read() -> None:
     """The port holds the buffer across the hooks, so a resize is a BufferError; the stdlib reads what is left."""
     for name, encoded in (("b16decode", b"4142"), ("b32decode", b"IE======"), ("b32hexdecode", b"88======")):
         ours = bytearray(encoded)
-        assert _outcome(_ours(name), ours, casefold=_ClearingFlag(ours))[0] is BufferError
+        outcome = _outcome(_ours(name), ours, casefold=_ClearingFlag(ours))
+        if PY315 and name == "b16decode":
+            # 3.15 reads casefold before it looks at s, so the port does too and meets the emptied buffer.
+            assert outcome == (_Ok, b"")
+        else:
+            assert outcome[0] is BufferError
         theirs = bytearray(encoded)
         assert _outcome(_theirs(name), theirs, casefold=_ClearingFlag(theirs)) == (_Ok, b"")
 
@@ -726,6 +756,30 @@ def _chain_shape(call: Callable[[], object]) -> tuple[tuple[type, bool], ...]:
         ("decodebytes", (memoryview(b"abcdef")[::2],), {}),
         ("encodebytes", (memoryview(b"1234").cast("I"),), {}),
         ("encodebytes", (memoryview(b"1234").cast("B", (2, 2)),), {}),
+        *(
+            (
+                ("b64decode", (b"AAAA",), {"altchars": b"abc", "ignorechars": b""}),
+                ("b64decode", (b"AAAA",), {"altchars": "\xe9", "ignorechars": b""}),
+                ("b64decode", (b"AAAA",), {"ignorechars": "x"}),
+                ("b64decode", (b"AAAA=",), {"padded": False, "validate": True}),
+                ("b64encode", (b"",), {"wrapcol": -1}),
+                ("b64encode", (b"",), {"wrapcol": "x"}),
+                ("b64encode", (b"",), {"altchars": "-_"}),
+                ("b16encode", (b"",), {"wrapcol": "x"}),
+                ("b16encode", (b"",), {"wrapcol": 3.0}),
+                ("b16decode", (b"aB",), {}),
+                ("b16decode", (b"",), {"ignorechars": "x"}),
+                ("b16decode", (b"",), {"casefold": True, "ignorechars": "x"}),
+                ("b32decode", (b"MFRGG===",), {"padded": False}),
+                ("b32decode", (b"MF======",), {"canonical": True}),
+                ("b85decode", (b"0",), {}),
+                ("b85decode", (b"001",), {"canonical": True}),
+                ("a85decode", (b"!!!!!",), {"canonical": True}),
+                ("a85decode", (b"",), {"ignorechars": "x"}),
+            )
+            if PY315
+            else ()
+        ),
     ],
 )
 def test_exception_chains_match(name: str, args: tuple[object, ...], kwargs: dict[str, object]) -> None:
@@ -753,7 +807,9 @@ def test_map01_snapshots_where_the_stdlib_snapshots() -> None:
     """With map01 the stdlib decodes its translate() copy, so a hook's later edit reaches only the port."""
     ours = bytearray(b"MZXW6YTB")
     theirs = bytearray(b"MZXW6YTB")
-    assert _ours("b32decode")(ours, casefold=_MutatingFlag(ours), map01=b"I") == b"\x00\x00\x00\x00\x00"
+    # The 3.15 port copies before it reads casefold, as that standard library does; the older one copies after.
+    expected = b"fooba" if PY315 else b"\x00\x00\x00\x00\x00"
+    assert _ours("b32decode")(ours, casefold=_MutatingFlag(ours), map01=b"I") == expected
     assert _theirs("b32decode")(theirs, casefold=_MutatingFlag(theirs), map01=b"I") == b"fooba"
     # Without map01 the stdlib reads the live bytearray too, and both sides agree again.
     for name in ("b16decode", "b32decode", "b32hexdecode"):
@@ -1181,7 +1237,17 @@ def test_map01_assertion_text_matches() -> None:
     _assert_same("b64decode", "AAAA", altchars=b"")
     _assert_same("b64decode", "AAAA", altchars=bytearray(b"a"))
     _assert_same("b64decode", "AAAA", altchars=memoryview(b"abc"))
-    if not sys.flags.optimize:  # -O strips the stdlib's assert, and maketrans raises instead
+    if PY315:  # the asserts became maketrans's ValueError for map01 and base64's own for altchars
+        assert _outcome(compat.b32decode, "AAAAAAAA", map01=bytearray(b"ab")) == (
+            ValueError,
+            ("maketrans arguments must have same length",),
+        )
+        assert _outcome(compat.b64decode, "AAAA", altchars="abc") == (ValueError, ("invalid altchars: b'abc'",))
+        assert _outcome(compat.b64decode, "AAAA", altchars=bytearray(b"a")) == (
+            ValueError,
+            ("invalid altchars: bytearray(b'a')",),
+        )
+    elif not sys.flags.optimize:  # -O strips the stdlib's assert, and maketrans raises instead
         assert _outcome(compat.b32decode, "AAAAAAAA", map01=bytearray(b"ab")) == (
             AssertionError,
             ("bytearray(b'ab')",),
@@ -1228,7 +1294,16 @@ def test_length_assertions_judge_the_coerced_object() -> None:
     _assert_same("b64decode", b"QUJD", altchars=_ByteArrayEncode("x"))
     _assert_same("b32decode", "AAAAAAAA", map01=_TwoLong(b"L"))
     _assert_same("b32decode", "AAAAAAAA", map01=_ByteArrayEncode("x"))
-    if not sys.flags.optimize:
+    if PY315:  # len() still judges the object, but the verdict is base64's own ValueError now
+        assert _outcome(compat.b64decode, b"QUJD", altchars=_ThreeLong(b"-_")) == (
+            ValueError,
+            ("invalid altchars: b'-_'",),
+        )
+        assert _outcome(compat.b64decode, b"QUJD", altchars=_ByteArrayEncode("x")) == (
+            ValueError,
+            ("invalid altchars: bytearray(b'abc')",),
+        )
+    elif not sys.flags.optimize:
         assert _outcome(compat.b64decode, b"QUJD", altchars=_ThreeLong(b"-_")) == (AssertionError, ("b'-_'",))
         assert _outcome(compat.b64decode, b"QUJD", altchars=_ByteArrayEncode("x")) == (
             AssertionError,
@@ -1250,14 +1325,18 @@ def test_b64encode_altchars_is_judged_as_the_stdlib_judges_it() -> None:
     _assert_same("b64encode", b"", altchars=bytearray(b"*"))
     _assert_same("b64encode", b"", altchars=[42, 43])
     _assert_same("b64encode", b"", altchars=memoryview(b"*$*$").cast("H"))
-    if not sys.flags.optimize:
+    if PY315:
+        assert _outcome(compat.b64encode, b"", altchars=b"***") == (ValueError, ("invalid altchars: b'***'",))
+        assert _outcome(compat.b64encode, b"", altchars=5) == (TypeError, ("object of type 'int' has no len()",))
+    elif not sys.flags.optimize:
         assert _outcome(compat.b64encode, b"", altchars=b"***") == (AssertionError, ("b'***'",))
         assert _outcome(compat.b64encode, b"", altchars=5) == (TypeError, ("object of type 'int' has no len()",))
     assert _outcome(compat.b64encode, b"", altchars="*$")[0] is TypeError
-    # Two items of two bytes each: the assertion passes and maketrans sees four bytes against two.
+    # Two items of two bytes each: the length check passes and the buffer holds four bytes against two, which
+    # maketrans refuses before 3.15 and the 66-byte alphabet is refused from 3.15 on.
     assert _outcome(compat.b64encode, b"", altchars=memoryview(b"*$*$").cast("H")) == (
         ValueError,
-        ("maketrans arguments must have same length",),
+        ("alphabet must have length 64",) if PY315 else ("maketrans arguments must have same length",),
     )
 
 
@@ -1282,14 +1361,17 @@ def test_map01_under_optimize_matches() -> None:
         "        f(*args, **kwargs)\n"
         "    except Exception as error:\n"
         "        return (type(error).__name__, error.args)\n"
-        "for args, kwargs in (((b'AAAA',), {'altchars': 'abc'}), ((b'AAAA', b''), {})):\n"
+        # 3.15 has no assert to strip: its own ValueError names the altchars, under -O as well.
+        "if sys.version_info >= (3, 15): expected = ('ValueError', (\"invalid altchars: b'abc'\",))\n"
+        "for args, kwargs in (((b'AAAA',), {'altchars': 'abc'}), ((b'AAAA', b'abc'), {})):\n"
         "    if run64(base64.b64decode, *args, **kwargs) != expected: raise SystemExit('stdlib b64decode')\n"
         "    if run64(compat.b64decode, *args, **kwargs) != expected: raise SystemExit('port b64decode')\n"
         # Without the assert the stdlib never calls len(altchars), so 5 fails in maketrans, not in len().
         "for altchars in (5, b'abc', 'ab'):\n"
         "    ours, theirs = run64(compat.b64encode, b'', altchars), run64(base64.b64encode, b'', altchars)\n"
         "    if ours != theirs: raise SystemExit('b64encode %r: %r != %r' % (altchars, ours, theirs))\n"
-        "if run64(compat.b64encode, b'', 5) != ('TypeError', (\"a bytes-like object is required, not 'int'\",)):\n"
+        "if sys.version_info < (3, 15) and run64(compat.b64encode, b'', 5) != "
+        "('TypeError', (\"a bytes-like object is required, not 'int'\",)):\n"
         "    raise SystemExit('b64encode under -O: %r' % (run64(compat.b64encode, b'', 5),))\n"
     )
     subprocess.run([sys.executable, "-O", "-c", script], check=True)  # ruff: ignore[subprocess-without-shell-equals-true] -- fixed argv, own interpreter
@@ -1327,7 +1409,10 @@ def test_flag_is_looked_at_where_the_stdlib_looks() -> None:
     _assert_same("a85decode", b"!!", foldspaces=_RaisingFlag(), adobe=_RaisingFlag())
     _assert_same("a85decode", 42, foldspaces=_RaisingFlag(), adobe=_RaisingFlag())
     assert _outcome(compat.a85decode, b"!!!!! ", foldspaces=_RaisingFlag()) == (RuntimeError, ("flag looked at",))
-    assert _outcome(compat.a85encode, b"\0\0\0\0", foldspaces=_RaisingFlag()) == (_Ok, b"z")
+    # 3.15's binascii converts every keyword up front, so the flag is read whether or not a word needs it.
+    assert _outcome(compat.a85encode, b"\0\0\0\0", foldspaces=_RaisingFlag()) == (
+        (RuntimeError, ("flag looked at",)) if PY315 else (_Ok, b"z")
+    )
 
 
 def test_stdlib_quirks_are_kept() -> None:
@@ -1337,22 +1422,30 @@ def test_stdlib_quirks_are_kept() -> None:
     assert compat.b16decode(memoryview(b"AABBCCDD")[::2]) == b"\xab\xcd"
     assert compat.b32decode(memoryview(b"MxFxRxGxGx=x=x=x")[::2]) == base64.b32decode(b"MFRGG===") == b"abc"
     assert compat.b32hexdecode(memoryview(b"Cx4x=x=x=x=x=x=x")[::2]) == base64.b32hexdecode(b"C4======") == b"a"
-    assert compat.b32encode(memoryview(b"abcdef")[::2]) == base64.b32encode(b"ace")
+    # The pure-Python b32encode copied a strided view; 3.15's binascii takes the buffer as is and refuses it.
+    strided = _outcome(compat.b32encode, memoryview(b"abcdef")[::2])
+    assert strided == _outcome(base64.b32encode, memoryview(b"abcdef")[::2])
+    assert strided[0] is BufferError if PY315 else strided == (_Ok, base64.b32encode(b"ace"))
     assert compat.b32decode("AAAAAAA1", map01="=") == base64.b32decode("AAAAAAA1", map01="=") == b"\x00\x00\x00\x00"
     assert compat.b64decode(b"AB==") == base64.b64decode(b"AB==") == b"\x00"
     assert compat.b64decode(b"A A\nA A") == base64.b64decode(b"A A\nA A") == b"\x00\x00\x00"
     assert compat.b64decode(b"====") == base64.b64decode(b"====") == b""
-    assert compat.urlsafe_b64decode(b"++//") == base64.urlsafe_b64decode(b"++//") == b"\xfb\xef\xff"
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", FutureWarning)  # 3.15 warns about the '+' and '/'; the value is unchanged
+        assert compat.urlsafe_b64decode(b"++//") == base64.urlsafe_b64decode(b"++//") == b"\xfb\xef\xff"
     assert compat.b64decode(b"AA=A", altchars=b"=A") == base64.b64decode(b"AA=A", altchars=b"=A") == b"\xff\xff\xbf"
     assert compat.b64decode(memoryview(b"QxUxJxDx")[::2]) == base64.b64decode(b"QUJD") == b"ABC"
     # The 85 family pads with its largest digit, so a lone character overflows rather than decoding to nothing.
-    assert _outcome(compat.a85decode, b"u") == (ValueError, ("Ascii85 overflow",))
-    assert _outcome(base64.a85decode, b"u") == (ValueError, ("Ascii85 overflow",))
-    assert compat.a85decode(b"!!!!!!") == b"\0\0\0\0"  # one leftover character decodes to nothing
-    assert base64.a85decode(b"!!!!!!") == b"\0\0\0\0"
+    overflow = binascii.Error if PY315 else ValueError  # 3.15 raises binascii's own error, a ValueError too
+    assert _outcome(compat.a85decode, b"u") == (overflow, ("Ascii85 overflow",))
+    assert _outcome(base64.a85decode, b"u") == (overflow, ("Ascii85 overflow",))
+    # One leftover character decoded to nothing; 3.15 calls it an incomplete group.
+    leftover = _outcome(compat.a85decode, b"!!!!!!")
+    assert leftover == _outcome(base64.a85decode, b"!!!!!!")
+    assert leftover == ((binascii.Error, ("Incomplete Ascii85 group",)) if PY315 else (_Ok, b"\0\0\0\0"))
     assert compat.a85decode(b"<~~>", adobe=True) == b""
     assert compat.a85decode(b"~>", adobe=True) == b""
-    assert _outcome(compat.a85decode, b"y") == (ValueError, ("Non-Ascii85 digit found: y",))  # y is past u
+    assert _outcome(compat.a85decode, b"y") == (overflow, ("Non-Ascii85 digit found: y",))  # y is past u
     assert compat.a85decode(b"y", foldspaces=True) == b"    "
     assert compat.a85encode(b"", adobe=True, wrapcol=2) == b"<~\n~>"
     assert compat.a85encode(b"\0\0\0\0\0") == b"z!!"
@@ -1468,3 +1561,246 @@ def test_a2b_base64_edge_table_matches_the_running_interpreter(data: bytes) -> N
         _assert_same("b64decode", data.decode("latin-1"), validate=validate)
     _assert_same("standard_b64decode", data)
     _assert_same("urlsafe_b64decode", data)
+
+
+# The 3.15 shapes: every keyword binascii grew, fed to both sides in every combination of good and hostile.
+
+
+class _Absent:
+    """A keyword left out of the call, so the stdlib's default (and its 'not specified' sentinel) applies."""
+
+
+_ABSENT = _Absent()
+
+
+def _given(**pairs: object) -> dict[str, object]:
+    return {name: value for name, value in pairs.items() if value is not _ABSENT}
+
+
+_MAYBE_FLAG = st.one_of(st.just(_ABSENT), _FLAGS)
+_MAYBE_WRAPCOL = st.one_of(st.just(_ABSENT), _WRAPCOL)
+_MAYBE_IGNORECHARS = st.one_of(st.just(_ABSENT), _IGNORECHARS)
+_MAYBE_MAP01 = st.one_of(st.just(_ABSENT), _MAP01)
+_MAYBE_DECODE_ALTCHARS = st.one_of(st.just(_ABSENT), _DECODE_ALTCHARS)
+_MAYBE_ENCODE_ALTCHARS = st.one_of(st.just(_ABSENT), _ENCODE_ALTCHARS)
+
+
+@py315_only
+@settings(max_examples=3000)
+@given(_ENCODE_INPUTS, _MAYBE_ENCODE_ALTCHARS, _MAYBE_FLAG, _MAYBE_WRAPCOL)
+def test_py315_b64encode_matches(data: object, altchars: object, padded: object, wrapcol: object) -> None:
+    _assert_same("b64encode", data, **_given(altchars=altchars, padded=padded, wrapcol=wrapcol))
+
+
+@py315_only
+@settings(max_examples=4000)
+@given(_DECODE_INPUTS, _MAYBE_DECODE_ALTCHARS, _MAYBE_FLAG, _MAYBE_FLAG, _MAYBE_IGNORECHARS, _MAYBE_FLAG)
+def test_py315_b64decode_matches(  # ruff: ignore[too-many-arguments, too-many-positional-arguments]
+    data: object, altchars: object, validate: object, padded: object, ignorechars: object, canonical: object
+) -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")  # the warnings are compared on their own below
+        _assert_same(
+            "b64decode",
+            data,
+            **_given(altchars=altchars, validate=validate, padded=padded, ignorechars=ignorechars, canonical=canonical),
+        )
+
+
+@py315_only
+@settings(max_examples=2000)
+@given(st.sampled_from(["urlsafe_b64encode", "urlsafe_b64decode"]), _DECODE_INPUTS, _MAYBE_FLAG)
+def test_py315_urlsafe_matches(name: str, data: object, padded: object) -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        _assert_same(name, data, **_given(padded=padded))
+
+
+@py315_only
+@settings(max_examples=2000)
+@given(st.sampled_from(["b32encode", "b32hexencode"]), _ENCODE_INPUTS, _MAYBE_FLAG, _MAYBE_WRAPCOL)
+def test_py315_b32encode_matches(name: str, data: object, padded: object, wrapcol: object) -> None:
+    _assert_same(name, data, **_given(padded=padded, wrapcol=wrapcol))
+
+
+@py315_only
+@settings(max_examples=4000)
+@given(_DECODE_INPUTS, _MAYBE_FLAG, _MAYBE_MAP01, _MAYBE_FLAG, _MAYBE_IGNORECHARS, _MAYBE_FLAG)
+def test_py315_b32decode_matches(  # ruff: ignore[too-many-arguments, too-many-positional-arguments]
+    data: object, casefold: object, map01: object, padded: object, ignorechars: object, canonical: object
+) -> None:
+    _assert_same(
+        "b32decode",
+        data,
+        **_given(casefold=casefold, map01=map01, padded=padded, ignorechars=ignorechars, canonical=canonical),
+    )
+
+
+@py315_only
+@settings(max_examples=3000)
+@given(_DECODE_INPUTS, _MAYBE_FLAG, _MAYBE_FLAG, _MAYBE_IGNORECHARS, _MAYBE_FLAG)
+def test_py315_b32hexdecode_matches(
+    data: object, casefold: object, padded: object, ignorechars: object, canonical: object
+) -> None:
+    _assert_same(
+        "b32hexdecode", data, **_given(casefold=casefold, padded=padded, ignorechars=ignorechars, canonical=canonical)
+    )
+
+
+@py315_only
+@settings(max_examples=2000)
+@given(_ENCODE_INPUTS, _MAYBE_WRAPCOL)
+def test_py315_b16encode_matches(data: object, wrapcol: object) -> None:
+    _assert_same("b16encode", data, **_given(wrapcol=wrapcol))
+
+
+@py315_only
+@settings(max_examples=3000)
+@given(_DECODE_INPUTS, _MAYBE_FLAG, _MAYBE_IGNORECHARS)
+def test_py315_b16decode_matches(data: object, casefold: object, ignorechars: object) -> None:
+    _assert_same("b16decode", data, **_given(casefold=casefold, ignorechars=ignorechars))
+
+
+@py315_only
+@settings(max_examples=2000)
+@given(st.sampled_from(["b85encode", "z85encode"]), _ENCODE_INPUTS, _MAYBE_FLAG, _MAYBE_WRAPCOL)
+def test_py315_85_encoders_match(name: str, data: object, pad: object, wrapcol: object) -> None:
+    _assert_same(name, data, **_given(pad=pad, wrapcol=wrapcol))
+
+
+@py315_only
+@settings(max_examples=3000)
+@given(st.sampled_from(["b85decode", "z85decode"]), _DECODE_INPUTS_85, _MAYBE_IGNORECHARS, _MAYBE_FLAG)
+def test_py315_85_decoders_match(name: str, data: object, ignorechars: object, canonical: object) -> None:
+    _assert_same(name, data, **_given(ignorechars=ignorechars, canonical=canonical))
+
+
+@py315_only
+@settings(max_examples=3000)
+@given(_DECODE_INPUTS_85, _MAYBE_FLAG, _MAYBE_FLAG, _MAYBE_IGNORECHARS, _MAYBE_FLAG)
+def test_py315_a85decode_matches(
+    data: object, foldspaces: object, adobe: object, ignorechars: object, canonical: object
+) -> None:
+    _assert_same(
+        "a85decode", data, **_given(foldspaces=foldspaces, adobe=adobe, ignorechars=ignorechars, canonical=canonical)
+    )
+
+
+class _IndexOnly:
+    """A width that is an integer by __index__ alone, which 3.15's size_t converter accepts."""
+
+    def __index__(self) -> int:
+        return 7
+
+
+_PY315_WIDTHS = [0, 1, 4, 5, 7, 8, 76, sys.maxsize, sys.maxsize * 2, 2**64, 2**1000, -1, -(2**70), True, _IndexOnly()]
+
+
+@py315_only
+@pytest.mark.parametrize(
+    "name", ["b16encode", "b32encode", "b32hexencode", "b64encode", "a85encode", "b85encode", "z85encode"]
+)
+def test_py315_wrapcol_shapes_match(name: str) -> None:
+    """The size_t converter's three errors and its two accepted edges, and b16encode's own arithmetic."""
+    for width in _PY315_WIDTHS:
+        for payload in (b"", b"a", b"abcdefgh", b"x" * 200):
+            _assert_same(name, payload, wrapcol=width)
+    assert _outcome(_ours(name), b"abc", wrapcol=-1)[0] is ValueError
+    assert _outcome(_ours(name), b"abc", wrapcol=2**1000)[0] is OverflowError
+    assert _outcome(_ours(name), b"abc", wrapcol="x")[0] is TypeError
+
+
+def _warned(function: Callable[..., object], *args: object, **kwargs: object) -> tuple[object, list[tuple[type, str]]]:
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        outcome = _outcome(function, *args, **kwargs)
+    return (outcome, [(w.category, str(w.message)) for w in caught])
+
+
+_PY315_WARNING_CASES: list[tuple[str, tuple[object, ...], dict[str, object]]] = [
+    ("b64decode", (b"++++",), {"altchars": b"-_"}),
+    ("b64decode", (b"////",), {"altchars": b"-_"}),
+    ("b64decode", (b"++++",), {"altchars": b"-_", "validate": True}),
+    ("b64decode", (b"++++",), {"altchars": bytearray(b"-_")}),
+    ("b64decode", (b"++++",), {"altchars": "-_"}),
+    ("b64decode", (b"++++",), {"altchars": memoryview(b"-_")}),
+    ("b64decode", (b"++++",), {"altchars": b"-_", "ignorechars": b"+"}),  # the alphabet path never warns
+    ("b64decode", (b"++++",), {"altchars": b"+_"}),  # covered by altchars: nothing to warn about
+    ("b64decode", (b"----",), {"altchars": b"-_"}),
+    ("b64decode", (b"+/!",), {"altchars": b"-_"}),  # the warning only follows a decode that returned
+    ("b64decode", (b"+/!",), {"altchars": b"-_", "validate": True}),
+    ("b64decode", (b"++++",), {"altchars": b"=A"}),
+    ("urlsafe_b64decode", (b"++++",), {}),
+    ("urlsafe_b64decode", (b"////",), {}),
+    ("urlsafe_b64decode", (b"--__",), {}),
+    ("urlsafe_b64decode", (b"+/!",), {}),
+    ("urlsafe_b64decode", (b"+/==",), {"padded": True}),
+    ("standard_b64decode", (b"++//",), {}),
+]
+
+
+@py315_only
+@pytest.mark.parametrize(("name", "args", "kwargs"), _PY315_WARNING_CASES, ids=repr)
+def test_py315_warnings_match(name: str, args: tuple[object, ...], kwargs: dict[str, object]) -> None:
+    """The FutureWarning and DeprecationWarning about a stray '+' or '/', word for word, and only after a result."""
+    assert _warned(_ours(name), *args, **kwargs) == _warned(_theirs(name), *args, **kwargs)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # under -W error the warning is the exception, on both sides
+        _assert_same(name, *args, **kwargs)
+
+
+class _OwnRadd(bytes):
+    """Altchars that take over bytes + altchars: the alphabet the stdlib hands to binascii is whatever this returns."""
+
+    alphabet: object
+
+    def __new__(cls, data: bytes, alphabet: object) -> typing.Self:
+        self = super().__new__(cls, data)
+        self.alphabet = alphabet
+        return self
+
+    def __radd__(self, _other: bytes) -> object:
+        return self.alphabet
+
+
+_PY315_PINNED_CASES: list[tuple[str, tuple[object, ...], dict[str, object]]] = [
+    # pads carried across a whole group: binascii forgets them, so the next group's tail is judged afresh
+    ("b32decode", (b"MY======XW6YTBMY",), {"ignorechars": b"="}),
+    ("b32decode", (b"MY======XW6YTBMY",), {"ignorechars": b"=", "canonical": True}),
+    ("b32decode", (b"MY======XW6YTBMZ",), {"ignorechars": b"=", "canonical": True}),
+    ("b32decode", (b"MY======XW6YTBMY===",), {"ignorechars": b"="}),
+    ("b32decode", (b"MY======XW6YTBMYXW6Y====",), {"ignorechars": b"="}),
+    ("b32hexdecode", (b"CO======NMUOJ1CO",), {"ignorechars": b"="}),
+    ("b32hexdecode", (b"CO======NMUOJ1CONMUO====",), {"ignorechars": b"="}),
+    # the alphabet bytes + altchars built is whatever altchars' __radd__ says
+    ("b64decode", (b"QUJD", _OwnRadd(b"-_", None)), {"ignorechars": b""}),
+    ("b64decode", (b"QUJD", _OwnRadd(b"-_", 42)), {"ignorechars": b""}),
+    ("b64decode", (b"QUJD", _OwnRadd(b"-_", "x" * 64)), {"ignorechars": b""}),
+    ("b64decode", (b"QUJD", _OwnRadd(b"-_", bytearray(64))), {"ignorechars": b""}),
+    ("b64decode", (b"QUJD", _OwnRadd(b"-_", b"x" * 63)), {"ignorechars": b""}),
+    ("b64decode", (b"QUJD", _OwnRadd(b"-_", b"x" * 64)), {"ignorechars": b""}),
+    ("b64decode", (b"QUJD", _OwnRadd(b"-_", None)), {}),  # no ignorechars: the translate path, no alphabet built
+]
+
+
+@py315_only
+@pytest.mark.parametrize(("name", "args", "kwargs"), _PY315_PINNED_CASES, ids=repr)
+def test_py315_pinned_cases_match(name: str, args: tuple[object, ...], kwargs: dict[str, object]) -> None:
+    _assert_same(name, *args, **kwargs)
+
+
+@py315_only
+def test_py315_not_specified_sentinel_is_honoured() -> None:
+    """Honour the stdlib's own sentinel: passed explicitly, validate still defaults from ignorechars."""
+    sentinel = typing.cast("object", base64._NOT_SPECIFIED)  # pyright: ignore[reportAttributeAccessIssue]
+    for data in (b"QQ==", b"QQ", b"Q Q==", b"=QQ=="):
+        _assert_same("b64decode", data, validate=sentinel)
+        _assert_same("b64decode", data, validate=sentinel, ignorechars=b"")
+        _assert_same("b64decode", data, validate=sentinel, ignorechars=b" =")
+        _assert_same("b64decode", data, ignorechars=sentinel)
+        _assert_same("b64decode", data, ignorechars=sentinel, validate=True)
+    assert _outcome(compat.b64decode, b"Q Q==", validate=sentinel, ignorechars=b"") == (
+        binascii.Error,
+        ("Only base64 data is allowed",),
+    )
+    assert _outcome(compat.b64decode, b"Q Q==", validate=sentinel) == (_Ok, b"A")

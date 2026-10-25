@@ -25,6 +25,8 @@ import hashlib
 import json
 import pathlib
 import shutil
+import subprocess  # ruff: ignore[suspicious-subprocess-import] -- fixed argv, xcrun only
+import sys
 import sysconfig
 import tempfile
 
@@ -162,17 +164,24 @@ def verifytypes(session: nox.Session) -> None:
     session.run("basedpyright", "--pythonpath", python, "--verifytypes", "radixly", "--ignoreexternal")
 
 
+def _sdk_path(xcrun: str) -> str:
+    return subprocess.run([xcrun, "--show-sdk-path"], check=True, capture_output=True, text=True).stdout.strip()  # ruff: ignore[subprocess-without-shell-equals-true] -- fixed argv
+
+
 def _write_compiledb() -> None:
     """Write compile_commands.json for clang-tidy; machine-specific, so generated and gitignored."""
     include: object = sysconfig.get_config_var("INCLUDEPY")  # pyright: ignore[reportAny]
     assert isinstance(include, str), "INCLUDEPY missing from sysconfig"
     sources = [p for p in C_PATHS if p.endswith(".c")]
+    # The pip clang-tidy finds no system headers on macOS without the SDK root; without assert.h the parse is
+    # garbage and every Py_ssize_t reads as int.
+    sdk = [] if sys.platform != "darwin" or (root := shutil.which("xcrun")) is None else ["-isysroot", _sdk_path(root)]
     entries = [
         {
             "directory": str(pathlib.Path.cwd()),
             "file": path,
             # -std is PEP 7's C11; src/radixly mirrors the build's include root so quoted includes resolve alike.
-            "arguments": ["cc", "-std=c11", "-I", include, "-I", "src/radixly", "-c", path],
+            "arguments": ["cc", "-std=c11", *sdk, "-I", include, "-I", "src/radixly", "-c", path],
         }
         for path in sources
     ]

@@ -51,6 +51,14 @@ whether ascii85 gets one is undecided.
   is a drop-in at every step. `b64decode` mirrors the running interpreter's
   `binascii.a2b_base64`, which changed in 3.12.4, 3.13.13 and 3.14.4; the C
   picks the variant at import from `Py_Version`, never at compile time.
+  3.15 rebuilt `base64` over new `binascii` functions (keywords `padded`,
+  `wrapcol`, `ignorechars`, `canonical`, `pad` on `z85encode`; asserts became
+  ValueErrors; the 85 family raises `binascii.Error`): `_common/binascii15.c`
+  ports that
+  `binascii` line for line, each codec file carries its `_py315` wrappers,
+  and `_core.c` installs one of two compat method tables at import. CPython
+  3.15's `test_base64` is vendored next to the 3.14 one; each runs on its
+  own interpreters.
 - Performance bars are the committed record
   (`benchmarks/results/i9-14900KF-performance.json`), rendered into README and
   docs; regressions need a reason, CI gates the C-vs-reference ratio.

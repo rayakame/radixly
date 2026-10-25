@@ -23,8 +23,37 @@
 #include <Python.h>
 #include "compat.h"
 
+#include "internal.h"
+
 static PyObject *binascii_error = NULL;
 static PyObject *struct_error = NULL;
+static PyObject *not_specified = NULL;
+static int stdlib_is_py315 = 0;
+
+enum { PY315_MINOR = 15, PY3 = 3 };
+static const unsigned MINOR_SHIFT = 16U;
+static const unsigned MAJOR_SHIFT = 24U;
+
+int
+radixly_compat_py315(void)
+{
+    return stdlib_is_py315;
+}
+
+int
+radixly_compat_specified(PyObject *arg)
+{
+    return arg != NULL && (not_specified == NULL || arg != not_specified);
+}
+
+PyObject *
+radixly_compat_input_object(const radixly_compat_input *input)
+{
+    if (input->coerced != NULL) {
+        return Py_NewRef(input->coerced);
+    }
+    return PyBytes_FromStringAndSize((const char *)input->data, input->len);
+}
 
 int
 radixly_compat_exec(PyObject *Py_UNUSED(module))
@@ -51,6 +80,24 @@ radixly_compat_exec(PyObject *Py_UNUSED(module))
         return -1;
     }
     Py_XSETREF(struct_error, struct_err);
+    const unsigned long major = (Py_Version >> MAJOR_SHIFT) & BYTE_MASK;
+    const unsigned long minor = (Py_Version >> MINOR_SHIFT) & BYTE_MASK;
+    stdlib_is_py315 = major > PY3 || (major == PY3 && minor >= PY315_MINOR);
+    if (stdlib_is_py315 != 0) {
+        /* 3.15's b64decode tells an absent validate from a given one by this private sentinel. */
+        PyObject *base64 = PyImport_ImportModule("base64");
+        if (base64 == NULL) {
+            return -1;
+        }
+        PyObject *sentinel = PyObject_GetAttrString(base64, "_NOT_SPECIFIED");
+        Py_DECREF(base64);
+        if (sentinel == NULL) {
+            PyErr_Clear(); /* a release without the sentinel: only an absent keyword counts as unspecified */
+        }
+        else {
+            Py_XSETREF(not_specified, sentinel);
+        }
+    }
     return 0;
 }
 
@@ -311,6 +358,34 @@ radixly_compat_buffer_input(PyObject *arg, radixly_compat_input *input)
         return -1;
     }
     return input_from_view(input);
+}
+
+int
+radixly_compat_bytes_init(radixly_compat_bytes *bytes, PyObject *arg, const unsigned char *fallback,
+                          Py_ssize_t fallback_len)
+{
+    bytes->has_view = 0;
+    if (arg == NULL) {
+        bytes->data = fallback;
+        bytes->len = fallback_len;
+        return 0;
+    }
+    if (PyObject_GetBuffer(arg, &bytes->view, PyBUF_SIMPLE) < 0) {
+        return -1;
+    }
+    bytes->has_view = 1;
+    bytes->data = bytes->view.buf;
+    bytes->len = bytes->view.len;
+    return 0;
+}
+
+void
+radixly_compat_bytes_release(radixly_compat_bytes *bytes)
+{
+    if (bytes->has_view != 0) {
+        PyBuffer_Release(&bytes->view);
+        bytes->has_view = 0;
+    }
 }
 
 void

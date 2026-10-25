@@ -133,3 +133,44 @@ radixly_b32hexdecode(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_
 {
     return radixly_b32decode_with("b32hexdecode", args, nargs, kwnames, 1);
 }
+
+const char radixly_b32hexencode_py315_doc[] =
+    PyDoc_STR("b32hexencode($module, /, s, *, padded=True, wrapcol=0)\n"
+              "--\n"
+              "\n"
+              "Encode the bytes-like objects using base32hex and return a bytes object.\n"
+              "\n"
+              "If padded is false, omit padding in the output.\n"
+              "\n"
+              "If wrapcol is non-zero, insert a newline (b'\\n') character after at most\n"
+              "every wrapcol characters.");
+PyObject *
+radixly_b32hexencode_py315(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs,
+                           PyObject *kwnames)
+{
+    return radixly_b32encode_with_py315("b32hexencode", args, nargs, kwnames, 1);
+}
+
+const char radixly_b32hexdecode_py315_doc[] = PyDoc_STR(
+    "b32hexdecode($module, /, s, casefold=False, *, padded=True, ignorechars=b'', canonical=False)\n"
+    "--\n"
+    "\n"
+    "Decode the base32hex encoded bytes-like object or ASCII string s.\n"
+    "\n"
+    "Optional casefold is a flag specifying whether a lowercase alphabet is\n"
+    "acceptable as input.  For security purposes, the default is False.\n"
+    "\n"
+    "If padded is false, padding in input is not required.\n"
+    "\n"
+    "ignorechars should be a byte string containing characters to ignore\n"
+    "from the input.\n"
+    "\n"
+    "The result is returned as a bytes object.  A binascii.Error is raised if\n"
+    "the input is incorrectly padded or if there are non-alphabet\n"
+    "characters present in the input.");
+PyObject *
+radixly_b32hexdecode_py315(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs,
+                           PyObject *kwnames)
+{
+    return radixly_b32decode_with_py315("b32hexdecode", args, nargs, kwnames, 1);
+}

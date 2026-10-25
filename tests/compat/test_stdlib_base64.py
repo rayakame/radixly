@@ -1,10 +1,14 @@
 # Vendored byte for byte from CPython 3.14, Lib/test/test_base64.py, under the Python Software Foundation
 # License (tests/compat/LICENSE-PSF.txt). Edits, listed in tests/compat/README.md: the import points at
 # radixly.compat.base64, the test.support imports and the two classes needing them are gone, assertIsSubclass
-# is spelled for older unittest, the z85 tests skip where the standard library has no z85 (before 3.13).
-# Everything else is the standard library's own suite; ruff excludes the file, so it stays as upstream wrote it.
+# is spelled for older unittest, the z85 tests skip where the standard library has no z85 (before 3.13), and
+# the module skips from 3.15 on, whose rewritten base64 test_stdlib_base64_py315.py describes.
 import sys
 import unittest
+
+if sys.version_info >= (3, 15):
+    raise unittest.SkipTest("the 3.14 base64 suite; the 3.15 one runs from 3.15 on")
+
 import binascii
 from array import array
 

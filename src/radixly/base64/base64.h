@@ -69,4 +69,29 @@ extern const char radixly_standard_b64decode_doc[];
 PyObject *radixly_standard_b64decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs,
                                      PyObject *kwnames);
 
+/* The shapes 3.15's base64 gives these functions, installed in place of the ones above on 3.15 and later. */
+
+/* The three shells 3.15 keeps over b2a_base64 and a2b_base64: b64encode and b64decode with every keyword, the
+ * standard pair with none, the urlsafe pair with padded. */
+typedef enum { RADIXLY_B64_FULL, RADIXLY_B64_STANDARD, RADIXLY_B64_URLSAFE } radixly_b64_shape;
+
+PyObject *radixly_b64encode_with_py315(const char *function, PyObject *const *args, Py_ssize_t nargs,
+                                       PyObject *kwnames, radixly_b64_shape shape);
+PyObject *radixly_b64decode_with_py315(const char *function, PyObject *const *args, Py_ssize_t nargs,
+                                       PyObject *kwnames, radixly_b64_shape shape);
+
+extern const char radixly_b64encode_py315_doc[];
+PyObject *radixly_b64encode_py315(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
+
+extern const char radixly_b64decode_py315_doc[];
+PyObject *radixly_b64decode_py315(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
+
+PyObject *radixly_standard_b64encode_py315(PyObject *self, PyObject *const *args, Py_ssize_t nargs,
+                                           PyObject *kwnames);
+PyObject *radixly_standard_b64decode_py315(PyObject *self, PyObject *const *args, Py_ssize_t nargs,
+                                           PyObject *kwnames);
+
+PyObject *radixly_encodebytes_py315(PyObject *self, PyObject *const *args, Py_ssize_t nargs,
+                                    PyObject *kwnames);
+
 #endif // RADIXLY_BASE64_H

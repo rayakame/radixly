@@ -28,6 +28,7 @@
 #include "_common/args.h"
 #include "_common/compat.h"
 #include "_common/internal.h"
+#include "_common/binascii15.h"
 
 enum {
     GROUP_BYTES = 4,
@@ -426,5 +427,124 @@ radixly_a85decode(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t n
     if (out_len != PyBytes_GET_SIZE(result) && _PyBytes_Resize(&result, out_len) < 0) {
         return NULL; /* result already cleared and the exception set */
     }
+    return result;
+}
+
+/* Python 3.15 made a85encode and a85decode shells over binascii.b2a_ascii85 and a2b_ascii85. */
+
+const char radixly_a85encode_py315_doc[] =
+    PyDoc_STR("a85encode($module, /, b, *, foldspaces=False, wrapcol=0, pad=False, adobe=False)\n"
+              "--\n"
+              "\n"
+              "Encode bytes-like object b using Ascii85 and return a bytes object.\n"
+              "\n"
+              "foldspaces is an optional flag that uses the special short sequence 'y'\n"
+              "instead of 4 consecutive spaces (ASCII 0x20) as supported by 'btoa'. This\n"
+              "feature is not supported by the standard encoding used in PDF.\n"
+              "\n"
+              "If wrapcol is non-zero, insert a newline (b'\\n') character after at most\n"
+              "every wrapcol characters.\n"
+              "\n"
+              "pad controls whether zero-padding applied to the end of the input\n"
+              "is fully retained in the output encoding, as done by btoa,\n"
+              "producing an exact multiple of 5 bytes of output.\n"
+              "\n"
+              "adobe controls whether the encoded byte sequence is framed with <~\n"
+              "and ~>, as in a PostScript base-85 string literal.  Note that\n"
+              "while ASCII85Decode streams in PDF documents must be terminated\n"
+              "with ~>, they must not use a leading <~.");
+PyObject *
+radixly_a85encode_py315(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+{
+    PyObject *arg = NULL;
+    PyObject *foldspaces = NULL;
+    PyObject *wrapcol = NULL;
+    PyObject *pad = NULL;
+    PyObject *adobe = NULL;
+    radixly_param params[] = {
+        {"b", &arg}, {"foldspaces", &foldspaces}, {"wrapcol", &wrapcol}, {"pad", &pad}, {"adobe", &adobe},
+    };
+    if (radixly_bind_args("a85encode", args, nargs, kwnames, params, RADIXLY_ARRAY_SIZE(params), 1, 1) < 0) {
+        return NULL;
+    }
+    Py_buffer view;
+    if (PyObject_GetBuffer(arg, &view, PyBUF_SIMPLE) < 0) {
+        return NULL;
+    }
+    /* binascii's keywords in its own order: foldspaces, wrapcol, pad, adobe. */
+    PyObject *result = NULL;
+    size_t width = 0;
+    const int fold = radixly_compat_truth(foldspaces);
+    if (fold >= 0 && (wrapcol == NULL || radixly_py315_size_t(wrapcol, &width) == 0)) {
+        const int padding = radixly_compat_truth(pad);
+        const int framed = padding < 0 ? -1 : radixly_compat_truth(adobe);
+        if (framed >= 0) {
+            result = radixly_py315_b2a_ascii85(view.buf, view.len, fold, width, padding, framed);
+        }
+    }
+    PyBuffer_Release(&view);
+    return result;
+}
+
+const char radixly_a85decode_py315_doc[] =
+    PyDoc_STR("a85decode($module, /, b, *, foldspaces=False, adobe=False, ignorechars=b' \\t\\n\\r\\v', "
+              "canonical=False)\n"
+              "--\n"
+              "\n"
+              "Decode the Ascii85 encoded bytes-like object or ASCII string b.\n"
+              "\n"
+              "foldspaces is a flag that specifies whether the 'y' short sequence\n"
+              "should be accepted as shorthand for 4 consecutive spaces (ASCII\n"
+              "0x20).  This feature is not supported by the standard Ascii85\n"
+              "encoding used in PDF and PostScript.\n"
+              "\n"
+              "adobe controls whether the <~ and ~> markers are present. While\n"
+              "the leading <~ is not required, the input must end with ~>, or a\n"
+              "ValueError is raised.\n"
+              "\n"
+              "ignorechars should be a byte string containing characters to ignore from the\n"
+              "input. This should only contain whitespace characters, and by default\n"
+              "contains all whitespace characters in ASCII.\n"
+              "\n"
+              "If canonical is true, non-canonical encodings are rejected.\n"
+              "\n"
+              "The result is returned as a bytes object.");
+PyObject *
+radixly_a85decode_py315(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+{
+    PyObject *arg = NULL;
+    PyObject *foldspaces = NULL;
+    PyObject *adobe = NULL;
+    PyObject *ignorechars = NULL;
+    PyObject *canonical = NULL;
+    radixly_param params[] = {
+        {"b", &arg},
+        {"foldspaces", &foldspaces},
+        {"adobe", &adobe},
+        {"ignorechars", &ignorechars},
+        {"canonical", &canonical},
+    };
+    if (radixly_bind_args("a85decode", args, nargs, kwnames, params, RADIXLY_ARRAY_SIZE(params), 1, 1) < 0) {
+        return NULL;
+    }
+    radixly_compat_input source;
+    if (radixly_compat_ascii_buffer_input(arg, &source) < 0) {
+        return NULL;
+    }
+    /* binascii's keywords in its own order: foldspaces, adobe, ignorechars, canonical. */
+    PyObject *result = NULL;
+    const int fold = radixly_compat_truth(foldspaces);
+    const int framed = fold < 0 ? -1 : radixly_compat_truth(adobe);
+    radixly_compat_bytes ignore;
+    if (framed >= 0 && radixly_compat_bytes_init(&ignore, ignorechars, (const unsigned char *)DEFAULT_IGNORED,
+                                                 (Py_ssize_t)(sizeof(DEFAULT_IGNORED) - 1)) == 0) {
+        const int strict = radixly_compat_truth(canonical);
+        if (strict >= 0) {
+            result = radixly_py315_a2b_ascii85(source.data, source.len, fold, framed, ignore.data, ignore.len,
+                                               strict);
+        }
+        radixly_compat_bytes_release(&ignore);
+    }
+    radixly_compat_input_release(&source);
     return result;
 }

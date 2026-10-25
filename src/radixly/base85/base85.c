@@ -27,6 +27,7 @@
 #include "_common/compat.h"
 #include "_common/errors.h"
 #include "_common/internal.h"
+#include "_common/binascii15.h"
 
 enum {
     GROUP_BYTES = 4,
@@ -51,6 +52,9 @@ static const char ALPHABET_Z85[] = "0123456789abcdefghijklmnopqrstuvwxyz"
                                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ.-:+=^!/*?&<>()[]{}@%$#";
 static unsigned char REV_B85[TABLE_SIZE];
 static unsigned char REV_Z85[TABLE_SIZE];
+/* binascii's reverse tables for the 3.15 shapes; the same cells, built its way. */
+static unsigned char PY315_REV_B85[RADIXLY_PY315_TABLE_SIZE];
+static unsigned char PY315_REV_Z85[RADIXLY_PY315_TABLE_SIZE];
 
 int
 radixly_base85_exec(PyObject *Py_UNUSED(module))
@@ -63,6 +67,8 @@ radixly_base85_exec(PyObject *Py_UNUSED(module))
         REV_B85[(unsigned char)ALPHABET_B85[value]] = (unsigned char)value;
         REV_Z85[(unsigned char)ALPHABET_Z85[value]] = (unsigned char)value;
     }
+    radixly_py315_reverse_table((const unsigned char *)ALPHABET_B85, BASE, -1, PY315_REV_B85);
+    radixly_py315_reverse_table((const unsigned char *)ALPHABET_Z85, BASE, -1, PY315_REV_Z85);
     return 0;
 }
 
@@ -583,4 +589,131 @@ radixly_z85decode(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t n
     PyObject *message = text == NULL ? NULL : PyObject_CallMethod(text, "replace", "ss", "base85", "z85");
     Py_XDECREF(text);
     return radixly_raise_from(PyExc_ValueError, message, inner);
+}
+
+/* Python 3.15 made the 85 pair shells over binascii.b2a_base85 and a2b_base85. */
+
+/* b85encode(b, pad=False, *, wrapcol=0) and z85encode(s, pad=False, *, wrapcol=0). */
+static PyObject *
+encode_85_py315(const char *function, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames,
+                const char *alphabet, const char *param)
+{
+    PyObject *arg = NULL;
+    PyObject *pad = NULL;
+    PyObject *wrapcol = NULL;
+    radixly_param params[] = {{param, &arg}, {"pad", &pad}, {"wrapcol", &wrapcol}};
+    if (radixly_bind_args(function, args, nargs, kwnames, params, 3, 1, 2) < 0) {
+        return NULL;
+    }
+    Py_buffer view;
+    if (PyObject_GetBuffer(arg, &view, PyBUF_SIMPLE) < 0) {
+        return NULL;
+    }
+    PyObject *result = NULL;
+    size_t width = 0;
+    const int padding = radixly_compat_truth(pad);
+    if (padding >= 0 && (wrapcol == NULL || radixly_py315_size_t(wrapcol, &width) == 0)) {
+        result =
+            radixly_py315_b2a_base85(view.buf, view.len, padding, width, (const unsigned char *)alphabet);
+    }
+    PyBuffer_Release(&view);
+    return result;
+}
+
+/* b85decode(b, *, ignorechars=b'', canonical=False) and z85decode(s, *, ignorechars=b'', canonical=False). */
+static PyObject *
+decode_85_py315(const char *function, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames,
+                const unsigned char *table, const char *param)
+{
+    PyObject *arg = NULL;
+    PyObject *ignorechars = NULL;
+    PyObject *canonical = NULL;
+    radixly_param params[] = {{param, &arg}, {"ignorechars", &ignorechars}, {"canonical", &canonical}};
+    if (radixly_bind_args(function, args, nargs, kwnames, params, 3, 1, 1) < 0) {
+        return NULL;
+    }
+    radixly_compat_input source;
+    if (radixly_compat_ascii_buffer_input(arg, &source) < 0) {
+        return NULL;
+    }
+    PyObject *result = NULL;
+    radixly_compat_bytes ignore;
+    if (radixly_compat_bytes_init(&ignore, ignorechars, NULL, 0) == 0) {
+        const int strict_tail = radixly_compat_truth(canonical);
+        if (strict_tail >= 0) {
+            result = radixly_py315_a2b_base85(source.data, source.len, table, ignore.data, ignore.len,
+                                              strict_tail);
+        }
+        radixly_compat_bytes_release(&ignore);
+    }
+    radixly_compat_input_release(&source);
+    return result;
+}
+
+const char radixly_b85encode_py315_doc[] =
+    PyDoc_STR("b85encode($module, /, b, pad=False, *, wrapcol=0)\n"
+              "--\n"
+              "\n"
+              "Encode bytes-like object b in base85 format and return a bytes object.\n"
+              "\n"
+              "If wrapcol is non-zero, insert a newline (b'\\n') character after at most\n"
+              "every wrapcol characters.\n"
+              "\n"
+              "The input is padded with b'\\0' so its length is a multiple of 4\n"
+              "bytes before encoding.  If pad is true, all the resulting\n"
+              "characters are retained in the output, which will always be a\n"
+              "multiple of 5 bytes.");
+PyObject *
+radixly_b85encode_py315(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+{
+    return encode_85_py315("b85encode", args, nargs, kwnames, ALPHABET_B85, "b");
+}
+
+const char radixly_b85decode_py315_doc[] =
+    PyDoc_STR("b85decode($module, /, b, *, ignorechars=b'', canonical=False)\n"
+              "--\n"
+              "\n"
+              "Decode the base85-encoded bytes-like object or ASCII string b\n"
+              "\n"
+              "If canonical is true, non-canonical encodings are rejected.\n"
+              "\n"
+              "The result is returned as a bytes object.");
+PyObject *
+radixly_b85decode_py315(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+{
+    return decode_85_py315("b85decode", args, nargs, kwnames, PY315_REV_B85, "b");
+}
+
+const char radixly_z85encode_py315_doc[] =
+    PyDoc_STR("z85encode($module, /, s, pad=False, *, wrapcol=0)\n"
+              "--\n"
+              "\n"
+              "Encode bytes-like object b in z85 format and return a bytes object.\n"
+              "\n"
+              "If wrapcol is non-zero, insert a newline (b'\\n') character after at most\n"
+              "every wrapcol characters.\n"
+              "\n"
+              "The input is padded with b'\\0' so its length is a multiple of\n"
+              "bytes before encoding.  If pad is true, all the resulting\n"
+              "characters are retained in the output, which will always be a\n"
+              "multiple of 5 bytes, as required by the ZeroMQ standard.");
+PyObject *
+radixly_z85encode_py315(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+{
+    return encode_85_py315("z85encode", args, nargs, kwnames, ALPHABET_Z85, "s");
+}
+
+const char radixly_z85decode_py315_doc[] =
+    PyDoc_STR("z85decode($module, /, s, *, ignorechars=b'', canonical=False)\n"
+              "--\n"
+              "\n"
+              "Decode the z85-encoded bytes-like object or ASCII string b\n"
+              "\n"
+              "If canonical is true, non-canonical encodings are rejected.\n"
+              "\n"
+              "The result is returned as a bytes object.");
+PyObject *
+radixly_z85decode_py315(PyObject *Py_UNUSED(self), PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+{
+    return decode_85_py315("z85decode", args, nargs, kwnames, PY315_REV_Z85, "s");
 }

@@ -37,4 +37,12 @@ extern const char radixly_urlsafe_b64decode_doc[];
 PyObject *radixly_urlsafe_b64decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs,
                                     PyObject *kwnames);
 
+extern const char radixly_urlsafe_b64encode_py315_doc[];
+PyObject *radixly_urlsafe_b64encode_py315(PyObject *self, PyObject *const *args, Py_ssize_t nargs,
+                                          PyObject *kwnames);
+
+extern const char radixly_urlsafe_b64decode_py315_doc[];
+PyObject *radixly_urlsafe_b64decode_py315(PyObject *self, PyObject *const *args, Py_ssize_t nargs,
+                                          PyObject *kwnames);
+
 #endif // RADIXLY_BASE64URL_H
