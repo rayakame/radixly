@@ -47,7 +47,10 @@ if typing.TYPE_CHECKING:
 def test_every_drop_in_function_is_timed() -> None:
     """A function added to the drop-in without a row here would go unmeasured and unnoticed."""
     public = {name for name in compat_base64.__all__ if callable(typing.cast("object", getattr(compat_base64, name)))}
-    assert {function.name for function in compat.FUNCTIONS} == public
+    timed = {function.name for function in compat.FUNCTIONS}
+    assert public <= timed
+    # z85 joined the standard library, and so the drop-in, in 3.13.
+    assert timed - public == (set() if sys.version_info >= (3, 13) else {"z85encode", "z85decode"})
     assert len(compat.FUNCTIONS) == 22
 
 
