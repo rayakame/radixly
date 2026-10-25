@@ -1,56 +1,69 @@
 # base32hex
 
-5 bits per character: base32 with the alphabet `0` to `9` then `A` to `V`,
-RFC 4648 section 7, decoded strictly.
+RFC 4648 section 7, decoded strictly: base32 with the alphabet `0` to `9` then `A` to `V`, so the text sorts like the bytes.
 
-Same groups, same padding, same 5 bits per character as {doc}`base32`;
-only the alphabet differs. Its digits come first, so payloads of one length
-encode to strings that sort in byte order, as does unpadded text of any
-length; the pad character sorts between `9` and `A`, so padded strings of
-different lengths do not. NSEC3 (RFC 5155) uses this alphabet without
-padding. The price is that `0`, `1`, `8` and `9` are back in the alphabet. The characters are the
-standard library's `b32hexencode` output, returned as `str`; the decoder is
-strict in the same way as base32's.
+::::{grid} 2 4 4 4
+:gutter: 2
 
-## When to use it
+:::{grid-item-card} 5 bits
+per character
+:::
+:::{grid-item-card} 5 → 8
+bytes to characters, `=` padded
+:::
+:::{grid-item-card} 60 bytes
+in 100 characters
+:::
+:::{grid-item-card} 1 cut in 8
+passes a truncation check
+:::
 
-100 characters hold 60 bytes. Pick it over base32 when encoded strings of
-one length must sort like their payloads, in a database index or a sorted
-directory listing. Pick base32 when humans read the text.
+::::
 
-## Truncation behavior
-
-As base32: a cut inside a group of eight raises
-{class}`~radixly.DecodeError`, at the end of the text or at the first `=`
-of a cut-through padding, and a cut on a group boundary decodes to a prefix
-without an error.
+```{eval-rst}
+.. raw:: html
+   :file: ../_static/diagrams/base32hex-group.svg
+```
 
 ```python
 from radixly import base32hex
 
-payload = bytes(range(20))
-text = base32hex.encode(payload)            # 32 characters
-base32hex.decode(text[:16]) == payload[:10]  # True
+base32hex.encode(b"hi")          # 'D1KG===='
+base32hex.decode("D1KG====")     # b'hi'
+base32hex.encode(b"\x00") < base32hex.encode(b"\x01")   # True
 ```
 
-If a shortened string must be caught, carry a length or checksum alongside
-it, or use {doc}`uro14`, whose length prefix rejects every truncation below
-its 16,384-byte window.
+## Alphabet
+
+`0` to `9` and `A` to `V`, with `=` as padding. Payloads of one length encode to strings that sort in byte order, as does unpadded text of any length; `=` sorts between `9` and `A`, so padded strings of different lengths do not. NSEC3 (RFC 5155) uses this alphabet unpadded.
+
+::::{grid} 1 2 2 2
+:gutter: 2
+
+:::{grid-item-card} Use it for
+Database indexes and sorted directory listings where encoded strings of one length must keep their payloads' order.
+:::
+
+:::{grid-item-card} Reach for another codec when
+humans read the text: {doc}`base32` leaves out the digits that look like letters.
+:::
+
+::::
+
+## Truncation
+
+As base32: a cut inside a group of eight raises {class}`~radixly.DecodeError`, a cut on a group boundary decodes to a prefix without an error.
 
 ## Standard library
 
-`radixly.compat.base64.b32hexencode` and `b32hexdecode` port the standard
-library's functions, `casefold` included, onto this codec's C. See
-{doc}`../compat`.
+`radixly.compat.base64.b32hexencode` and `b32hexdecode` run on this codec's C with the standard library's behavior, `casefold` included. See {doc}`../compat`.
 
 ## Benchmarks
 
-The rows marked `stdlib base64` time the standard library's `b32hexencode`
-and `b32hexdecode`, pure Python, with the encoder's `bytes` result decoded
-to `str` for a like comparison.
-
 ```{include} ../benchmarks/base32hex.md
 ```
+
+The `stdlib base64` rows time `b32hexencode` and `b32hexdecode`, pure Python before 3.15 and `binascii` from 3.15 on, the encoder's `bytes` result decoded to `str` for a like comparison.
 
 ## Reference
 

@@ -1,80 +1,81 @@
 # Choosing a codec
 
 All thirteen codecs turn bytes into a string and back. They differ in how many
-characters they need, which characters they use, and whether a string that
-was cut short is caught. Start from your constraint, not from the codec.
+characters they need, which characters they use, and whether a string cut short
+is caught. Start from the channel, not from the codec.
 
-| codec | bits per char | characters for `n` bytes | 100 chars hold | alphabet | catches truncation |
-|---|---|---|---|---|---|
-| {doc}`../codecs/base65536` | 16 | `ceil(n / 2)` | 200 bytes | 65,792 code points in 257 blocks, most of them astral | no |
-| {doc}`../codecs/base32768` | 15 | `ceil(8n / 15)` | 187 bytes | 32,768 code points across many BMP blocks | partly |
-| {doc}`../codecs/base2048` | 11 | `ceil(8n / 11)` | 137 bytes | 2,048 letters and numerals, all below U+1100 | partly |
-| {doc}`../codecs/uro14` | 14 | `1 + ceil(8n / 14)` | 173 bytes | one CJK block, 16,384 code points | yes, below 16,384 bytes |
-| {doc}`../codecs/braille` | 8 | `n` | 100 bytes | one block, 256 Braille patterns | no |
-| {doc}`../codecs/hexagram` | 6 | `ceil(8n / 6)` | 75 bytes | one block, 64 hexagrams | partly |
-| {doc}`../codecs/base85` | 6.4 | `5 * (n // 4) + (n % 4 + 1 if n % 4 else 0)` | 80 bytes | `0` to `9`, `A` to `Z`, `a` to `z`, 23 punctuation marks | partly |
-| {doc}`../codecs/z85` | 6.4 | `5 * (n // 4) + (n % 4 + 1 if n % 4 else 0)` | 80 bytes | `0` to `9`, `a` to `z`, `A` to `Z`, 23 punctuation marks, none of them quotes | partly |
-| {doc}`../codecs/base64` | 6 | `4 * ceil(n / 3)` | 75 bytes | `A` to `Z`, `a` to `z`, `0` to `9`, `+`, `/`, `=` padding | partly |
-| {doc}`../codecs/base64url` | 6 | `4 * ceil(n / 3)` | 75 bytes | `A` to `Z`, `a` to `z`, `0` to `9`, `-`, `_`, `=` padding | partly |
-| {doc}`../codecs/base32` | 5 | `8 * ceil(n / 5)` | 60 bytes | `A` to `Z`, `2` to `7`, `=` padding | partly |
-| {doc}`../codecs/base32hex` | 5 | `8 * ceil(n / 5)` | 60 bytes | `0` to `9`, `A` to `V`, `=` padding | partly |
-| {doc}`../codecs/base16` | 4 | `2n` | 50 bytes | 16 uppercase hexadecimal digits | no |
+```{eval-rst}
+.. raw:: html
+   :file: ../_static/diagrams/choose.svg
+```
 
-In the last column, *yes* means every cut below the stated size raises,
-*partly* that most cuts raise but a cut at the right place passes, and *no*
-that half or more of the cuts pass.
+## Characters or bytes?
 
-## Does the channel count characters or bytes?
+radixly pays off when the limit is a count of characters: a form field, an
+identifier, a file name. When the limit is in bytes, every non-ASCII character
+costs two to four of them as UTF-8, and base64 or raw binary wins.
 
-radixly pays off when the limit is a character count: a field, an identifier,
-a filename. If the limit is in bytes, every one of these characters costs one
-to four bytes as UTF-8 and base64 or raw binary will beat all of them. That is
-not a weakness to work around, it is the wrong tool.
+```{eval-rst}
+.. raw:: html
+   :file: ../_static/diagrams/cost.svg
+```
 
-One more question for the densest option: does the channel count code points
-or UTF-16 code units? base65536 lives mostly outside the BMP, where each
-character is two code units. A JavaScript `length`, a Java `String`, or
-anything else that counts UTF-16 will see it as sparser than base32768: an
-astral character carries 8 bits per code unit against base32768's 15.
+A channel that counts UTF-16 code units, like JavaScript's `length` or a Java
+`String`, sees base65536's astral characters as two units each. There base32768
+is the densest.
 
 ## Does a cut-off string have to be caught?
 
-Only uro14 can tell that a string is incomplete, thanks to its length
-prefix, and only for payloads under 16,384 bytes. The others decode a
-truncated string either without complaint (braille and base65536 always,
-base32768 and base2048 just under a quarter of the time, hexagram about a
-third, base85 and z85 about three in ten, base16 half, base64 and base64url
-one cut in four, base32 and base32hex one cut in eight) or with an error
-that depends on where the cut landed. If that matters and uro14 does not fit,
-carry a length or a checksum yourself.
+Only uro14 can tell that a string is incomplete, through its length prefix, for
+every payload below 16,384 bytes. The others decode some cuts without an error,
+to a shorter payload. If that matters and uro14 does not fit, carry a length or
+a checksum yourself.
+
+```{eval-rst}
+.. raw:: html
+   :file: ../_static/diagrams/truncation.svg
+```
 
 ## How narrow does the alphabet have to be?
 
-The fewer distinct characters a codec uses, the more channels accept it
-unchanged. base16 is plain ASCII letters and digits, which every channel
-takes; base32 and base32hex add `=` padding on most lengths, and base32's
-alphabet is the one that survives a case-insensitive channel, as long as the
-text is uppercased again before it reaches `decode`. base64 adds `+` and
-`/` to the letters and digits, and base64url trades those two for `-` and
-`_`, which URLs and file names take unchanged. base85 uses 23 punctuation
-marks on top, braces, pipe and backquote among them, so it is for channels
-that take all of printable ASCII; z85 picks 23 that leave out backquote,
-pipe, semicolon, underscore and tilde, so it crosses a pipe-split column and a
-backquoted span that base85 breaks. Neither alphabet holds a quote, a
-backslash or a comma, so both sit in a JSON string unescaped, and neither is
-safe raw in Markdown or a shell, where `*`, `&`, `!`, `<>` and a bracket pair
-are still the format's: quote it, or reach for {doc}`../codecs/base64url`.
-Among the Unicode codecs, hexagram uses 64 symbols from one block, braille
-256, uro14 one block of 16,384 ideographs, base2048 letters and numerals from
-two dozen scripts, base32768 characters from many BMP blocks, base65536
-blocks from three planes. All of them avoid whitespace, control characters
-and combining marks, so the usual suspects (chat clients, databases,
-normalizing frameworks) pass them through. base2048 is the one whose output
-can look like ordinary text, and base65536 the one a channel might reject
-for leaving the BMP.
+The fewer characters a codec uses, the more channels take it unchanged.
 
-## Speed is not the deciding factor
+| channel | safe choices |
+|---|---|
+| anything that takes text | {doc}`../codecs/base16` |
+| folds case | {doc}`../codecs/base32`, uppercased again before `decode` |
+| sorted keys | {doc}`../codecs/base32hex` |
+| URLs and file names | {doc}`../codecs/base64url` |
+| JSON strings | {doc}`../codecs/base85`, {doc}`../codecs/z85`: no quote, no backslash |
+| backquotes, pipes, `;`, `_`, `~` matter | {doc}`../codecs/z85` |
+| Unicode, but nothing astral | {doc}`../codecs/base32768`, {doc}`../codecs/uro14` |
+| Unicode below U+1100, text that reads as letters | {doc}`../codecs/base2048` |
+| one small block of symbols | {doc}`../codecs/hexagram`, {doc}`../codecs/braille` |
 
-None of the thirteen is slow. Pick by alphabet and truncation behavior; the
-numbers on each codec page are there to confirm that whichever you pick will
-not be the bottleneck.
+Neither 85 alphabet is safe raw in Markdown or a shell, where `*`, `&`, `!`,
+`<>` and brackets mean something: quote it, or use base64url. Every Unicode
+codec avoids whitespace, control characters and combining marks, and survives
+Unicode normalization, so chat clients, databases and normalizing frameworks
+pass it through.
+
+## All thirteen
+
+| codec | bits per char | characters for `n` bytes | 100 chars hold | alphabet |
+|---|---|---|---|---|
+| {doc}`../codecs/base65536` | 16 | `ceil(n / 2)` | 200 bytes | 256 blocks of 256, most of them astral, and one for a final odd byte |
+| {doc}`../codecs/base32768` | 15 | `ceil(8n / 15)` | 187 bytes | 32,768 BMP code points |
+| {doc}`../codecs/uro14` | 14 | `1 + ceil(8n / 14)` | 173 bytes | 16,384 CJK ideographs |
+| {doc}`../codecs/base2048` | 11 | `ceil(8n / 11)` | 137 bytes | 2,048 letters and numerals below U+1100 |
+| {doc}`../codecs/braille` | 8 | `n` | 100 bytes | 256 Braille patterns |
+| {doc}`../codecs/base85` | 6.4 | `ceil(5n / 4)` | 80 bytes | `0-9A-Za-z` and 23 punctuation marks |
+| {doc}`../codecs/z85` | 6.4 | `ceil(5n / 4)` | 80 bytes | `0-9a-zA-Z` and 23 others, no quotes |
+| {doc}`../codecs/base64` | 6 | `4 * ceil(n / 3)` | 75 bytes | `A-Za-z0-9+/`, `=` padding |
+| {doc}`../codecs/base64url` | 6 | `4 * ceil(n / 3)` | 75 bytes | `A-Za-z0-9-_`, `=` padding |
+| {doc}`../codecs/hexagram` | 6 | `ceil(8n / 6)` | 75 bytes | 64 hexagrams |
+| {doc}`../codecs/base32` | 5 | `8 * ceil(n / 5)` | 60 bytes | `A-Z2-7`, `=` padding |
+| {doc}`../codecs/base32hex` | 5 | `8 * ceil(n / 5)` | 60 bytes | `0-9A-V`, `=` padding |
+| {doc}`../codecs/base16` | 4 | `2n` | 50 bytes | `0-9A-F` |
+
+Speed is not the deciding factor: none of them is slow, and the benchmarks on
+each codec page are there to confirm that whichever you pick will not be the
+bottleneck.

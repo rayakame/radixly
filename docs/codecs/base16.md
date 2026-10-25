@@ -1,59 +1,70 @@
 # base16
 
-4 bits per character: two uppercase hexadecimal digits per byte, RFC 4648
-section 8.
+Two uppercase hexadecimal digits per byte, RFC 4648 section 8: the plainest encoding, in its strict form.
 
-The plainest binary-to-text encoding, in its strict form. Byte `0xAB`
-becomes `AB`, nothing is padded, and `n` bytes become `2 * n` characters.
-The characters are the standard library's `b16encode` output, returned as
-`str`; the decoder rejects what `b16decode` rejects (lowercase digits,
-whitespace, an odd digit count), reports the position, and has no
-`casefold`, so one payload has exactly one accepted spelling.
+::::{grid} 2 4 4 4
+:gutter: 2
 
-## When to use it
+:::{grid-item-card} 4 bits
+per character
+:::
+:::{grid-item-card} 1 → 2
+byte to characters, nothing padded
+:::
+:::{grid-item-card} 50 bytes
+in 100 characters
+:::
+:::{grid-item-card} 1 cut in 2
+passes a truncation check
+:::
 
-100 characters hold 50 bytes, the fewest of any codec here. Its value is
-not density but reach: hexadecimal is readable, greppable, and accepted by
-every system that accepts text at all. Pick it for identifiers, checksums
-and debugging output, or when the other side is a human.
+::::
 
-It does not save bytes: as UTF-8 each character costs one, so the text is
-twice the payload.
-
-## Truncation behavior
-
-A cut after `2k` characters decodes, without an error, to the first `k`
-bytes; a cut after an odd number of characters raises
-{class}`~radixly.DecodeError` at the end of the text. There is no padding,
-no length and no checksum, so half of all cuts pass, every one of them to a
-prefix.
+```{eval-rst}
+.. raw:: html
+   :file: ../_static/diagrams/base16-group.svg
+```
 
 ```python
 from radixly import base16
 
-payload = bytes(range(20))
-text = base16.encode(payload)            # 40 characters
-base16.decode(text[:8]) == payload[:4]   # True
+base16.encode(b"hi")      # '6869'
+base16.decode("6869")     # b'hi'
+base16.decode("686")      # DecodeError: odd length: 3 characters, ...
+base16.decode("6a")       # DecodeError: invalid base16 character U+61
 ```
 
-If a shortened string must be caught, carry a length or checksum alongside
-it, or use {doc}`uro14`, whose length prefix rejects every truncation below
-its 16,384-byte window.
+## Alphabet
+
+`0` to `9` and `A` to `F`. Lowercase digits, whitespace and an odd digit count are errors; there is no `casefold`, so one payload has one spelling.
+
+::::{grid} 1 2 2 2
+:gutter: 2
+
+:::{grid-item-card} Use it for
+Identifiers, checksums, debugging output, anything a human reads: hexadecimal is greppable and every system that takes text takes it.
+:::
+
+:::{grid-item-card} Reach for another codec when
+density matters ({doc}`base64` holds half again as much), or the string must announce a truncation ({doc}`uro14`).
+:::
+
+::::
+
+## Truncation
+
+A cut after an even number of characters decodes, without an error, to a prefix of the payload; a cut after an odd number raises {class}`~radixly.DecodeError` at the end of the text. Half of all cuts pass.
 
 ## Standard library
 
-`radixly.compat.base64.b16encode` and `b16decode` port the standard
-library's functions, the `casefold` option included, onto this codec's C.
-See {doc}`../compat`.
+`radixly.compat.base64.b16encode` and `b16decode` run on this codec's C with the standard library's behavior, `casefold` included. See {doc}`../compat`.
 
 ## Benchmarks
 
-The rows marked `stdlib base64` time the standard library's `b16encode` and
-`b16decode`, with the encoder's `bytes` result decoded to `str` for a like
-comparison.
-
 ```{include} ../benchmarks/base16.md
 ```
+
+The `stdlib base64` rows time `b16encode` and `b16decode`, the encoder's `bytes` result decoded to `str` for a like comparison.
 
 ## Reference
 

@@ -17,26 +17,10 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-"""A drop-in for the standard library's ``base64``: the same names, arguments, results and errors.
+"""A drop-in for the standard library's ``base64``: same names, arguments, results and errors, all in C.
 
-Every function runs in C. The surface is ``base64.__all__``; undocumented module attributes such as
-``MAXLINESIZE`` are not carried over.
-Two gaps are left, and both take code that breaks its own contract to reach. The port holds the buffer it
-decodes where the standard library may already have copied it, so a ``casefold``, ``map01``, ``altchars`` or
-``validate`` hook that resizes that buffer during the call gets ``BufferError``, and a same-length edit is read.
-And an object that claims to be ``bytes`` without being one, or a ``str`` subclass whose ``encode`` returns
-anything other than ``bytes`` or ``bytearray``, is judged by the buffer it offers rather than by the methods the
-standard library would call on it, so the outcome can differ from the standard library's. The same holds for a
-flag or a width that is not the plain ``bool`` or ``int`` it is meant to be: ``foldspaces`` is read once where
-the standard library reads it again per group, ``adobe`` once where it reads it two to four times, and
-``wrapcol`` is converted once where the standard library threads the object through ``max``, ``range`` and the
-slice.
-
-Python 3.15 rebuilt ``base64`` over new ``binascii`` functions: every function grew keywords (``padded``,
-``wrapcol``, ``ignorechars``, ``canonical``, ``pad`` on ``z85encode``), the length asserts became ``ValueError``,
-``urlsafe_b64decode`` no longer requires padding and warns about a stray ``+`` or ``/``, and the 85 family raises
-``binascii.Error``. The
-drop-in follows that standard library on 3.15, line for line, chosen at import from the running interpreter.
+The surface is ``base64.__all__``, on CPython 3.11 through 3.15, with the behavior of the interpreter it runs
+on. Where the two differ, and what the swap buys, is on the drop-in page of the documentation.
 """
 
 from __future__ import annotations

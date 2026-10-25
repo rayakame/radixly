@@ -1,76 +1,72 @@
 # base64url
 
-6 bits per character: {doc}`base64` with `-` and `_` in place of `+` and
-`/`, RFC 4648 section 5, decoded strictly, padding kept.
+RFC 4648 section 5, decoded strictly: base64 with `-` and `_` in place of `+` and `/`, for URLs and file names, padding kept.
 
-The text is the standard library's `urlsafe_b64encode` output, returned as
-`str`: the same four characters per three bytes and the same `=` padding, so
-`n` bytes become `4 * ceil(n / 3)` characters. The decoder rejects `+` and
-`/` along with everything else outside the alphabet, and it requires the
-padding. The RFC lets a decoder skip the padding when the payload length is
-known; this codec does not, so that one payload has exactly one accepted
-spelling.
+::::{grid} 2 4 4 4
+:gutter: 2
 
-## When to use it
+:::{grid-item-card} 6 bits
+per character
+:::
+:::{grid-item-card} 3 → 4
+bytes to characters, `=` padded
+:::
+:::{grid-item-card} 75 bytes
+in 100 characters
+:::
+:::{grid-item-card} 1 cut in 4
+passes a truncation check
+:::
 
-100 characters hold 75 bytes, the same as base64. Every character but the
-padding is unreserved in a URL and legal in a file name on every file
-system, which is what the alphabet is for: path segments, query values,
-cookies, file names, and the token formats built on them. Many of those
-formats (JWT among them) drop the padding on the wire; put it back before
-`decode`, which rejects a short group:
+::::
+
+```{eval-rst}
+.. raw:: html
+   :file: ../_static/diagrams/base64url-group.svg
+```
 
 ```python
 from radixly import base64url
 
-segment = "eyJhbGciOiJub25lIn0"                   # a JWT header, its one "=" dropped
-base64url.decode(segment + "=" * (-len(segment) % 4))
-# b'{"alg":"none"}'
+base64url.encode(b"\xfb\xff")   # '-_8='
+base64url.decode("-_8=")          # b'\xfb\xff'
+
+# A JWT segment drops its padding; put it back before decoding.
+segment = "eyJhbGciOiJub25lIn0"
+base64url.decode(segment + "=" * (-len(segment) % 4))   # b'{"alg":"none"}'
 ```
 
-If the channel is not a URL or a file name, {doc}`base64` is the one the
-other side expects.
+## Alphabet
 
-## Truncation behavior
+`A` to `Z`, `a` to `z`, `0` to `9`, `-` and `_`, with `=` as padding. `+` and `/` are errors, and so is missing padding: the RFC lets a decoder skip it when the payload length is known, this codec does not, so put it back before `decode`.
 
-The same as base64: a cut inside a group of four raises
-{class}`~radixly.DecodeError`, a cut on a group boundary passes and decodes
-to a prefix of the payload. One cut in four lands on a boundary; there is no
-length and no checksum to catch it.
+::::{grid} 1 2 2 2
+:gutter: 2
 
-```python
-from radixly import base64url
+:::{grid-item-card} Use it for
+Path segments, query values, cookies, file names, and the token formats built on them: every character but the padding is unreserved in a URL and legal in a file name on every file system.
+:::
 
-payload = bytes(range(20))
-text = base64url.encode(payload)             # 28 characters
-base64url.decode(text[:16]) == payload[:12]  # True
-```
+:::{grid-item-card} Reach for another codec when
+the channel is not a URL or a file name: {doc}`base64` is what the other side expects.
+:::
 
-If a shortened string must be caught, carry a length or checksum alongside
-it, or use {doc}`uro14`, whose length prefix rejects every truncation below
-its 16,384-byte window.
+::::
+
+## Truncation
+
+As base64: a cut inside a group of four raises {class}`~radixly.DecodeError`, a cut on a group boundary, one in four, decodes to a prefix without complaint.
 
 ## Standard library
 
-`radixly.compat.base64.urlsafe_b64encode` and `urlsafe_b64decode` port the
-standard library's functions onto this codec's C, with the standard
-library's leniency: its decoder also takes `+` and `/`, and discards
-characters outside the alphabet. See {doc}`../compat`.
+`radixly.compat.base64.urlsafe_b64encode` and `urlsafe_b64decode` run on this codec's C with the standard library's leniency: the decoder also takes `+` and `/` and discards characters outside the alphabet. See {doc}`../compat`.
 
 ## Benchmarks
 
-The rows marked `stdlib base64` time the standard library's
-`urlsafe_b64encode` and `urlsafe_b64decode`, `binascii` plus a translation
-pass in Python, with the encoder's `bytes` result decoded to `str` for a
-like comparison. The rows marked `PyPI pybase64` time the
-[`pybase64`](https://pypi.org/project/pybase64/) package, a C extension over
-libbase64's SIMD kernels (AVX2 on the record machine), with `altchars=b"-_"`
-and `validate=True`, so both sides do the same work: text out, whitespace
-refused (pybase64 still lets `+` and `/` through under `altchars`, a leniency
-it has deprecated).
-
 ```{include} ../benchmarks/base64url.md
 ```
+
+The `stdlib base64` rows time `urlsafe_b64encode` and `urlsafe_b64decode`, `binascii` plus a translation pass; the `PyPI pybase64` rows a SIMD C extension with `altchars=b"-_"` and `validate=True`. Text out on every side.
 
 ## Reference
 
