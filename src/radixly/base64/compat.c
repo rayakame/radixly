@@ -459,15 +459,6 @@ a2b_base64(const unsigned char *data, Py_ssize_t len, int strict, int padded, co
     return finish(result, &parse.chars, start, incomplete, canonical);
 }
 
-/* A flag whose truth is read without running code: absent, a bool or an exact int. The stdlib reads its flags
- * while binascii holds the translated copy of s, not s itself, so only a flag that could edit s earns the
- * copy; every other call decodes s in place through a table with the altchars folded in. */
-static int
-inert_flag(PyObject *flag)
-{
-    return flag == NULL || !radixly_compat_specified(flag) || PyBool_Check(flag) || PyLong_CheckExact(flag);
-}
-
 /* A faithful port of binascii.a2b_base64 on translated bytes: the bytes result, or NULL with binascii.Error.
  */
 static PyObject *
@@ -549,7 +540,7 @@ radixly_b64decode_with(const char *function, PyObject *const *args, Py_ssize_t n
         }
         rev = translated;
     }
-    if (rev == translated && !inert_flag(validate)) {
+    if (rev == translated && !radixly_compat_inert_flag(validate)) {
         snapshot = PyBytes_FromStringAndSize((const char *)source.data, source.len);
         radixly_compat_input_release(&source);
         if (snapshot == NULL) {
@@ -1417,7 +1408,8 @@ b64decode_py315(radixly_compat_input *source, PyObject *altchars, PyObject *vali
     const int ignore_given = radixly_compat_specified(ignorechars);
     b64decode_prelude prelude = {NULL, NULL, NULL, -1, 0, {0, 0}};
     PyObject *result = NULL;
-    const int copy_needed = !inert_flag(validate) || !inert_flag(padded) || !inert_flag(canonical);
+    const int copy_needed = !radixly_compat_inert_flag(validate) || !radixly_compat_inert_flag(padded) ||
+                            !radixly_compat_inert_flag(canonical);
     if (altchars != NULL && altchars != Py_None &&
         prelude_altchars(&prelude, source, altchars, ignore_given, copy_needed) < 0) {
         goto done;
@@ -1456,7 +1448,7 @@ urlsafe_b64decode_py315(radixly_compat_input *source, PyObject *padded)
         }
     }
     PyObject *snapshot = NULL;
-    if (!inert_flag(padded)) {
+    if (!radixly_compat_inert_flag(padded)) {
         snapshot = PyBytes_FromStringAndSize((const char *)source->data, source->len);
         radixly_compat_input_release(source);
         if (snapshot == NULL) {

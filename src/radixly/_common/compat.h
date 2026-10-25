@@ -133,6 +133,12 @@ int radixly_compat_size_t(PyObject *arg, size_t *value);
  */
 Py_ssize_t radixly_compat_wraplines(unsigned char *data, Py_ssize_t size, size_t width);
 
+/* A flag whose truth is read without running code (absent, a bool, an exact int), and a buffer whose export
+ * runs none (absent, bytes, bytearray, memoryview). The stdlib reads its flags while binascii holds the copy
+ * its translate() or upper() made, not s itself; where no flag could edit s, the drop-in skips that copy. */
+int radixly_compat_inert_flag(PyObject *flag);
+int radixly_compat_inert_buffer(PyObject *arg);
+
 /* The result trimmed to what was written; NULL with the exception set when the shrink fails. */
 PyObject *radixly_compat_finish(PyObject *result, Py_ssize_t written);
 

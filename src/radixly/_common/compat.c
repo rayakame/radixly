@@ -684,3 +684,15 @@ radixly_compat_finish(PyObject *result, Py_ssize_t written)
     }
     return result;
 }
+
+int
+radixly_compat_inert_flag(PyObject *flag)
+{
+    return flag == NULL || !radixly_compat_specified(flag) || PyBool_Check(flag) || PyLong_CheckExact(flag);
+}
+
+int
+radixly_compat_inert_buffer(PyObject *arg)
+{
+    return arg == NULL || PyBytes_CheckExact(arg) || PyByteArray_CheckExact(arg) || PyMemoryView_Check(arg);
+}

@@ -506,21 +506,6 @@ map01_translation_py315(PyObject *map01, unsigned char *translate)
     return outcome;
 }
 
-/* A flag whose truth is read without running code, or a buffer whose export runs none: the stdlib reads them
- * while binascii holds its translated or uppercased copy of s, not s itself, so only one that could edit s
- * earns the copy. */
-static int
-inert_flag(PyObject *flag)
-{
-    return flag == NULL || PyBool_Check(flag) || PyLong_CheckExact(flag);
-}
-
-static int
-inert_buffer(PyObject *arg)
-{
-    return arg == NULL || PyBytes_CheckExact(arg) || PyByteArray_CheckExact(arg) || PyMemoryView_Check(arg);
-}
-
 /* s as translate() and upper() leave it, materialised where a hook could otherwise edit the original: the
  * copy takes the live buffer's place in source. -1 with the exception set and source released. */
 static int
@@ -610,7 +595,7 @@ radixly_b32decode_with_py315(const char *function, PyObject *const *args, Py_ssi
     }
     b32_view view;
     PyObject *copy = NULL;
-    if (mapping != NULL && !inert_flag(casefold)) {
+    if (mapping != NULL && !radixly_compat_inert_flag(casefold)) {
         view_init(&view, which, mapping, 0);
         if (snapshot(&source, &view, &copy) < 0) {
             return NULL;
@@ -625,7 +610,8 @@ radixly_b32decode_with_py315(const char *function, PyObject *const *args, Py_ssi
     }
     view_init(&view, which, mapping, fold);
     if ((mapping != NULL || fold != 0) &&
-        !(inert_flag(padded) && inert_flag(canonical) && inert_buffer(ignorechars))) {
+        !(radixly_compat_inert_flag(padded) && radixly_compat_inert_flag(canonical) &&
+          radixly_compat_inert_buffer(ignorechars))) {
         PyObject *previous = copy;
         if (snapshot(&source, &view, &copy) < 0) {
             Py_XDECREF(previous);

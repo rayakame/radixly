@@ -26,6 +26,7 @@
 
 #include "_common/errors.h"
 #include "_common/internal.h"
+#include "_common/text.h"
 
 enum {
     GROUP_BYTES = 4,
@@ -204,16 +205,10 @@ radixly_base85_encode_with(PyObject *arg, int which)
     return result;
 }
 
-/* The text as bytes. A 2- or 4-byte str is decoded through the group of its first character outside ASCII,
- * which an invalid placeholder stands in for; wide_index says where, so the error names the real character.
- */
 typedef struct {
-    const unsigned char *text;
-    Py_ssize_t len;
+    const radixly_text *text;
     const unsigned char *rev;
     const char *codec;
-    Py_ssize_t wide_index;
-    Py_UCS4 wide_code_point;
 } text_source;
 
 /* Read one group of up to five characters into word, the dropped digits as zero; raises on a bad character.
@@ -226,10 +221,9 @@ read_group(const text_source *source, Py_ssize_t start, Py_ssize_t count, uint64
         unsigned value = 0;
         if (i < count) {
             const Py_ssize_t index = start + i;
-            value = source->rev[source->text[index]];
+            value = source->rev[source->text->text[index]];
             if (value == RADIXLY_B85_INVALID) {
-                const Py_UCS4 code_point =
-                    index == source->wide_index ? source->wide_code_point : source->text[index];
+                const Py_UCS4 code_point = radixly_text_code_point(source->text, index);
                 radixly_raise_decode_error(index, "invalid %s character U+%x at index %zd", source->codec,
                                            (unsigned)code_point, index);
                 return -1;
@@ -261,7 +255,7 @@ finish_tail(uint64_t word, Py_ssize_t count, Py_ssize_t last, unsigned char *out
 static PyObject *
 decode_text(const text_source *source)
 {
-    const Py_ssize_t num_chars = source->len;
+    const Py_ssize_t num_chars = source->text->len;
     const Py_ssize_t remainder = num_chars % GROUP_CHARS;
     const Py_ssize_t out_len =
         (GROUP_BYTES * (num_chars / GROUP_CHARS)) + (remainder != 0 ? remainder - 1 : 0);
@@ -272,7 +266,7 @@ decode_text(const text_source *source)
     unsigned char *out = (unsigned char *)PyBytes_AS_STRING(result);
     /* Whole groups of digits at speed; the group that stops the run, and the tail, one character at a time.
      */
-    Py_ssize_t start = radixly_b85_groups(source->text, num_chars, out, source->rev, 0);
+    Py_ssize_t start = radixly_b85_groups(source->text->text, num_chars, out, source->rev, 0);
     for (; start < num_chars; start += GROUP_CHARS) {
         const Py_ssize_t count = Py_MIN(GROUP_CHARS, num_chars - start);
         uint64_t word;
@@ -302,68 +296,23 @@ decode_text(const text_source *source)
     return result;
 }
 
-/* A 2- or 4-byte str holds a character outside ASCII, so the decode ends in an error at or before it. The
- * text through the end of that character's group is decoded as bytes, an invalid placeholder standing in from
- * the character on, so every earlier error keeps its place and the group shapes stay what they were. */
-static PyObject *
-decode_wide(PyObject *arg, text_source *source)
-{
-    const int kind = PyUnicode_KIND(arg);
-    const void *data = PyUnicode_DATA(arg);
-    const Py_ssize_t num_chars = PyUnicode_GET_LENGTH(arg);
-    Py_ssize_t wide = 0;
-    while (wide < num_chars && PyUnicode_READ(kind, data, wide) <= ASCII_MAX) {
-        wide++;
-    }
-    if (wide == num_chars) {
-        PyErr_SetString(PyExc_SystemError, "a non-ASCII str kind held only ASCII characters");
-        return NULL;
-    }
-    const Py_ssize_t len = Py_MIN(num_chars, GROUP_CHARS * ((wide / GROUP_CHARS) + 1));
-    unsigned char *text = PyMem_Malloc((size_t)len);
-    if (text == NULL) {
-        return PyErr_NoMemory();
-    }
-    for (Py_ssize_t i = 0; i < wide; i++) {
-        text[i] = (unsigned char)PyUnicode_READ(kind, data, i);
-    }
-    memset(text + wide, ASCII_MAX + 1, (size_t)(len - wide)); /* never in an alphabet */
-    source->text = text;
-    source->len = len;
-    source->wide_index = wide;
-    source->wide_code_point = PyUnicode_READ(kind, data, wide);
-    PyObject *result = decode_text(source);
-    PyMem_Free(text);
-    assert(result == NULL);
-    return result;
-}
-
 PyObject *
 radixly_base85_decode_with(PyObject *arg, int which)
 {
-    if (!PyUnicode_Check(arg)) {
-        PyErr_Format(PyExc_TypeError, "expected str, not %.200s", Py_TYPE(arg)->tp_name);
+    radixly_text text;
+    if (radixly_text_init(&text, arg, GROUP_CHARS) < 0) {
         return NULL;
     }
-#if PY_VERSION_HEX < 0x030C0000
-    /* 3.11 can still meet legacy, non-ready strings; GET_LENGTH/KIND/DATA on one is UB. Compiles out
-     * on 3.12+. */
-    if (PyUnicode_READY(arg) == -1) {
-        return NULL;
+    PyObject *result;
+    if (text.len == 0) {
+        result = PyBytes_FromStringAndSize("", 0);
     }
-#endif
-    const Py_ssize_t num_chars = PyUnicode_GET_LENGTH(arg);
-    if (num_chars == 0) {
-        return PyBytes_FromStringAndSize("", 0);
+    else {
+        const text_source source = {&text, REV[which], which == RADIXLY_B85_Z85 ? "z85" : "base85"};
+        result = decode_text(&source);
     }
-    text_source source = {
-        NULL, num_chars, REV[which], which == RADIXLY_B85_Z85 ? "z85" : "base85", -1, 0,
-    };
-    if (PyUnicode_KIND(arg) != PyUnicode_1BYTE_KIND) {
-        return decode_wide(arg, &source);
-    }
-    source.text = PyUnicode_1BYTE_DATA(arg);
-    return decode_text(&source);
+    radixly_text_release(&text);
+    return result;
 }
 
 const char radixly_base85_encode_doc[] =

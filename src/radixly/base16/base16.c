@@ -26,6 +26,7 @@
 
 #include "_common/errors.h"
 #include "_common/internal.h"
+#include "_common/text.h"
 
 enum {
     TABLE_SIZE = 256,
@@ -150,20 +151,6 @@ radixly_base16_encode(PyObject *Py_UNUSED(self), PyObject *arg)
     return result;
 }
 
-/* A 2- or 4-byte str always holds a character outside ASCII, so the wide path only locates the first invalid
- * one. */
-static Py_ssize_t
-first_invalid_wide(int kind, const void *data, Py_ssize_t num_chars)
-{
-    for (Py_ssize_t i = 0; i < num_chars; i++) {
-        const Py_UCS4 code_point = PyUnicode_READ(kind, data, i);
-        if (code_point > ASCII_MAX || REV[RADIXLY_HEX_UPPER][code_point] == INVALID) {
-            return i;
-        }
-    }
-    return -1;
-}
-
 /* The index of the first character the strict codec refuses, or -1; an odd length is judged afterwards. */
 static Py_ssize_t
 first_invalid(const unsigned char *digits, Py_ssize_t num_chars, Py_ssize_t consumed)
@@ -176,6 +163,36 @@ first_invalid(const unsigned char *digits, Py_ssize_t num_chars, Py_ssize_t cons
         return num_chars - 1;
     }
     return -1;
+}
+
+/* Characters raise left to right at their own index; an odd length raises at the end, where the missing digit
+ * would be, so an invalid character earlier in the text wins. */
+static PyObject *
+decode_text(const radixly_text *text)
+{
+    const Py_ssize_t num_chars = text->len;
+    if (num_chars == 0) {
+        return PyBytes_FromStringAndSize("", 0);
+    }
+    const unsigned char *digits = text->text;
+    PyObject *result = PyBytes_FromStringAndSize(NULL, num_chars / 2);
+    if (result == NULL) {
+        return NULL;
+    }
+    const Py_ssize_t consumed = radixly_hex_pairs(
+        digits, num_chars, (unsigned char *)PyBytes_AS_STRING(result), REV[RADIXLY_HEX_UPPER]);
+    const Py_ssize_t bad = first_invalid(digits, num_chars, consumed);
+    if (bad != -1) {
+        Py_DECREF(result);
+        return radixly_raise_decode_error(bad, "invalid base16 character U+%x at index %zd",
+                                          (unsigned)radixly_text_code_point(text, bad), bad);
+    }
+    if ((num_chars % 2) != 0) {
+        Py_DECREF(result);
+        return radixly_raise_decode_error(
+            num_chars, "odd length: %zd characters, the last byte needs two digits", num_chars);
+    }
+    return result;
 }
 
 const char radixly_base16_decode_doc[] =
@@ -216,51 +233,11 @@ const char radixly_base16_decode_doc[] =
 PyObject *
 radixly_base16_decode(PyObject *Py_UNUSED(self), PyObject *arg)
 {
-    if (!PyUnicode_Check(arg)) {
-        PyErr_Format(PyExc_TypeError, "expected str, not %.200s", Py_TYPE(arg)->tp_name);
+    radixly_text text;
+    if (radixly_text_init(&text, arg, 2) < 0) {
         return NULL;
     }
-#if PY_VERSION_HEX < 0x030C0000
-    /* 3.11 can still meet legacy, non-ready strings; GET_LENGTH/KIND/DATA on one is UB. Compiles out
-     * on 3.12+. */
-    if (PyUnicode_READY(arg) == -1) {
-        return NULL;
-    }
-#endif
-    const Py_ssize_t num_chars = PyUnicode_GET_LENGTH(arg);
-    if (num_chars == 0) {
-        return PyBytes_FromStringAndSize("", 0);
-    }
-    const int kind = PyUnicode_KIND(arg);
-    const void *data = PyUnicode_DATA(arg);
-    if (kind != PyUnicode_1BYTE_KIND) {
-        const Py_ssize_t bad = first_invalid_wide(kind, data, num_chars);
-        if (bad == -1) {
-            PyErr_SetString(PyExc_SystemError, "a non-ASCII str kind held only ASCII characters");
-            return NULL;
-        }
-        return radixly_raise_decode_error(bad, "invalid base16 character U+%x at index %zd",
-                                          (unsigned)PyUnicode_READ(kind, data, bad), bad);
-    }
-    /* Characters raise left to right at their own index; an odd length raises at the end, where the missing
-     * digit would be, so an invalid character earlier in the text wins. */
-    const unsigned char *digits = data;
-    PyObject *result = PyBytes_FromStringAndSize(NULL, num_chars / 2);
-    if (result == NULL) {
-        return NULL;
-    }
-    const Py_ssize_t consumed = radixly_hex_pairs(
-        digits, num_chars, (unsigned char *)PyBytes_AS_STRING(result), REV[RADIXLY_HEX_UPPER]);
-    const Py_ssize_t bad = first_invalid(digits, num_chars, consumed);
-    if (bad != -1) {
-        Py_DECREF(result);
-        return radixly_raise_decode_error(bad, "invalid base16 character U+%x at index %zd",
-                                          (unsigned)digits[bad], bad);
-    }
-    if ((num_chars % 2) != 0) {
-        Py_DECREF(result);
-        return radixly_raise_decode_error(
-            num_chars, "odd length: %zd characters, the last byte needs two digits", num_chars);
-    }
+    PyObject *result = decode_text(&text);
+    radixly_text_release(&text);
     return result;
 }
