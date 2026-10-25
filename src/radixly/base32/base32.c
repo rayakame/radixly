@@ -111,7 +111,7 @@ radixly_b32_fill(const unsigned char *data, Py_ssize_t len, unsigned char *out, 
     for (; cursor < end; cursor += GROUP_BYTES, out += GROUP_CHARS) {
         const uint64_t group = ((uint64_t)cursor[0] << 32U) | ((uint64_t)cursor[1] << 24U) |
                                ((uint64_t)cursor[2] << 16U) | ((uint64_t)cursor[3] << 8U) | cursor[4];
-        for (unsigned pair = 0; pair < GROUP_CHARS / 2; pair++) {
+        for (size_t pair = 0; pair < GROUP_CHARS / 2; pair++) {
             memcpy(out + (2 * pair), &pairs[(group >> ((3U - pair) * PAIR_BITS)) & PAIR_MASK],
                    sizeof(uint16_t));
         }
