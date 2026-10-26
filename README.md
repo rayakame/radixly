@@ -166,7 +166,7 @@ Reproduce with `uv run python -m benchmarks` from the repository root.
 ## Limits
 
 - CPython only, 3.11 and later.
-- No subinterpreters: on 3.12+ the import raises `ImportError` inside one.
+- No subinterpreters: the import raises `ImportError` inside one.
   Free-threaded builds import but switch the GIL back on. Details in
   [Subinterpreters and threads](https://radixly.rayakame.dev/en/latest/guides/subinterpreters.html).
 
