@@ -78,15 +78,15 @@ trade-offs.
 
 ## Standard library drop-in
 
-`radixly.compat.base64` is the standard library's `base64` with the same names,
-arguments, results and errors, with every function in C: the `b16`, `b32`,
-`b32hex`, `b64`, `a85`, `b85` and (on 3.13 and later) `z85` encoders and
-decoders, and the four legacy functions `encode`, `decode`, `encodebytes` and
-`decodebytes`. CPython's own `test_base64` suite runs against it. On Python
-3.15, where the standard library rebuilt `base64` over new `binascii`
-functions, the drop-in takes the keywords that release added (`padded`,
-`wrapcol`, `ignorechars`, `canonical`, `pad` on `z85encode`) and raises its
-changed errors. See
+```python
+from radixly.compat import base64
+```
+
+The standard library's `base64` with the same names, arguments, results and
+errors, every function in C, on CPython 3.11 through 3.15 with the behavior of
+the interpreter it runs on: 22 functions from 3.13, 20 before, where the
+standard library has no z85. CPython's own `test_base64` passes
+against it. What the swap buys, function by function, is on
 [the drop-in page](https://radixly.rayakame.dev/en/latest/compat.html).
 
 ## Performance

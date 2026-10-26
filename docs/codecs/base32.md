@@ -1,72 +1,69 @@
 # base32
 
-5 bits per character from the letters `A` to `Z` and the digits `2` to `7`,
-RFC 4648 section 6, decoded strictly.
+RFC 4648 section 6, decoded strictly: letters and digits only, the alphabet that survives case folding.
 
-Five bytes become eight characters. A shorter tail is padded with `=` to a
-full group, so `n` bytes become `8 * ceil(n / 5)` characters and the text
-length is always a multiple of eight. The alphabet leaves out the digits
-`0`, `1`, `8` and `9`; the first three are easily mistaken for `O`, `I` and
-`B`. The characters are the standard library's `b32encode` output, returned
-as `str`. The decoder takes the strict reading of the RFC: characters
-outside the alphabet, lowercase letters, padding in the wrong place or
-amount, and pad bits that
-are not zero are all errors, so one payload has exactly one accepted
-spelling.
+::::{grid} 2 4 4 4
+:gutter: 2
 
-## When to use it
+:::{grid-item-card} 5 bits
+per character
+:::
+:::{grid-item-card} 5 → 8
+bytes to characters, `=` padded
+:::
+:::{grid-item-card} 60 bytes
+in 100 characters
+:::
+:::{grid-item-card} 1 cut in 8
+passes a truncation check
+:::
 
-100 characters hold 60 bytes. base32 is the codec for case-insensitive
-channels: file names on case-folding file systems, codes read out loud or
-typed from paper. The alphabet is plain ASCII letters and digits; the `=`
-padding on a tail that is not a multiple of five bytes is the one
-punctuation character, so DNS labels and other punctuation-hostile channels
-need the padding stripped for transport and restored to whole groups of
-eight before `decode`, which rejects a short group. Text that comes back
-lowercased has to be
-uppercased before `decode`, or go through
-`radixly.compat.base64.b32decode` with `casefold=True`.
+::::
 
-It does not save bytes: as UTF-8 each character costs one, so the text is
-1.6 times the payload. If the channel is case-sensitive, base64 carries
-more.
-
-## Truncation behavior
-
-The decoder requires whole groups of eight, so a cut inside a group raises
-{class}`~radixly.DecodeError`: at the end of the text when the cut falls in
-data characters, at the first `=` when it falls in the padding. A cut on a
-group boundary passes, without an error, and decodes to a prefix of the
-payload.
-One cut in eight lands on a boundary; there is no length and no checksum
-to catch it.
+```{eval-rst}
+.. raw:: html
+   :file: ../_static/diagrams/base32-group.svg
+```
 
 ```python
 from radixly import base32
 
-payload = bytes(range(20))
-text = base32.encode(payload)            # 32 characters
-base32.decode(text[:16]) == payload[:10]  # True
+base32.encode(b"hi")          # 'NBUQ===='
+base32.decode("NBUQ====")     # b'hi'
+base32.decode("nbuq====")     # DecodeError: lowercase is not base32
 ```
 
-If a shortened string must be caught, carry a length or checksum alongside
-it, or use {doc}`uro14`, whose length prefix rejects every truncation below
-its 16,384-byte window.
+## Alphabet
+
+`A` to `Z` and `2` to `7`, with `=` as padding. The digits run from `2` to `7`, which leaves out `0` and `1`, the two most easily mistaken for `O` and `I`. Lowercase letters, characters outside the alphabet, misplaced padding and nonzero pad bits are errors. Text that comes back lowercased goes through `str.upper` first, or through the drop-in's `b32decode` with `casefold=True`.
+
+::::{grid} 1 2 2 2
+:gutter: 2
+
+:::{grid-item-card} Use it for
+Case-insensitive channels: file names on case-folding file systems, codes read out loud or typed from paper, DNS-adjacent formats (strip the padding for transport, restore it before `decode`).
+:::
+
+:::{grid-item-card} Reach for another codec when
+the channel is case-sensitive ({doc}`base64` carries a quarter more), or the text must sort like its bytes ({doc}`base32hex`).
+:::
+
+::::
+
+## Truncation
+
+Whole groups of eight are required, so a cut inside a group raises {class}`~radixly.DecodeError`. A cut on a group boundary, one in eight, decodes to a prefix without complaint.
 
 ## Standard library
 
-`radixly.compat.base64.b32encode` and `b32decode` port the standard
-library's functions, `casefold` and `map01` included, onto this codec's C.
-See {doc}`../compat`.
+`radixly.compat.base64.b32encode` and `b32decode` run on this codec's C with the standard library's behavior, `casefold` and `map01` included. See {doc}`../compat`.
 
 ## Benchmarks
 
-The rows marked `stdlib base64` time the standard library's `b32encode` and
-`b32decode`, pure Python, with the encoder's `bytes` result decoded to
-`str` for a like comparison.
-
 ```{include} ../benchmarks/base32.md
 ```
+
+The `stdlib base64` rows time `b32encode` and `b32decode`, pure Python before 3.15 and `binascii` from 3.15 on, the encoder's `bytes` result decoded to `str` for a like comparison.
 
 ## Reference
 

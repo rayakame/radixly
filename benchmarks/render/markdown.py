@@ -42,9 +42,20 @@ def _cell(measurement: model.Measurement) -> str:
     return f"{measurement.ns_per_call / 1e3:.3f} μs"
 
 
+def _provenance(result: model.RunResult) -> str:
+    env = result.environment
+    return (
+        f"*Measured on {env.cpu} ({env.governor} governor), {env.os}, CPython {env.python}, "
+        + f"{env.compiler}, radixly {env.radixly_version} @ {env.commit}"
+        + f"{' (dirty)' if env.dirty else ''}"
+        + ("" if result.run.mode == "full" else f", {result.run.mode} run -- not a record")
+        + (", forced despite non-optimized build" if result.run.forced else "")
+        + f", {env.timestamp}.*"
+    )
+
+
 def table(result: model.RunResult, *, codecs: Collection[str] | None = None) -> str:
     """Provenance line plus the results table, marker-free (CI summaries use this)."""
-    env = result.environment
     sizes: list[str] = []
     rows: dict[tuple[str, str, str], dict[str, model.Measurement]] = {}
     for m in result.measurements:
@@ -57,12 +68,7 @@ def table(result: model.RunResult, *, codecs: Collection[str] | None = None) -> 
     header = "| codec | direction | " + " | ".join(sizes) + " | vs reference |"
     divider = "|---|---|" + "---|" * len(sizes) + "---|"
     lines = [
-        f"*Measured on {env.cpu} ({env.governor} governor), {env.os}, CPython {env.python}, "
-        + f"{env.compiler}, radixly {env.radixly_version} @ {env.commit}"
-        + f"{' (dirty)' if env.dirty else ''}"
-        + ("" if result.run.mode == "full" else f", {result.run.mode} run -- not a record")
-        + (", forced despite non-optimized build" if result.run.forced else "")
-        + f", {env.timestamp}.*",
+        _provenance(result),
         "",
         header,
         divider,
@@ -95,15 +101,36 @@ def codec_page(result: model.RunResult, codec: str, charts: str) -> str:
     """Build the docs fragment for one codec: its rows, then the sweep charts as only-light/only-dark image pairs."""
     lines = [GENERATED, "", table(result, codecs=(codec,)).rstrip("\n"), ""]
     for name, alt in (("throughput", "sustained throughput"), ("latency", "per-call latency")):
-        for suffix, css_class in (("", "only-light"), (".dark", "only-dark")):
-            lines += [
-                "```{image} " + f"{charts}/{codec}/{name}{suffix}.svg",
-                f":alt: {codec} {alt}",
-                f":class: {css_class}",
-                "```",
-                "",
-            ]
+        lines += _image_pair(f"{charts}/{codec}/{name}", f"{codec} {alt}")
     return "\n".join(lines)
+
+
+def _image_pair(path: str, alt: str) -> list[str]:
+    lines: list[str] = []
+    for suffix, css_class in (("", "only-light"), (".dark", "only-dark")):
+        lines += ["```{image} " + f"{path}{suffix}.svg", f":alt: {alt}", f":class: {css_class}", "```", ""]
+    return lines
+
+
+def compat_page(result: model.RunResult, charts: str) -> str:
+    """Build the drop-in's docs fragment: the speedup chart, then the speedup of every function at every size."""
+    if not result.compat:
+        return f"{GENERATED}\n\n*The committed record has no drop-in measurements yet; the next refresh adds them.*\n"
+    sizes = list(dict.fromkeys(row.size_label for row in result.compat))
+    cells: dict[str, dict[str, model.CompatMeasurement]] = {}
+    for row in result.compat:
+        cells.setdefault(row.function, {})[row.size_label] = row
+    lines = [GENERATED, "", *_image_pair(f"{charts}/compat/speedup", "drop-in speedup over the standard library")]
+    lines += [
+        _provenance(result),
+        "",
+        "| function | " + " | ".join(sizes) + " |",
+        "|---|" + "---:|" * len(sizes),
+    ]
+    for function, by_size in cells.items():
+        values = (f"{by_size[label].speedup:.2f}x" if label in by_size else "—" for label in sizes)
+        lines.append(f"| `{function}` | " + " | ".join(values) + " |")
+    return "\n".join(lines) + "\n"
 
 
 def inject(document: str, wrapped_fragment: str) -> str:

@@ -224,3 +224,6 @@ __marimo__/
 /charts/
 /results.json
 wheelhouse/
+
+# Diagrams the docs build draws from the registry
+docs/_static/diagrams/

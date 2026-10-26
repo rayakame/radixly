@@ -22,12 +22,18 @@
 from __future__ import annotations
 
 import os
+import pathlib
+import sys
 
 import radixly
 
+sys.path.insert(0, str(pathlib.Path(__file__).parent))
+import _diagrams
+import _examples
+
 project = "radixly"
 author = radixly.__author__
-copyright = radixly.__copyright__  # noqa: A001 -- Sphinx's own config name
+copyright = radixly.__copyright__  # ruff: ignore[builtin-variable-shadowing] -- Sphinx's own config name
 release = radixly.__version__
 version = release
 
@@ -110,3 +116,9 @@ ogp_site_url = html_baseurl
 ogp_image = "_static/social-card.png"
 ogp_image_alt = "radixly"
 ogp_custom_meta_tags = ['<meta name="twitter:card" content="summary_large_image">']
+
+
+def setup(_app: object) -> None:
+    """Check the examples, then draw the diagrams before Sphinx reads the pages that embed them."""
+    _examples.check(pathlib.Path(__file__).parent)
+    _diagrams.write_all(pathlib.Path(__file__).parent / "_static" / "diagrams")
