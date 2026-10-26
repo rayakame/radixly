@@ -1,71 +1,70 @@
 # base85
 
-6.4 bits per character: five characters per four bytes from the 85
-characters of RFC 1924, the alphabet of the standard library's `b85encode`
-and of git's binary patches, decoded strictly.
+Five characters per four bytes from the 85 characters of RFC 1924, the alphabet of the standard library's `b85encode` and of git's binary patches, decoded strictly.
 
-Four bytes become one 32-bit word, written as five base-85 digits from `0`
-to `9`, `A` to `Z`, `a` to `z` and `` !#$%&()*+-;<=>?@^_`{|}~ ``. A shorter
-tail of one to three bytes becomes one character more than its bytes, so `n`
-bytes become `5 * (n // 4)` characters, plus `n % 4 + 1` when `n` is not a
-multiple of four, and the text is never one character past a multiple of
-five. The characters are the standard
-library's `b85encode` output, returned as `str`. The decoder takes the strict
-reading: characters outside the alphabet, whitespace, a group worth more than
-32 bits, a one-character tail, and a tail spelled any way but the encoder's
-are all errors, so one payload has exactly one accepted spelling.
+::::{grid} 2 4 4 4
+:gutter: 2
 
-## When to use it
+:::{grid-item-card} 6.4 bits
+per character
+:::
+:::{grid-item-card} 4 → 5
+bytes to characters, no padding
+:::
+:::{grid-item-card} 80 bytes
+in 100 characters
+:::
+:::{grid-item-card} 3 cuts in 10
+pass a truncation check
+:::
 
-100 characters hold 80 bytes, the most of any ASCII codec here. base85 is
-the choice when every character counts and the channel takes all of
-printable ASCII: git chose it for binary diffs for that reason. The price is
-the alphabet, which reaches into `{}`, `|`, `` ` ``, `<>` and `&`: text that
-lands in a shell, a URL or HTML has to be quoted first. A JSON string takes it
-as is, since no quote and no backslash is in the alphabet. When
-it cannot be, {doc}`z85` trades those characters away at the same density.
+::::
 
-It does not save bytes: as UTF-8 each character costs one, so the text is
-five characters for every four bytes, a quarter longer than the payload.
-
-## Truncation behavior
-
-The decoder reads groups of five, so a cut inside a group usually raises
-{class}`~radixly.DecodeError` at the last character of the cut group: a
-one-character tail never decodes, and a tail of two to four characters
-decodes only when it happens to be the exact spelling of a shorter payload:
-for random data, about one two-character tail in twenty-seven, one
-three-character tail in nine, one four-character tail in three. A cut on a
-group boundary passes, without an error, and decodes to a prefix of the
-payload. Taken over every cut, about three in ten pass; there is no length
-and no checksum to catch them.
+```{eval-rst}
+.. raw:: html
+   :file: ../_static/diagrams/base85-group.svg
+```
 
 ```python
 from radixly import base85
 
-payload = bytes(range(20))
-text = base85.encode(payload)             # 25 characters
-base85.decode(text[:10]) == payload[:8]   # True
+base85.encode(b"hi")          # 'XlV'
+base85.decode("XlV")          # b'hi'
+base85.encode(b"\x00" * 4)    # '00000'
+base85.decode("X")            # DecodeError: a one-character tail
 ```
 
-If a shortened string must be caught, carry a length or checksum alongside
-it, or use {doc}`uro14`, whose length prefix rejects every truncation below
-its 16,384-byte window.
+## Alphabet
+
+`0` to `9`, `A` to `Z`, `a` to `z` and `` !#$%&()*+-;<=>?@^_`{|}~ ``. A group spells a 32-bit word in five digits; a one- to three-byte tail takes one character more than its bytes. A word above 32 bits, a one-character tail and a tail spelled any way but the encoder's are errors.
+
+::::{grid} 1 2 2 2
+:gutter: 2
+
+:::{grid-item-card} Use it for
+Channels that take all of printable ASCII and count every character: git chose it for binary diffs. A JSON string takes it unescaped, since no quote and no backslash is in the alphabet.
+:::
+
+:::{grid-item-card} Reach for another codec when
+the text lands in a shell, a URL, HTML or Markdown, where `{}`, `|`, `` ` ``, `<>` and `&` are the format's: quote it, or use {doc}`z85` or {doc}`base64url`.
+:::
+
+::::
+
+## Truncation
+
+A cut inside a group of five raises {class}`~radixly.DecodeError` unless the tail happens to spell a shorter payload exactly; a cut on a group boundary decodes to a prefix. About three cuts in ten pass.
 
 ## Standard library
 
-`radixly.compat.base64.b85encode` and `b85decode` port the standard
-library's functions, the `pad` flag and the lenient tail included, onto this
-codec's C. See {doc}`../compat/index`.
+`radixly.compat.base64.b85encode` and `b85decode` run on this codec's C with the standard library's behavior, the `pad` flag and the lenient tail included. See {doc}`../compat`.
 
 ## Benchmarks
 
-The rows marked `stdlib base64` time the standard library's `b85encode` and
-`b85decode`, pure Python, with the encoder's `bytes` result decoded to `str`
-for a like comparison.
-
 ```{include} ../benchmarks/base85.md
 ```
+
+The `stdlib base64` rows time `b85encode` and `b85decode`, pure Python before 3.15 and `binascii` from 3.15 on, the encoder's `bytes` result decoded to `str` for a like comparison.
 
 ## Reference
 

@@ -76,6 +76,25 @@ class Measurement:
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
+class CompatMeasurement:
+    """One drop-in function at one size, timed next to the standard library's on the same input."""
+
+    function: str
+    direction: str  # "encode" | "decode"
+    size_label: str
+    size_bytes: int  # payload bytes; decode rows count the bytes recovered
+    ns_per_call: float
+    stdlib_ns_per_call: float
+    number: int
+    repeats: int
+
+    @property
+    def speedup(self) -> float:
+        """Standard library time over ours; above 1 the drop-in is faster."""
+        return self.stdlib_ns_per_call / self.ns_per_call
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
 class RunInfo:
     """How the run was taken: a record is only a record if this says so."""
 
@@ -92,6 +111,7 @@ class RunResult:
     environment: Environment
     measurements: tuple[Measurement, ...]
     run: RunInfo = RunInfo()
+    compat: tuple[CompatMeasurement, ...] = ()
 
 
 def to_dict(result: RunResult) -> dict[str, object]:
@@ -102,11 +122,17 @@ def to_dict(result: RunResult) -> dict[str, object]:
         row["mb_per_s"] = measurement.mb_per_s
         row["ratio"] = measurement.ratio
         rows.append(row)
+    compat_rows: list[dict[str, object]] = []
+    for measurement in result.compat:
+        row = typing.cast("dict[str, object]", dataclasses.asdict(measurement))
+        row["speedup"] = measurement.speedup
+        compat_rows.append(row)
     return {
         "schema_version": result.schema_version,
         "environment": typing.cast("dict[str, object]", dataclasses.asdict(result.environment)),
         "run": typing.cast("dict[str, object]", dataclasses.asdict(result.run)),
         "measurements": rows,
+        "compat_measurements": compat_rows,
     }
 
 
@@ -206,6 +232,33 @@ def _measurement_from(row: dict[str, object]) -> Measurement:
     )
 
 
+def _compat_from(row: dict[str, object]) -> CompatMeasurement:
+    size_bytes = _int(row, "size_bytes")
+    number = _int(row, "number")
+    repeats = _int(row, "repeats")
+    if size_bytes < 0 or number < 1 or repeats < 1:
+        msg = f"size_bytes/number/repeats out of domain: {size_bytes}/{number}/{repeats}"
+        raise ValueError(msg)
+    return CompatMeasurement(
+        function=_str(row, "function"),
+        direction=_str(row, "direction"),
+        size_label=_str(row, "size_label"),
+        size_bytes=size_bytes,
+        ns_per_call=_positive_finite(row, "ns_per_call"),
+        stdlib_ns_per_call=_positive_finite(row, "stdlib_ns_per_call"),
+        number=number,
+        repeats=repeats,
+    )
+
+
+def _list(document: dict[str, object], key: str) -> list[object]:
+    rows = _required(document, key)
+    if not isinstance(rows, list):
+        msg = f"{key}: expected list, got {type(rows).__name__}"
+        raise TypeError(msg)
+    return typing.cast("list[object]", rows)
+
+
 def _run_info_from(document: dict[str, object]) -> RunInfo:
     if "run" not in document:
         return RunInfo()  # documents from before provenance: an unqualified full run
@@ -235,10 +288,8 @@ def from_json(text: str) -> RunResult:
         msg = f"unsupported schema_version {version}; this reader knows {SCHEMA_VERSION}"
         raise ValueError(msg)
     environment = _environment_from(_mapping(_required(document, "environment")))
-    rows = _required(document, "measurements")
-    if not isinstance(rows, list):
-        msg = f"measurements: expected list, got {type(rows).__name__}"
-        raise TypeError(msg)
-    items = typing.cast("list[object]", rows)
-    measurements = tuple(_measurement_from(_mapping(item)) for item in items)
-    return RunResult(version, environment, measurements, _run_info_from(document))
+    measurements = tuple(_measurement_from(_mapping(item)) for item in _list(document, "measurements"))
+    # Records from before the drop-in suite carry no compat rows.
+    compat_items = _list(document, "compat_measurements") if "compat_measurements" in document else []
+    compat = tuple(_compat_from(_mapping(item)) for item in compat_items)
+    return RunResult(version, environment, measurements, _run_info_from(document), compat)

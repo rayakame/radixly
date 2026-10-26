@@ -1,89 +1,65 @@
 # Getting started
 
-## Install
-
 ```bash
 pip install radixly
 ```
 
-Releases ship wheels for CPython 3.11 to 3.15 on Linux (x86_64, aarch64,
-musl), macOS (Intel and Apple silicon) and Windows (64-bit). radixly is a C
-extension with no pure-Python fallback, so on any other platform, or when
-installing a pre-release from source, pip builds the sdist and needs a C
-compiler.
+Wheels cover CPython 3.11 to 3.15 on Linux (x86_64, aarch64, musl), macOS
+(Intel and Apple silicon) and Windows (64-bit). There is no pure-Python
+fallback: anywhere else pip builds from source and needs a C compiler.
 
-## A first round trip
-
-Every codec lives in its own module and exposes the same two functions:
+## Encode and decode
 
 ```python
 import radixly
 
-text = radixly.uro14.encode(b"hello")
-data = radixly.uro14.decode(text)
-assert data == b"hello"
+text = radixly.uro14.encode(b"hello")   # str
+radixly.uro14.decode(text)              # b'hello'
 ```
 
-`encode` takes any bytes-like object (`bytes`, `bytearray`, `memoryview`, an
-array, a NumPy buffer) and returns a `str`. Passing a `str` raises
-`TypeError`; encode your text first. `decode` takes a `str` and returns
+`encode` takes any bytes-like object and returns a `str`; a `str` argument
+raises `TypeError`, so encode text first. `decode` takes a `str` and returns
 `bytes`.
 
-Decoding is strict. If the string is not something this codec could have
-produced, you get a {class}`~radixly.DecodeError` that says why and where:
+## Errors
+
+Decoding is strict. A string the codec could not have produced raises
+{class}`~radixly.DecodeError`, which says why and where:
 
 ```python
 try:
     radixly.base32768.decode("hello")
 except radixly.DecodeError as error:
-    print(error)           # invalid base32768 character U+68 at index 0
-    print(error.position)  # 0
+    print(error)            # invalid base32768 character U+68 at index 0
+    print(error.position)   # 0
 ```
 
 `DecodeError` is a `ValueError`, so an existing `except ValueError` keeps
 working.
 
-## Planning around a length limit
+## Size a field
 
-You rarely need to encode something to learn how long it would be. Every
-codec has two helpers that do the arithmetic without touching the data:
+Two helpers do the arithmetic without touching any data:
 
 ```python
-radixly.base32768.encoded_len(16)   # 9: characters produced by 16 bytes
-radixly.base32768.max_bytes(100)    # 187: largest payload that fits 100 characters
+radixly.base32768.encoded_len(16)   # 9: characters for 16 bytes, exact
+radixly.base32768.max_bytes(100)    # 187: the most 100 characters hold
 ```
 
-`encoded_len` is exact, so it is safe to reserve space with. `max_bytes`
-answers the question a length-limited field poses: how much can I put in
-here?
+## Pick a codec at runtime
 
-## The registry
-
-Each codec module also exposes its codec as a value, a
-{class}`~radixly.Codec`, and registers it under its name. That lets you pick
-a codec at runtime, by name or by property, instead of hard-coding an import:
+Every codec is also a {class}`~radixly.Codec` value in a registry, so a name
+from a config file is enough:
 
 ```python
 codec = radixly.get_codec("uro14")
-codec.bits_per_char        # 14.0
-codec.encode(b"hello")     # the same function as radixly.uro14.encode
-codec.max_bytes(100)       # 173
-```
+codec.encode(b"hello")      # the same function as radixly.uro14.encode
+codec.bits_per_char         # 14.0
 
-{data}`radixly.CODECS` is a read-only mapping of every registered codec, in
-registration order. Asking it which codec fits the most into a 100-character
-field is one line:
-
-```python
-list(radixly.CODECS)   # ['base16', 'base32', 'base32hex', 'base64', 'base64url', 'base85', 'base2048', 'base32768', 'base65536', 'braille', 'hexagram', 'uro14', 'z85']
 {name: c.max_bytes(100) for name, c in radixly.CODECS.items()}
-# {'base16': 50, 'base32': 60, 'base32hex': 60, 'base64': 75, 'base64url': 75, 'base85': 80, 'base2048': 137, 'base32768': 187, 'base65536': 200, 'braille': 100, 'hexagram': 75, 'uro14': 173, 'z85': 80}
+# {'base16': 50, 'base32': 60, ..., 'uro14': 173, 'z85': 80}
 ```
 
-A name that is not registered raises `KeyError` with the registered names in
-the message. {func}`radixly.register` adds a codec of your own to the same
-mapping, as long as the name is free.
-
-A `Codec` is a frozen dataclass whose fields are the codec module's own
-functions. Calling `codec.encode(data)` is one attribute load and the C call,
-the same cost as calling the module function directly.
+An unknown name raises `KeyError` listing the registered ones, and
+{func}`radixly.register` adds a codec of your own. Calling through a `Codec`
+costs the same as calling the module function.

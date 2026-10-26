@@ -31,6 +31,7 @@ import typing
 
 from benchmarks import baseline
 from benchmarks import ci
+from benchmarks import compat
 from benchmarks import competitors
 from benchmarks import environment
 from benchmarks import model
@@ -78,7 +79,10 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--sizes", default=None, help="comma-separated payload sizes, e.g. 1B,200B,64KiB,1MiB")
     parser.add_argument("--directions", default=None, help="comma-separated subset of encode,decode")
     parser.add_argument(
-        "--suite", choices=("codecs", "wrapper", "all"), default=None, help="what to run (default: all)"
+        "--suite",
+        choices=("codecs", "compat", "wrapper", "all"),
+        default=None,
+        help="what to run (default: all; --codecs leaves the compat suite out of it)",
     )
     parser.add_argument("--quick", action="store_true", help="3 repeats, short targets: a smoke, never a record")
     parser.add_argument("--json", type=pathlib.Path, default=None, help="also write the canonical result JSON here")
@@ -126,7 +130,7 @@ def _directions_from(parser: argparse.ArgumentParser, raw: str | None) -> tuple[
 
 def _validate(parser: argparse.ArgumentParser, options: Options, *, scoped: bool, suite_given: bool) -> None:
     if options.json_path is not None and options.suite == "wrapper":
-        parser.error("--json captures the codecs suite; --suite wrapper produces no JSON document")
+        parser.error("--json captures the codecs and compat suites; --suite wrapper produces no JSON document")
     measurement_flags = scoped or suite_given or options.quick or options.force or options.json_path is not None
     if options.render_from is not None and measurement_flags:
         parser.error("--render-from renders an existing document; measurement and scope flags do not apply")
@@ -138,8 +142,13 @@ def _validate(parser: argparse.ArgumentParser, options: Options, *, scoped: bool
     )
     if wants_codec_output and options.render_from is None and options.suite == "wrapper":
         parser.error("--markdown/--graphs/--inject/--docs need codec results; --suite wrapper has none")
+    whole_record = options.markdown_path is not None or options.inject_path is not None or options.docs_dir is not None
+    if whole_record and options.render_from is None and options.suite == "compat":
+        parser.error("--markdown/--inject/--docs render the whole record; --suite compat measures only the drop-in")
     if options.suite == "wrapper" and scoped:
         parser.error("--suite wrapper is a fixed-shape probe; scope flags do not apply")
+    if options.suite == "compat" and options.codecs is not None:
+        parser.error("--suite compat times the drop-in's functions; --codecs does not apply")
     if options.ci_mode and options.render_from is not None:
         parser.error("--ci measures; it cannot gate a --render-from document")
     if options.ci_mode and (scoped or suite_given):
@@ -211,6 +220,8 @@ class RunConfig:
     target: float = timing.TARGET_SECONDS
     reference_number: int = REFERENCE_NUMBER
     force: bool = False
+    codec_suite: bool = True
+    compat_suite: bool = False
 
 
 def _rows(
@@ -266,10 +277,14 @@ def run(config: RunConfig | None = None) -> model.RunResult:
     chosen_sizes = registry.SIZES if config.sizes is None else config.sizes
 
     measurements: list[model.Measurement] = []
-    for impl in registry.implementations(config.codecs):
-        measurements.extend(_rows(impl, chosen_sizes, config))
+    if config.codec_suite:
+        for impl in registry.implementations(config.codecs):
+            measurements.extend(_rows(impl, chosen_sizes, config))
+    compat_rows = (
+        compat.measure(chosen_sizes, config.directions, config.repeat, config.target) if config.compat_suite else ()
+    )
     info = model.RunInfo(config.mode, config.reference_number, forced=config.force and not env.optimized)
-    return model.RunResult(model.SCHEMA_VERSION, env, tuple(measurements), info)
+    return model.RunResult(model.SCHEMA_VERSION, env, tuple(measurements), info, compat_rows)
 
 
 def _measured_result(options: Options, repeat: int, target: float, reference_number: int) -> model.RunResult:
@@ -284,6 +299,9 @@ def _measured_result(options: Options, repeat: int, target: float, reference_num
             target=target,
             reference_number=reference_number,
             force=options.force,
+            codec_suite=options.ci_mode or options.suite in {"codecs", "all"},
+            compat_suite=not options.ci_mode
+            and (options.suite == "compat" or (options.suite == "all" and options.codecs is None)),
         )
     )
     known = baseline.find_baseline(result.environment)
@@ -310,7 +328,7 @@ def _write_outputs(options: Options, result: model.RunResult) -> None:
 
 
 def write_docs(result: model.RunResult, docs_dir: pathlib.Path, charts_dir: pathlib.Path) -> list[pathlib.Path]:
-    """Write one page fragment per codec and prune stale ones; charts go via a symlink and a source-root path."""
+    """Write one page fragment per codec plus the drop-in's, prune stale ones; charts go via a symlink."""
     docs_dir.mkdir(exist_ok=True)
     link = docs_dir / "charts"
     if not link.exists():
@@ -325,6 +343,10 @@ def write_docs(result: model.RunResult, docs_dir: pathlib.Path, charts_dir: path
         path = docs_dir / f"{codec}.md"
         path.write_text(markdown.codec_page(result, codec, charts), encoding="utf-8")
         written.append(path)
+    # Always written: the drop-in page includes it, and a record without compat rows says so.
+    path = docs_dir / "compat.md"
+    path.write_text(markdown.compat_page(result, charts), encoding="utf-8")
+    written.append(path)
     for stale in docs_dir.glob("*.md"):
         # Only our own pages: a hand-written file in the same directory is not ours to delete.
         if stale not in written and stale.read_text(encoding="utf-8").startswith(markdown.GENERATED):
@@ -362,7 +384,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if options.render_from is not None:
         result = model.from_json(options.render_from.read_text(encoding="utf-8"))
         print(console.render(result))
-    elif options.ci_mode or options.suite in {"codecs", "all"}:
+    elif options.ci_mode or options.suite in {"codecs", "compat", "all"}:
         result = _measured_result(options, repeat, target, reference_number)
         print(console.render(result))
         if options.json_path is not None:

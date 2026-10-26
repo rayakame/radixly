@@ -65,6 +65,9 @@ whether ascii85 gets one is undecided.
   ignore set, wraplines, the size_t converter) live in `_common/`. Reverse
   tables map `=` to the pad value and everything else to 0xFF, one table per
   alphabet; a group kernel stops at anything that is not plain data.
+- Docs diagrams are drawn at build time from the registry (`docs/_diagrams.py`,
+  never committed), and every `expression  # result` comment in a page's Python
+  examples is evaluated by `docs/_examples.py`; a wrong one fails the build.
 - Performance bars are the committed record
   (`benchmarks/results/i9-14900KF-performance.json`), rendered into README and
   docs; regressions need a reason, CI gates the C-vs-reference ratio.
@@ -74,8 +77,9 @@ whether ascii85 gets one is undecided.
 - `uv run pytest`; after editing C: `uv sync --reinstall-package radixly`
 - `uv run nox` runs everything (reformat, pytest, pyright, verifytypes, tidy,
   lint, docs); `nox -s asan` for sanitizers; `nox -s docs-serve` for live docs
-- Benchmarks: `uv run python -m benchmarks` (`--quick` for a smoke); record
-  refresh on a clean tree adds `--json benchmarks/results/i9-14900KF-performance.json
+- Benchmarks: `uv run python -m benchmarks` (`--quick` for a smoke, `--suite
+  compat` for the drop-in against the standard library alone); record refresh on
+  a clean tree adds `--json benchmarks/results/i9-14900KF-performance.json
   --graphs benchmarks/charts --inject README.md --docs docs/benchmarks`
 - Version lives in `src/radixly/_about.py` only.
 

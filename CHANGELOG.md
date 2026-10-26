@@ -10,7 +10,7 @@
 - Strict, canonical decoding for every codec: one payload, one spelling, and a final character carrying no payload bits is rejected ([#8](https://github.com/rayakame/radixly/pull/8), [#11](https://github.com/rayakame/radixly/pull/11))
 - Public API: per-codec modules with `encode`, `decode`, `encoded_len` and `max_bytes`, a registry via `get_codec` and `CODECS`, and `DecodeError` carrying the failing position ([#10](https://github.com/rayakame/radixly/pull/10))
 - uro14, braille and hexagram codecs at 14, 8 and 6 bits per character, uro14 with a length prefix that catches truncation below 16,384 bytes ([#11](https://github.com/rayakame/radixly/pull/11))
-- Typed package: `py.typed` and stubs for the C module, verified complete ([#16](https://github.com/rayakame/radixly/pull/16))
+- Typed package: `py.typed` and stubs for the C module, checked complete by pyright's `--verifytypes` ([#16](https://github.com/rayakame/radixly/pull/16))
 - Wheels for CPython 3.11 to 3.14: Linux (x86_64 and aarch64, glibc and musl), macOS (Intel and Apple silicon) and Windows ([#17](https://github.com/rayakame/radixly/pull/17))
 
 ### Documentation

@@ -1,69 +1,70 @@
 # base64
 
-6 bits per character from the letters `A` to `Z` and `a` to `z`, the digits
-`0` to `9`, `+` and `/`, RFC 4648 section 4, decoded strictly.
+RFC 4648 section 4, decoded strictly: the encoding every channel speaks, with one accepted spelling per payload.
 
-Three bytes become four characters. A shorter tail is padded with `=` to a
-full group, so `n` bytes become `4 * ceil(n / 3)` characters and the text
-length is always a multiple of four. The characters are the standard
-library's `b64encode` output, returned as `str`. The decoder takes the strict
-reading of the RFC: characters outside the alphabet (`-` and `_` included),
-whitespace, padding in the wrong place or amount, and pad bits that are not
-zero are all errors, so one payload has exactly one accepted spelling.
+::::{grid} 2 4 4 4
+:gutter: 2
 
-## When to use it
+:::{grid-item-card} 6 bits
+per character
+:::
+:::{grid-item-card} 3 → 4
+bytes to characters, `=` padded
+:::
+:::{grid-item-card} 75 bytes
+in 100 characters
+:::
+:::{grid-item-card} 1 cut in 4
+passes a truncation check
+:::
 
-100 characters hold 75 bytes, the most of any ASCII codec here. base64 is
-the encoding every channel already speaks: MIME, JSON, HTTP headers, data
-URLs. Its two punctuation characters are the catch. `+` and `/` are
-reserved in URLs and `/` separates path components, so URLs, file names and
-tokens carried in them want {doc}`base64url` instead. The alphabet is
-case-sensitive; a channel that folds case needs {doc}`base32`.
+::::
 
-It does not save bytes: as UTF-8 each character costs one, so the text is
-four characters for every three bytes, a third longer than the payload, plus
-the padding that rounds a one- or two-byte tail up to a full group.
-
-## Truncation behavior
-
-The decoder requires whole groups of four, so a cut inside a group raises
-{class}`~radixly.DecodeError`: at the end of the text when the cut falls in
-data characters, at the first `=` when it falls in the padding. A cut on a
-group boundary passes, without an error, and decodes to a prefix of the
-payload. One cut in four lands on a boundary; there is no length and no
-checksum to catch it.
+```{eval-rst}
+.. raw:: html
+   :file: ../_static/diagrams/base64-group.svg
+```
 
 ```python
 from radixly import base64
 
-payload = bytes(range(20))
-text = base64.encode(payload)             # 28 characters
-base64.decode(text[:16]) == payload[:12]  # True
+base64.encode(b"hi")        # 'aGk='
+base64.decode("aGk=")       # b'hi'
+base64.decode("aGk")        # DecodeError: length 3 is not a multiple of 4
+base64.encoded_len(20)      # 28
 ```
 
-If a shortened string must be caught, carry a length or checksum alongside
-it, or use {doc}`uro14`, whose length prefix rejects every truncation below
-its 16,384-byte window.
+## Alphabet
+
+`A` to `Z`, `a` to `z`, `0` to `9`, `+` and `/`, with `=` as padding. Everything else is an error: `-` and `_`, whitespace, padding in the wrong place or amount, pad bits that are not zero.
+
+::::{grid} 1 2 2 2
+:gutter: 2
+
+:::{grid-item-card} Use it for
+MIME, JSON, HTTP headers, data URLs: anywhere base64 is already the format.
+:::
+
+:::{grid-item-card} Reach for another codec when
+the text goes into a URL or file name ({doc}`base64url`), the channel folds case ({doc}`base32`), or it counts characters rather than bytes ({doc}`base32768`).
+:::
+
+::::
+
+## Truncation
+
+Whole groups of four are required, so a cut inside a group raises {class}`~radixly.DecodeError`. A cut on a group boundary, one in four, decodes to a prefix without complaint.
 
 ## Standard library
 
-`radixly.compat.base64.b64encode`, `b64decode`, `standard_b64encode` and
-`standard_b64decode` port the standard library's functions, `altchars` and
-`validate` included, onto this codec's C, and so do the legacy four,
-`encodebytes`, `decodebytes`, `encode` and `decode`. See {doc}`../compat/index`.
+`radixly.compat.base64.b64encode`, `b64decode`, `standard_b64encode`, `standard_b64decode`, `encodebytes`, `decodebytes`, `encode` and `decode` run on this codec's C with the standard library's behavior, `altchars` and `validate` included. See {doc}`../compat`.
 
 ## Benchmarks
 
-The rows marked `stdlib base64` time the standard library's `b64encode` and
-`b64decode`, which are C already (`binascii`) behind a Python wrapper, with
-the encoder's `bytes` result decoded to `str` for a like comparison. The rows
-marked `PyPI pybase64` time the [`pybase64`](https://pypi.org/project/pybase64/)
-package, a C extension over libbase64's SIMD kernels (AVX2 on the record
-machine), through `b64encode_as_string` and `b64decode(validate=True)`, so
-both sides do the same work: text out, strict decoding.
-
 ```{include} ../benchmarks/base64.md
 ```
+
+The `stdlib base64` rows time `b64encode` and `b64decode`, `binascii` behind a Python wrapper; the `PyPI pybase64` rows a C extension over libbase64's SIMD kernels. Text out and strict decoding on every side.
 
 ## Reference
 
