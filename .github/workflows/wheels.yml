@@ -8,8 +8,9 @@ on:
   workflow_dispatch:
   workflow_call:
 
+# github.workflow names the caller, so a release's build and CI's never share a group and cancel each other.
 concurrency:
-  group: wheels-${{ github.ref }}
+  group: wheels-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
